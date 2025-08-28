@@ -4,5 +4,8 @@
   "build": {
     "location": "iran"
   },
+  "env": {
+    "GEMINI_API_KEY": "AIzaSyD5Y4X2ewqADYFvArr9YObtLQQTssEEZuc"
+  },
   "disks": []
 }
