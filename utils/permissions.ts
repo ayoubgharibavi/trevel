@@ -28,6 +28,8 @@ export const permissionDescriptions: Record<Permission, LocalizedName> = {
     [Permission.MANAGE_CONTENT]: { ar: 'إدارة محتوى الموقع', fa: 'مدیریت محتوای سایت', en: 'Manage Site Content' },
     [Permission.MANAGE_ADS]: { ar: 'إدارة الإعلانات', fa: 'مدیریت تبلیغات', en: 'Manage Advertisements' },
     [Permission.MANAGE_TENANTS]: { ar: 'إدارة الشركاء الفرعيين', fa: 'مدیریت همکاران فروش', en: 'Manage Tenants' },
+    [Permission.MANAGE_TELEGRAM_BOT]: { ar: 'إدارة بوت تليجرام', fa: 'مدیریت ربات تلگرام', en: 'Manage Telegram Bot' },
+    [Permission.MANAGE_WHATSAPP_BOT]: { ar: 'إدارة بوت واتساب', fa: 'مدیریت ربات واتس‌اپ', en: 'Manage WhatsApp Bot' },
     [Permission.CREATE_OWN_FLIGHTS]: { ar: 'إنشاء رحلاتي الخاصة', fa: 'ایجاد پروازهای خود', en: 'Create Own Flights' },
     [Permission.EDIT_OWN_FLIGHTS]: { ar: 'تعديل رحلاتي الخاصة', fa: 'ویرایش پروازهای خود', en: 'Edit Own Flights' },
     [Permission.DELETE_OWN_FLIGHTS]: { ar: 'حذف رحلاتي الخاصة', fa: 'حذف پروازهای خود', en: 'Delete Own Flights' },

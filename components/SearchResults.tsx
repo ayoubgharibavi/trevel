@@ -1,12 +1,56 @@
-
-
 import React, { useState } from 'react';
-import type { Flight, RefundPolicy, Advertisement, User, CurrencyInfo } from '../types';
-import { AdPlacement } from '../types';
+import type { Flight, RefundPolicy, Advertisement, User, CurrencyInfo, SearchQuery } from '../types';
+import { AdPlacement, TripType } from '../types';
 import { FlightCard } from './FlightCard';
 import { SortDropdown, SortOption } from './SortDropdown';
 import { useLocalization } from '../hooks/useLocalization';
 import { AdBanner } from './AdBanner';
+import { PlaneTakeoffIcon } from './icons/PlaneTakeoffIcon';
+import { ArrowRightLeftIcon } from './icons/ArrowRightLeftIcon';
+
+interface PopularRoutesProps {
+    routes: { from: string, to: string }[];
+    onSearch: (query: SearchQuery) => void;
+}
+
+const PopularRoutes: React.FC<PopularRoutesProps> = ({ routes, onSearch }) => {
+    const { t } = useLocalization();
+
+    const handleRouteClick = (from: string, to: string) => {
+        const today = new Date().toISOString().split('T')[0];
+        const query: SearchQuery = {
+            tripType: TripType.OneWay,
+            from,
+            to,
+            departureDate: today,
+            passengers: { adults: 1, children: 0, infants: 0 },
+        };
+        onSearch(query);
+    };
+
+    return (
+        <div className="text-center py-12">
+            <h3 className="text-2xl font-bold text-slate-800 mb-8">{t('popularRoutes.title')}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {routes.map((route, index) => (
+                    <button
+                        key={index}
+                        onClick={() => handleRouteClick(route.from, route.to)}
+                        className="p-6 bg-white border-2 border-dashed border-slate-300 rounded-xl hover:border-solid hover:border-accent hover:bg-blue-50/50 transition-all text-center group transform hover:-translate-y-1"
+                    >
+                        <div className="flex items-center justify-center gap-2 text-slate-700 group-hover:text-primary transition-colors">
+                            <PlaneTakeoffIcon className="w-6 h-6" />
+                            <span className="font-bold text-xl">{route.from}</span>
+                            <ArrowRightLeftIcon className="w-5 h-5 text-slate-400" />
+                            <span className="font-bold text-xl">{route.to}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2 group-hover:text-accent transition-colors font-semibold">{t('popularRoutes.searchNow')}</p>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 interface SearchResultsProps {
   flights: Flight[];
@@ -15,6 +59,8 @@ interface SearchResultsProps {
   advertisements: Advertisement[];
   currentUser: User | null;
   currencies: CurrencyInfo[];
+  popularRoutes: { from: string; to: string }[];
+  onSearch: (query: SearchQuery) => void;
 }
 
 const durationToMinutes = (duration: string): number => {
@@ -26,19 +72,14 @@ const durationToMinutes = (duration: string): number => {
 };
 
 
-export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectFlight, refundPolicies, advertisements, currentUser, currencies }) => {
+export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectFlight, refundPolicies, advertisements, currentUser, currencies, popularRoutes, onSearch }) => {
   const [sortOption, setSortOption] = useState<SortOption>('best');
   const { t } = useLocalization();
 
   const topAd = advertisements.find(ad => ad.isActive && ad.placement === AdPlacement.SEARCH_RESULTS_TOP);
 
   if (flights.length === 0) {
-    return (
-      <div className="text-center py-10 bg-white rounded-lg shadow">
-        <h2 className="text-2xl font-semibold text-slate-700 mb-2">{t('searchResults.notFoundTitle')}</h2>
-        <p className="text-slate-500">{t('searchResults.notFoundSubtitle')}</p>
-      </div>
-    );
+    return <PopularRoutes routes={popularRoutes} onSearch={onSearch} />;
   }
 
   const sortedFlights = [...flights].sort((a, b) => {

@@ -117,6 +117,7 @@ export interface User {
   username: string;
   email: string;
   password: string;
+  phone?: string;
   role: UserRole;
   status: UserStatus;
   createdAt: string;
@@ -221,6 +222,13 @@ export interface RefundPolicy {
     policyType?: PolicyType;
 }
 
+// Country Information
+export interface CountryInfo {
+    id: string; // 2-letter ISO code
+    name: LocalizedName;
+    dialingCode: string; // e.g., '+98'
+}
+
 
 // Permissions and Activity Log
 export enum Permission {
@@ -241,6 +249,8 @@ export enum Permission {
   MANAGE_CONTENT = 'MANAGE_CONTENT',
   MANAGE_ADS = 'MANAGE_ADS',
   MANAGE_TENANTS = 'MANAGE_TENANTS',
+  MANAGE_TELEGRAM_BOT = 'MANAGE_TELEGRAM_BOT',
+  MANAGE_WHATSAPP_BOT = 'MANAGE_WHATSAPP_BOT',
   // Affiliate Permissions
   CREATE_OWN_FLIGHTS = 'CREATE_OWN_FLIGHTS',
   EDIT_OWN_FLIGHTS = 'EDIT_OWN_FLIGHTS',
@@ -458,4 +468,28 @@ export interface Tenant {
     logoUrl: string;
     primaryColor: string; // hex code
     status: TenantStatus;
+}
+
+// --- Integrations ---
+export interface TelegramBotConfig {
+  isEnabled: boolean;
+  botToken: string;
+  chatId: string;
+  notifyOn: {
+    newBooking: boolean;
+    bookingCancellation: boolean;
+    refundUpdate: boolean;
+    newUser: boolean;
+    newTicket: boolean;
+  };
+}
+
+export interface WhatsAppBotConfig {
+  isEnabled: boolean;
+  apiKey: string;
+  phoneNumberId: string;
+  notifyOn: {
+    bookingSuccess: boolean;
+    flightChange: boolean;
+  };
 }

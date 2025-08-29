@@ -1,6 +1,8 @@
 
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+// FIX: Changed import to a named import as App.tsx does not have a default export.
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 

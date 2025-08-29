@@ -96,7 +96,6 @@ export const TenantsDashboard: React.FC<TenantsDashboardProps> = ({ tenants, use
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{tenant.name}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(tenant.userCount)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(tenant.bookingCount)}</td>
-                                {/* FIX: Add currency to total revenue display */}
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{formatNumber(tenant.totalRevenue)} {t('placeholders.rial')}</td>
                                 <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={tenant.status} /></td>
                                 <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">

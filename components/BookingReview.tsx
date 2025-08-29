@@ -4,13 +4,13 @@ import React from 'react';
 import type { Flight, SearchQuery, PassengerDetails, User, CurrencyInfo } from '../types';
 import type { PassengerData } from './PassengerDetailsForm';
 import { PriceSummary } from './PriceSummary';
-import { FlightSummaryCard } from './FlightSummaryCard';
 import { UserIcon } from './icons/UserIcon';
 import { Gender, Nationality } from '../types';
 import { WalletIcon } from './icons/WalletIcon';
 import { useLocalization } from '../hooks/useLocalization';
 import { MailIcon } from './icons/MailIcon';
 import { PhoneIcon } from './icons/PhoneIcon';
+import { DetailedFlightSummaryCard } from './DetailedFlightSummaryCard';
 
 interface BookingReviewProps {
     flight: Flight;
@@ -78,7 +78,7 @@ export const BookingReview: React.FC<BookingReviewProps> = ({ flight, query, pas
                     {/* Flight Details */}
                     <div>
                         <h2 className="text-3xl font-bold mb-4 text-slate-800">{t('bookingReview.flightSummary')}</h2>
-                        <FlightSummaryCard flight={flight} />
+                        <DetailedFlightSummaryCard flight={flight} />
                     </div>
 
                     {/* Contact Info */}

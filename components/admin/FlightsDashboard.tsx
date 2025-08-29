@@ -18,6 +18,7 @@ import { CurrencyTomanIcon } from '../icons/CurrencyTomanIcon';
 import { PlaneIcon } from '../icons/PlaneIcon';
 import { SeatIcon } from '../icons/SeatIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { FlightCapacityModal } from './FlightCapacityModal';
 
 
 interface FlightsDashboardProps {
@@ -155,6 +156,7 @@ interface FlightsListProps {
     onDelete: (id: string) => void;
     onUpdateFlight: (flight: Flight) => void;
     onShowReport: (flight: Flight) => void;
+    onShowCapacity: (flight: Flight) => void;
 }
 
 interface CreateFlightFormProps {
@@ -181,7 +183,7 @@ const StatusBadge: React.FC<{ status: FlightStatus }> = ({ status }) => {
     return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${styles[status]}`}>{t(`dashboard.flights.statusValues.${status}`)}</span>;
 };
 
-const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts, currentUser, rolePermissions, onAddNew, onEdit, onDelete, onUpdateFlight, onShowReport }) => {
+const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts, currentUser, rolePermissions, onAddNew, onEdit, onDelete, onUpdateFlight, onShowReport, onShowCapacity }) => {
     const { t, formatNumber, formatDate, language } = useLocalization();
     const handleToggleStatus = (flight: Flight) => {
         const newStatus = flight.status === 'SCHEDULED' ? 'CANCELLED' : 'SCHEDULED';
@@ -231,13 +233,15 @@ const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts,
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-700">{flight.departure.city} &rarr; {flight.arrival.city}</td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                            <div className="w-24 bg-slate-200 rounded-full h-2.5">
-                                                <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${loadFactor}%` }}></div>
+                                        <button type="button" onClick={() => onShowCapacity(flight)} className="text-right hover:bg-slate-50 p-1 rounded-md transition-colors w-full">
+                                            <div className="flex items-center">
+                                                <div className="w-24 bg-slate-200 rounded-full h-2.5">
+                                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${loadFactor}%` }}></div>
+                                                </div>
+                                                <span className="mr-2 font-semibold">{loadFactor.toFixed(1)}%</span>
                                             </div>
-                                            <span className="mr-2 font-semibold">{loadFactor.toFixed(1)}%</span>
-                                        </div>
-                                         <span className="text-xs text-slate-500">({formatNumber(soldSeats)}/{formatNumber(totalCapacity)})</span>
+                                            <span className="text-xs text-slate-500">({formatNumber(soldSeats)}/{formatNumber(totalCapacity)})</span>
+                                        </button>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap font-semibold font-mono text-slate-800">{formatNumber(revenue / 10)}</td>
                                     <td className="px-4 py-4 whitespace-nowrap"><StatusBadge status={flight.status} /></td>
@@ -518,6 +522,7 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
     const [view, setView] = useState<'list' | 'form'>('list');
     const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
     const [reportFlight, setReportFlight] = useState<Flight | null>(null);
+    const [capacityModalFlight, setCapacityModalFlight] = useState<Flight | null>(null);
     const { t, language } = useLocalization();
     
     const handleAddNew = () => {
@@ -573,6 +578,7 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
                         onDelete={onDeleteFlight}
                         onUpdateFlight={onUpdateFlight}
                         onShowReport={setReportFlight}
+                        onShowCapacity={setCapacityModalFlight}
                     />
                 </>
             ) : (
@@ -597,6 +603,15 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
                     flight={reportFlight}
                     bookings={bookings}
                     users={users}
+                />
+            )}
+            {capacityModalFlight && (
+                <FlightCapacityModal
+                    isOpen={!!capacityModalFlight}
+                    onClose={() => setCapacityModalFlight(null)}
+                    flight={capacityModalFlight}
+                    bookings={bookings}
+                    aircrafts={aircrafts}
                 />
             )}
         </div>

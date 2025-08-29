@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import type { User, Booking, UserStatus, Ticket, TicketMessage, UserRole, AirlineInfo, AircraftInfo, FlightClassInfo, Flight, ActivityLog, AirportInfo, Account, JournalEntry, Expense, CommissionModel, RateLimit, Currency, CurrencyInfo, RefundPolicy, SiteContent, Refund, Advertisement, PassengerDetails, RolePermissions, Tenant } from './types';
+import type { User, Booking, UserStatus, Ticket, TicketMessage, UserRole, AirlineInfo, AircraftInfo, FlightClassInfo, Flight, ActivityLog, AirportInfo, Account, JournalEntry, Expense, CommissionModel, RateLimit, Currency, CurrencyInfo, RefundPolicy, SiteContent, Refund, Advertisement, PassengerDetails, RolePermissions, Tenant, TelegramBotConfig, WhatsAppBotConfig, CountryInfo } from './types';
 import { Permission } from './types';
 import { hasPermission } from './utils/permissions';
 
@@ -23,6 +23,8 @@ import { AdvertisementsDashboard } from './components/admin/AdvertisementsDashbo
 import { ManualBookingDashboard } from './components/admin/ManualBookingDashboard';
 import { PermissionsDashboard } from './components/admin/PermissionsDashboard';
 import { TenantsDashboard } from './components/admin/TenantsDashboard';
+import { TelegramBotDashboard } from './components/admin/TelegramBotDashboard';
+import { WhatsAppBotDashboard } from './components/admin/WhatsAppBotDashboard';
 
 
 interface DashboardPageProps {
@@ -48,6 +50,11 @@ interface DashboardPageProps {
     siteContent: SiteContent;
     advertisements: Advertisement[];
     rolePermissions: RolePermissions;
+    telegramConfig: TelegramBotConfig;
+    whatsappConfig: WhatsAppBotConfig;
+    countries: CountryInfo[];
+    onUpdateTelegramConfig: (config: TelegramBotConfig) => void;
+    onUpdateWhatsAppBotConfig: (config: WhatsAppBotConfig) => void;
     onUpdateRolePermissions: (newPermissions: RolePermissions) => void;
     onCreateAdvertisement: (ad: Omit<Advertisement, 'id'>) => void;
     onUpdateAdvertisement: (ad: Advertisement) => void;
@@ -62,9 +69,9 @@ interface DashboardPageProps {
     onCreateUser: (newUser: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>) => void;
     onUpdateTicket: (ticket: Ticket) => void;
     onAddMessageToTicket: (ticketId: string, message: TicketMessage) => void;
-    onCreateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', data: any) => void;
-    onUpdateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', data: any) => void;
-    onDeleteBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', id: string) => void;
+    onCreateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', data: any) => void;
+    onUpdateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', data: any) => void;
+    onDeleteBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', id: string) => void;
     onCreateRateLimit: (data: Omit<RateLimit, 'id'>) => void;
     onUpdateRateLimit: (data: RateLimit) => void;
     onDeleteRateLimit: (id: string) => void;
@@ -74,6 +81,8 @@ interface DashboardPageProps {
     onManualBookingCreate: (data: { flightData: Omit<Flight, 'id' | 'creatorId'>, passengers: { adults: PassengerDetails[], children: PassengerDetails[], infants: PassengerDetails[] }, customerId: string, purchasePrice: number, contactEmail: string, contactPhone: string, buyerReference?: string, notes?: string }) => Promise<Booking | null>;
     onCreateExpense: (expenseData: Omit<Expense, 'id'>) => void;
     onExitAdmin: () => void;
+    onCreateAccount: (newAccount: Account) => boolean;
+    onUpdateAccount: (updatedAccount: Account) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
@@ -126,6 +135,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                     expenses={props.expenses}
                     users={props.users}
                     onCreateExpense={props.onCreateExpense}
+                    onCreateAccount={props.onCreateAccount}
+                    // FIX: Pass the missing onUpdateAccount prop
+                    onUpdateAccount={props.onUpdateAccount}
                 />;
                 break;
             case 'flights':
@@ -180,7 +192,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 break;
             case 'tenants':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_TENANTS, props.rolePermissions);
-                // FIX: Pass missing users and bookings props to TenantsDashboard
                 if (hasAccess) content = <TenantsDashboard tenants={props.tenants} users={props.users} bookings={props.bookings} />;
                 break;
             case 'permissions':
@@ -207,6 +218,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                             rateLimits={props.rateLimits}
                             currencies={props.currencies}
                             refundPolicies={props.refundPolicies}
+                            countries={props.countries}
                             onCreate={props.onCreateBasicData}
                             onUpdate={props.onUpdateBasicData}
                             onDelete={props.onDeleteBasicData}
@@ -231,6 +243,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                     onUpdate={props.onUpdateAdvertisement}
                     onDelete={props.onDeleteAdvertisement}
                 />;
+                break;
+             case 'telegram':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_TELEGRAM_BOT, props.rolePermissions);
+                if (hasAccess) content = <TelegramBotDashboard config={props.telegramConfig} onSave={props.onUpdateTelegramConfig} />;
+                break;
+            case 'whatsapp':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_WHATSAPP_BOT, props.rolePermissions);
+                if (hasAccess) content = <WhatsAppBotDashboard config={props.whatsappConfig} onSave={props.onUpdateWhatsAppBotConfig} />;
                 break;
             default:
                 hasAccess = false;

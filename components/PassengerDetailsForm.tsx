@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import React, { useState } from 'react';
 import type { Flight, SearchQuery, PassengerDetails, User, SavedPassenger, CurrencyInfo } from '../types';
 import { Gender, Nationality } from '../types';
@@ -130,7 +125,6 @@ const PassengerInput: React.FC<{
         </div>
     );
 };
-// FIX: Implement the missing PassengerDetailsForm component
 export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flight, query, user, currencies, onBack, onSubmit }) => {
     const { t } = useLocalization();
 

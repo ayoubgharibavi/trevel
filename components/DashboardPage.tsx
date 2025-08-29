@@ -1,12 +1,11 @@
 
 
 import React, { useState } from 'react';
-// FIX: Correct import paths for types and utils from './' to '../'
-import type { User, Booking, UserStatus, Ticket, TicketMessage, UserRole, AirlineInfo, AircraftInfo, FlightClassInfo, Flight, ActivityLog, AirportInfo, Account, JournalEntry, Expense, CommissionModel, RateLimit, Currency, CurrencyInfo, RefundPolicy, SiteContent, Refund, Advertisement, PassengerDetails, RolePermissions, Tenant } from '../types';
+// FIX: Added 'CountryInfo' to the type import from '../types' to resolve the 'Cannot find name' error.
+import type { User, Booking, UserStatus, Ticket, TicketMessage, UserRole, AirlineInfo, AircraftInfo, FlightClassInfo, Flight, ActivityLog, AirportInfo, Account, JournalEntry, Expense, CommissionModel, RateLimit, Currency, CurrencyInfo, RefundPolicy, SiteContent, Refund, Advertisement, PassengerDetails, RolePermissions, Tenant, CountryInfo } from '../types';
 import { Permission } from '../types';
 import { hasPermission } from '../utils/permissions';
 
-// FIX: Correct import paths for components from './components/' to './'
 import { AdminSidebar } from './admin/AdminSidebar';
 
 import { BookingsDashboard } from './admin/BookingsDashboard';
@@ -64,9 +63,9 @@ interface DashboardPageProps {
     onCreateUser: (newUser: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>) => void;
     onUpdateTicket: (ticket: Ticket) => void;
     onAddMessageToTicket: (ticketId: string, message: TicketMessage) => void;
-    onCreateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', data: any) => void;
-    onUpdateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', data: any) => void;
-    onDeleteBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy', id: string) => void;
+    onCreateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', data: any) => void;
+    onUpdateBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', data: any) => void;
+    onDeleteBasicData: (type: 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country', id: string) => void;
     onCreateRateLimit: (data: Omit<RateLimit, 'id'>) => void;
     onUpdateRateLimit: (data: RateLimit) => void;
     onDeleteRateLimit: (id: string) => void;
@@ -76,6 +75,9 @@ interface DashboardPageProps {
     onManualBookingCreate: (data: { flightData: Omit<Flight, 'id' | 'creatorId'>, passengers: { adults: PassengerDetails[], children: PassengerDetails[], infants: PassengerDetails[] }, customerId: string, purchasePrice: number, contactEmail: string, contactPhone: string, buyerReference?: string, notes?: string }) => Promise<Booking | null>;
     onCreateExpense: (expenseData: Omit<Expense, 'id'>) => void;
     onExitAdmin: () => void;
+    onCreateAccount: (newAccount: Account) => boolean;
+    onUpdateAccount: (updatedAccount: Account) => void;
+    countries: CountryInfo[]; // Add missing prop
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
@@ -128,6 +130,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                     expenses={props.expenses}
                     users={props.users}
                     onCreateExpense={props.onCreateExpense}
+                    onCreateAccount={props.onCreateAccount}
+                    // FIX: Pass the missing onUpdateAccount prop
+                    onUpdateAccount={props.onUpdateAccount}
                 />;
                 break;
             case 'flights':
@@ -208,6 +213,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                             rateLimits={props.rateLimits}
                             currencies={props.currencies}
                             refundPolicies={props.refundPolicies}
+                            // FIX: Pass the missing 'countries' prop.
+                            countries={props.countries}
                             onCreate={props.onCreateBasicData}
                             onUpdate={props.onUpdateBasicData}
                             onDelete={props.onDeleteBasicData}

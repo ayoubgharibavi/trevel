@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import type { User, RolePermissions } from '../../types';
 import { Permission } from '../../types';
@@ -19,6 +20,8 @@ import { MegaphoneIcon } from '../icons/MegaphoneIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { TelegramIcon } from '../icons/TelegramIcon';
+import { WhatsappIcon } from '../icons/WhatsappIcon';
 
 interface AdminSidebarProps {
     activeSection: string;
@@ -71,6 +74,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user,
         { key: 'basicData', permissions: [Permission.MANAGE_BASIC_DATA], icon: <DatabaseIcon className="w-5 h-5" /> },
         { key: 'content', permissions: [Permission.MANAGE_CONTENT], icon: <FileTextIcon className="w-5 h-5" /> },
         { key: 'ads', permissions: [Permission.MANAGE_ADS], icon: <MegaphoneIcon className="w-5 h-5" /> },
+        { key: 'telegram', permissions: [Permission.MANAGE_TELEGRAM_BOT], icon: <TelegramIcon className="w-5 h-5" /> },
+        { key: 'whatsapp', permissions: [Permission.MANAGE_WHATSAPP_BOT], icon: <WhatsappIcon className="w-5 h-5" /> },
         { key: 'activityLog', permissions: [Permission.VIEW_ACTIVITY_LOG], icon: <ClipboardListIcon className="w-5 h-5" /> },
     ];
     

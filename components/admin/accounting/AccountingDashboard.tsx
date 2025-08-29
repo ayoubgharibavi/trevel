@@ -14,6 +14,8 @@ interface AccountingDashboardProps {
     expenses: Expense[];
     users: User[];
     onCreateExpense: (expenseData: Omit<Expense, 'id'>) => void;
+    onCreateAccount: (newAccount: Account) => boolean;
+    onUpdateAccount: (updatedAccount: Account) => void;
 }
 
 type ActiveTab = 'overview' | 'journal' | 'coa' | 'expenses' | 'reports';
@@ -41,6 +43,8 @@ export const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
     expenses,
     users,
     onCreateExpense,
+    onCreateAccount,
+    onUpdateAccount,
 }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
 
@@ -51,7 +55,7 @@ export const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
             case 'journal':
                 return <JournalLedger entries={journalEntries} accounts={chartOfAccounts} />;
             case 'coa':
-                return <ChartOfAccountsList accounts={chartOfAccounts} />;
+                return <ChartOfAccountsList accounts={chartOfAccounts} onCreateAccount={onCreateAccount} onUpdateAccount={onUpdateAccount} />;
             case 'expenses':
                 return <ExpenseManager expenses={expenses} onCreateExpense={onCreateExpense} accounts={chartOfAccounts} />;
             case 'reports':

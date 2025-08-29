@@ -1,22 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
+import type { CountryInfo } from '../types';
 
 interface SignupPageProps {
-    onSignup: (name: string, username: string, email: string, pass: string) => void;
+    onSignup: (name: string, username: string, email: string, pass: string, phone: string) => void;
     onGoToLogin: () => void;
+    countries: CountryInfo[];
 }
 
-export const SignupPage: React.FC<SignupPageProps> = ({ onSignup, onGoToLogin }) => {
+export const SignupPage: React.FC<SignupPageProps> = ({ onSignup, onGoToLogin, countries }) => {
     const [name, setName] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { t } = useLocalization();
+    const [phone, setPhone] = useState('');
+    const [countryCode, setCountryCode] = useState('+98');
+    const { t, language } = useLocalization();
+
+    const sortedCountries = useMemo(() => {
+        return [...countries].sort((a, b) => a.name[language].localeCompare(b.name[language]));
+    }, [countries, language]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (name && username && email && password) {
-            onSignup(name, username, email, password);
+        if (name && username && email && password && phone) {
+            const fullPhoneNumber = `${countryCode}${phone.replace(/^0+/, '')}`; // Remove leading zeros from phone
+            onSignup(name, username, email, password, fullPhoneNumber);
         }
     };
 
@@ -64,6 +73,28 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onSignup, onGoToLogin })
                                 placeholder={t('signup.emailHint')}
                                 required
                             />
+                        </div>
+                        <div>
+                            <label htmlFor="phone-signup" className="block text-sm font-medium text-slate-700 mb-1">{t('passengerDetails.phoneNumber')}</label>
+                            <div className="flex">
+                                <select
+                                    aria-label="Country code"
+                                    value={countryCode}
+                                    onChange={(e) => setCountryCode(e.target.value)}
+                                    className="h-full rounded-l-lg border-t border-b border-l text-gray-800 bg-gray-100 px-3 py-2 focus:ring-accent focus:border-accent"
+                                >
+                                    {sortedCountries.map(c => <option key={c.id} value={c.dialingCode}>{`${c.name[language]} (${c.dialingCode})`}</option>)}
+                                </select>
+                                <input
+                                    type="tel"
+                                    id="phone-signup"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} // Allow only digits
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-r-lg focus:ring-accent focus:border-accent ltr"
+                                    placeholder="9123456789"
+                                    required
+                                />
+                            </div>
                         </div>
                         <div>
                             <label htmlFor="password-signup" className="block text-sm font-medium text-slate-700 mb-1">{t('signup.password')}</label>

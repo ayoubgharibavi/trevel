@@ -14,13 +14,20 @@ interface FlightSearchFormProps {
   airports: AirportInfo[];
 }
 
-const PassengerCounter: React.FC<{ label: string; value: number; onIncrement: () => void; onDecrement: () => void; }> = ({ label, value, onIncrement, onDecrement }) => (
+const PassengerCounter: React.FC<{
+    label: string;
+    value: number;
+    onIncrement: () => void;
+    onDecrement: () => void;
+    isIncrementDisabled?: boolean;
+    isDecrementDisabled?: boolean;
+}> = ({ label, value, onIncrement, onDecrement, isIncrementDisabled = false, isDecrementDisabled = false }) => (
     <div className="flex items-center justify-between py-2">
         <span className="text-slate-700">{label}</span>
         <div className="flex items-center space-x-2 space-x-reverse">
-            <button type="button" onClick={onDecrement} className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 disabled:opacity-50">-</button>
+            <button type="button" onClick={onDecrement} className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 disabled:opacity-50" disabled={isDecrementDisabled}>-</button>
             <span className="w-8 text-center font-medium">{value}</span>
-            <button type="button" onClick={onIncrement} className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300">+</button>
+            <button type="button" onClick={onIncrement} className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 disabled:opacity-50" disabled={isIncrementDisabled}>+</button>
         </div>
     </div>
 );
@@ -110,85 +117,150 @@ export const FlightSearchForm: React.FC<FlightSearchFormProps> = ({ onSearch, is
   
   const totalPassengers = passengers.adults + passengers.children + passengers.infants;
 
+  const handlePassengersChange = (type: keyof Passengers, operation: 'increment' | 'decrement') => {
+      setPassengers(currentPassengers => {
+          const newPassengers = { ...currentPassengers };
+          const currentTotal = newPassengers.adults + newPassengers.children + newPassengers.infants;
+
+          if (operation === 'increment') {
+              if (currentTotal >= 9) {
+                  return currentPassengers; // Max 9 passengers total
+              }
+              if (type === 'infants' && newPassengers.infants >= newPassengers.adults) {
+                  return currentPassengers; // Infants cannot exceed adults
+              }
+              newPassengers[type]++;
+          } else { // decrement
+              if (type === 'adults') {
+                  if (newPassengers.adults > 1) {
+                      newPassengers.adults--;
+                      // If new adult count is less than infant count, reduce infants too.
+                      if (newPassengers.adults < newPassengers.infants) {
+                          newPassengers.infants = newPassengers.adults;
+                      }
+                  }
+              } else { // children or infants
+                  if (newPassengers[type] > 0) {
+                      newPassengers[type]--;
+                  }
+              }
+          }
+          return newPassengers;
+      });
+  };
+
+  const isIncrementDisabled = totalPassengers >= 9;
+
   return (
-    <div className="bg-white/90 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl shadow-2xl p-10 border border-white/20">
-      <div className="flex items-center flex-wrap gap-4 mb-6">
-        <div className="flex items-center space-x-4 space-x-reverse">
+    <div className="bg-white/90 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl shadow-2xl p-4 sm:p-8 border border-white/20">
+       <div className="mb-6 max-w-xs mx-auto sm:mx-0">
+        <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-full flex items-center">
             <button
-            onClick={() => setTripType(TripType.RoundTrip)}
-            className={`px-6 py-3 rounded-full text-base font-medium transition ${tripType === TripType.RoundTrip ? 'bg-blue-100 text-primary' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
-            {t('flightSearch.tripType.roundTrip')}
+              type="button"
+              onClick={() => setTripType(TripType.RoundTrip)}
+              className={`w-full px-4 py-2 rounded-full text-sm font-bold transition-colors ${tripType === TripType.RoundTrip ? 'bg-white shadow text-primary' : 'text-slate-600 dark:text-slate-300'}`}
+            >
+              {t('flightSearch.tripType.roundTrip')}
             </button>
             <button
-            onClick={() => setTripType(TripType.OneWay)}
-            className={`px-6 py-3 rounded-full text-base font-medium transition ${tripType === TripType.OneWay ? 'bg-blue-100 text-primary' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
-            {t('flightSearch.tripType.oneWay')}
+              type="button"
+              onClick={() => setTripType(TripType.OneWay)}
+              className={`w-full px-4 py-2 rounded-full text-sm font-bold transition-colors ${tripType === TripType.OneWay ? 'bg-white shadow text-primary' : 'text-slate-600 dark:text-slate-300'}`}
+            >
+              {t('flightSearch.tripType.oneWay')}
             </button>
         </div>
       </div>
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 items-end">
-        <div className="relative lg:col-span-3 flex items-center">
-            <div className="flex-1 relative">
-                <label htmlFor="from" className="absolute -top-3.5 rtl:right-4 ltr:left-4 text-base text-slate-500 bg-white dark:bg-slate-800 px-2">{t('flightSearch.from')}</label>
-                <div className="flex items-center">
-                    <PlaneTakeoffIcon className="absolute rtl:right-4 ltr:left-4 w-6 h-6 text-slate-400 pointer-events-none" />
-                    <input type="text" id="from" value={from} onChange={(e) => setFrom(e.target.value)} list="cities" className="w-full rtl:pr-12 ltr:pl-12 rtl:pl-5 ltr:pr-5 py-6 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xl" />
-                </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4 lg:grid lg:grid-cols-12 lg:gap-4 lg:items-end lg:space-y-0">
+        
+        {/* Origin & Destination */}
+        <div className="relative lg:col-span-5 flex flex-col sm:flex-row sm:items-stretch border border-slate-300 rounded-lg bg-white dark:bg-slate-700 dark:border-slate-600">
+          <div className="relative w-full sm:flex-1">
+            <label htmlFor="from" className="absolute -top-2.5 rtl:right-3 ltr:left-3 text-xs text-slate-500 bg-white dark:bg-slate-700 px-1">{t('flightSearch.from')}</label>
+            <div className="flex items-center h-full">
+              <PlaneTakeoffIcon className="absolute rtl:right-3 ltr:left-3 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="text" id="from" value={from} onChange={(e) => setFrom(e.target.value)} list="cities" className="w-full h-full rtl:pr-10 ltr:pl-10 py-4 border-0 rounded-t-lg sm:rounded-none sm:rtl:rounded-r-lg sm:ltr:rounded-l-lg focus:ring-0 text-slate-900 dark:bg-slate-700 dark:text-white text-lg bg-transparent" />
             </div>
-            
-            <button type="button" onClick={handleSwap} className="mx-2 p-3 rounded-full border bg-white hover:bg-slate-100 transition z-10 flex-shrink-0 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600" title={t('flightSearch.swap')}>
+          </div>
+
+          <div className="border-t sm:border-t-0 sm:border-r sm:rtl:border-l sm:rtl:border-r-0 sm:border-l-slate-300 sm:border-r-slate-300 dark:border-slate-600 flex items-center justify-center relative my-2 sm:my-0">
+              <button type="button" onClick={handleSwap} className="p-2 rounded-full border bg-white hover:bg-slate-100 transition z-10 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600" title={t('flightSearch.swap')}>
                 <ArrowRightLeftIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </button>
-
-             <div className="flex-1 relative">
-                <label htmlFor="to" className="absolute -top-3.5 rtl:right-4 ltr:left-4 text-base text-slate-500 bg-white dark:bg-slate-800 px-2">{t('flightSearch.to')}</label>
-                <div className="flex items-center">
-                    <PlaneLandingIcon className="absolute rtl:right-4 ltr:left-4 w-6 h-6 text-slate-400 pointer-events-none" />
-                    <input type="text" id="to" value={to} onChange={(e) => setTo(e.target.value)} list="cities" className="w-full rtl:pr-12 ltr:pl-12 rtl:pl-5 ltr:pr-5 py-6 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xl" />
-                </div>
+          </div>
+          
+          <div className="relative w-full sm:flex-1">
+            <label htmlFor="to" className="absolute -top-2.5 rtl:right-3 ltr:left-3 text-xs text-slate-500 bg-white dark:bg-slate-700 px-1">{t('flightSearch.to')}</label>
+            <div className="flex items-center h-full">
+              <PlaneLandingIcon className="absolute rtl:right-3 ltr:left-3 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="text" id="to" value={to} onChange={(e) => setTo(e.target.value)} list="cities" className="w-full h-full rtl:pr-10 ltr:pl-10 py-4 border-0 rounded-b-lg sm:rounded-none sm:rtl:rounded-l-lg sm:ltr:rounded-r-lg focus:ring-0 text-slate-900 dark:bg-slate-700 dark:text-white text-lg bg-transparent" />
             </div>
-            <datalist id="cities">
-                {uniqueCities.map(city => <option key={city} value={city} />)}
-            </datalist>
+          </div>
         </div>
 
-        <div className="lg:col-span-5 grid grid-cols-2 gap-6">
+        <datalist id="cities">
+            {uniqueCities.map(city => <option key={city} value={city} />)}
+        </datalist>
+
+        <div className="lg:col-span-4 grid grid-cols-2 gap-4">
             <div className="relative">
-                <label htmlFor="departureDate" className="absolute -top-3.5 rtl:right-4 ltr:left-4 text-base text-slate-500 bg-white dark:bg-slate-800 px-2">{t('flightSearch.departureDate')}</label>
-                 <div className="flex items-center">
-                    <CalendarIcon className="absolute rtl:right-4 ltr:left-4 w-6 h-6 text-slate-400 pointer-events-none" />
-                    <input type="date" id="departureDate" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} min={today} className="w-full rtl:pr-12 ltr:pl-12 rtl:pl-5 ltr:pr-5 py-6 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xl" />
+                <label htmlFor="departureDate" className="absolute -top-2.5 rtl:right-3 ltr:left-3 text-xs text-slate-500 bg-white dark:bg-slate-800 px-1">{t('flightSearch.departureDate')}</label>
+                <div className="flex items-center">
+                    <CalendarIcon className="absolute rtl:right-3 ltr:left-3 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <input type="date" id="departureDate" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} min={today} className="w-full rtl:pr-10 ltr:pl-10 py-4 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-lg" />
                 </div>
             </div>
              <div className={`relative transition-opacity duration-300 ${tripType === TripType.OneWay ? 'opacity-50' : 'opacity-100'}`}>
-                <label htmlFor="returnDate" className="absolute -top-3.5 rtl:right-4 ltr:left-4 text-base text-slate-500 bg-white dark:bg-slate-800 px-2">{t('flightSearch.returnDate')}</label>
+                <label htmlFor="returnDate" className="absolute -top-2.5 rtl:right-3 ltr:left-3 text-xs text-slate-500 bg-white dark:bg-slate-800 px-1">{t('flightSearch.returnDate')}</label>
                 <div className="flex items-center">
-                    <CalendarIcon className="absolute rtl:right-4 ltr:left-4 w-6 h-6 text-slate-400 pointer-events-none" />
-                    <input type="date" id="returnDate" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} min={departureDate} disabled={tripType === TripType.OneWay} className="w-full rtl:pr-12 ltr:pl-12 rtl:pl-5 ltr:pr-5 py-6 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent disabled:bg-slate-50 text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:disabled:bg-slate-800 text-xl" />
+                    <CalendarIcon className="absolute rtl:right-3 ltr:left-3 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <input type="date" id="returnDate" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} min={departureDate} disabled={tripType === TripType.OneWay} className="w-full rtl:pr-10 ltr:pl-10 py-4 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent disabled:bg-slate-50 text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:disabled:bg-slate-800 text-lg" />
                 </div>
             </div>
         </div>
         
         <div className="relative lg:col-span-2">
              <div ref={popoverRef}>
-                <label className="absolute -top-3.5 rtl:right-4 ltr:left-4 text-base text-slate-500 bg-white dark:bg-slate-800 px-2">{t('flightSearch.passengers')}</label>
-                 <button type="button" onClick={() => setIsPassengerPopoverOpen(!isPassengerPopoverOpen)} className="w-full rtl:text-right ltr:text-left rtl:pr-12 ltr:pl-12 rtl:pl-5 ltr:pr-5 py-6 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent flex items-center text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xl">
-                    <UsersIcon className="absolute rtl:right-4 ltr:left-4 w-6 h-6 text-slate-400" />
+                <label className="absolute -top-2.5 rtl:right-3 ltr:left-3 text-xs text-slate-500 bg-white dark:bg-slate-800 px-1">{t('flightSearch.passengers')}</label>
+                 <button type="button" onClick={() => setIsPassengerPopoverOpen(!isPassengerPopoverOpen)} className="w-full rtl:text-right ltr:text-left rtl:pr-10 ltr:pl-10 py-4 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent flex items-center text-slate-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white text-lg">
+                    <UsersIcon className="absolute rtl:right-3 ltr:left-3 w-5 h-5 text-slate-400" />
                     <span>{t('flightSearch.passengerPopover.total', totalPassengers)}</span>
                  </button>
                  {isPassengerPopoverOpen && (
                     <div className="absolute top-full mt-2 w-72 bg-white rounded-lg shadow-lg border z-20 p-4 dark:bg-slate-800 dark:border-slate-700">
-                        <PassengerCounter label={t('flightSearch.passengerPopover.adults')} value={passengers.adults} onIncrement={() => setPassengers(p => ({...p, adults: p.adults + 1}))} onDecrement={() => setPassengers(p => ({...p, adults: Math.max(1, p.adults - 1)}))} />
-                        <PassengerCounter label={t('flightSearch.passengerPopover.children')} value={passengers.children} onIncrement={() => setPassengers(p => ({...p, children: p.children + 1}))} onDecrement={() => setPassengers(p => ({...p, children: Math.max(0, p.children - 1)}))} />
-                        <PassengerCounter label={t('flightSearch.passengerPopover.infants')} value={passengers.infants} onIncrement={() => setPassengers(p => ({...p, infants: p.infants + 1}))} onDecrement={() => setPassengers(p => ({...p, infants: Math.max(0, p.infants - 1)}))} />
+                        <PassengerCounter
+                            label={t('flightSearch.passengerPopover.adults')}
+                            value={passengers.adults}
+                            onIncrement={() => handlePassengersChange('adults', 'increment')}
+                            onDecrement={() => handlePassengersChange('adults', 'decrement')}
+                            isIncrementDisabled={isIncrementDisabled}
+                            isDecrementDisabled={passengers.adults <= 1}
+                        />
+                        <PassengerCounter
+                            label={t('flightSearch.passengerPopover.children')}
+                            value={passengers.children}
+                            onIncrement={() => handlePassengersChange('children', 'increment')}
+                            onDecrement={() => handlePassengersChange('children', 'decrement')}
+                            isIncrementDisabled={isIncrementDisabled}
+                            isDecrementDisabled={passengers.children <= 0}
+                        />
+                        <PassengerCounter
+                            label={t('flightSearch.passengerPopover.infants')}
+                            value={passengers.infants}
+                            onIncrement={() => handlePassengersChange('infants', 'increment')}
+                            onDecrement={() => handlePassengersChange('infants', 'decrement')}
+                            isIncrementDisabled={isIncrementDisabled || passengers.infants >= passengers.adults}
+                            isDecrementDisabled={passengers.infants <= 0}
+                        />
                     </div>
                  )}
             </div>
         </div>
         
-        <div className="lg:col-span-2">
-            <button type="submit" disabled={isLoading} className="w-full h-full bg-accent text-white font-bold py-6 px-4 rounded-lg hover:bg-accent-hover transition duration-300 disabled:bg-slate-400 text-xl">
-                {t('flightSearch.search')}
+        <div className="lg:col-span-1">
+            <button type="submit" disabled={isLoading} className="w-full bg-accent text-white font-bold py-4 px-4 rounded-lg hover:bg-accent-hover transition duration-300 disabled:bg-slate-400 text-lg">
+                {isLoading ? '...' : t('flightSearch.search')}
             </button>
         </div>
       </form>

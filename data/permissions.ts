@@ -19,6 +19,8 @@ export const initialRolePermissions: RolePermissions = {
         Permission.MANAGE_CONTENT,
         Permission.MANAGE_ADS,
         Permission.MANAGE_TENANTS,
+        Permission.MANAGE_TELEGRAM_BOT,
+        Permission.MANAGE_WHATSAPP_BOT,
     ],
     EDITOR: [
         Permission.CREATE_FLIGHTS,
