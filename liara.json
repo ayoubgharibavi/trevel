@@ -4,5 +4,7 @@
   "build": {
     "location": "iran"
   },
+  "command": "npm run build",
+  "publicPath": "/dist",
   "disks": []
 }
