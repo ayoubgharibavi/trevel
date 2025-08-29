@@ -3,8 +3,5 @@
   "port": 80,
   "build": {
     "location": "iran"
-  },
-  "command": "npm run build",
-  "publicPath": "/dist",
-  "disks": []
+  }
 }
