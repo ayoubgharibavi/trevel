@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { SearchQuery, Flight, Language } from '../types';
 
-const API_KEY = process.env.API_KEY;
+// Read API key from Vite env (must be defined at build time)
+const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
 
 if (!API_KEY) {
   throw new Error("API_KEY environment variable not set.");
