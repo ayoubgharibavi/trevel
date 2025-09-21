@@ -42,11 +42,11 @@ export const DetailedFlightSummaryCard: React.FC<DetailedFlightSummaryCardProps>
                     <div className="flex items-center space-x-3 space-x-reverse">
                         <PlaneTakeoffIcon className="w-7 h-7 text-slate-500" />
                         <div>
-                            <p className="font-bold text-slate-800 text-lg">{flight.departure.city} ({flight.departure.airportCode})</p>
-                            <p className="text-sm text-slate-500">{formatDate(flight.departure.dateTime)}</p>
+                            <p className="font-bold text-slate-800 text-lg">{flight.departure?.city || 'نامشخص'} ({flight.departure?.airportCode || 'نامشخص'})</p>
+                            <p className="text-sm text-slate-500">{flight.departure?.dateTime ? formatDate(flight.departure.dateTime) : 'نامشخص'}</p>
                         </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-800">{formatTime(flight.departure.dateTime)}</p>
+                    <p className="text-xl font-bold text-slate-800">{flight.departure?.dateTime ? formatTime(flight.departure.dateTime) : 'نامشخص'}</p>
                 </div>
 
                 <div className="my-3 pr-10">
@@ -62,11 +62,11 @@ export const DetailedFlightSummaryCard: React.FC<DetailedFlightSummaryCardProps>
                     <div className="flex items-center space-x-3 space-x-reverse">
                         <PlaneLandingIcon className="w-7 h-7 text-slate-500" />
                         <div>
-                            <p className="font-bold text-slate-800 text-lg">{flight.arrival.city} ({flight.arrival.airportCode})</p>
-                            <p className="text-sm text-slate-500">{formatDate(flight.arrival.dateTime)}</p>
+                            <p className="font-bold text-slate-800 text-lg">{flight.arrival?.city || 'نامشخص'} ({flight.arrival?.airportCode || 'نامشخص'})</p>
+                            <p className="text-sm text-slate-500">{flight.arrival?.dateTime ? formatDate(flight.arrival.dateTime) : 'نامشخص'}</p>
                         </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-800">{formatTime(flight.arrival.dateTime)}</p>
+                    <p className="text-xl font-bold text-slate-800">{flight.arrival?.dateTime ? formatTime(flight.arrival.dateTime) : 'نامشخص'}</p>
                 </div>
             </div>
 

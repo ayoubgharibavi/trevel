@@ -25,6 +25,7 @@ import { PermissionsDashboard } from '@/components/admin/PermissionsDashboard';
 import { TenantsDashboard } from '@/components/admin/TenantsDashboard';
 import { TelegramBotDashboard } from '@/components/admin/TelegramBotDashboard';
 import { WhatsAppBotDashboard } from '@/components/admin/WhatsAppBotDashboard';
+import { ExchangeRatesDashboard } from '@/components/ExchangeRatesDashboard';
 
 
 interface DashboardPageProps {
@@ -88,6 +89,8 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
     const { t } = useLocalization();
 
+    // Debug logs removed
+
     const getDefaultAdminSection = (role: UserRole) => {
         if (role === 'AFFILIATE') return 'stats'; // Affiliate default
         if (hasPermission(role, Permission.VIEW_STATS, props.rolePermissions)) return 'stats';
@@ -125,7 +128,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
         switch (activeAdminSection) {
             case 'stats':
                 hasAccess = hasPermission(props.user.role, Permission.VIEW_STATS, props.rolePermissions);
-                if (hasAccess) content = <DashboardStats bookings={props.bookings} users={props.users} journalEntries={props.journalEntries} commissionModels={props.commissionModels} />;
+                if (hasAccess) {
+                    try {
+                        content = <DashboardStats bookings={props.bookings} users={props.users} journalEntries={props.journalEntries} commissionModels={props.commissionModels} />;
+                    } catch (error) {
+                        console.error('Error rendering DashboardStats:', error);
+                        content = <div className="text-center p-8 bg-white rounded-lg shadow border">
+                            <p>خطا در نمایش آمار: {error.message}</p>
+                        </div>;
+                    }
+                }
                 break;
             case 'accounting':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_ACCOUNTING, props.rolePermissions);
@@ -252,6 +264,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_WHATSAPP_BOT, props.rolePermissions);
                 if (hasAccess) content = <WhatsAppBotDashboard config={props.whatsappConfig} onSave={props.onUpdateWhatsAppBotConfig} />;
                 break;
+            case 'exchangeRates':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_BASIC_DATA, props.rolePermissions);
+                if (hasAccess) content = <ExchangeRatesDashboard />;
+                break;
             default:
                 hasAccess = false;
         }
@@ -261,10 +277,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
             if (activeAdminSection !== defaultSection) {
                 setActiveAdminSection(defaultSection);
             }
-            return <div className="text-center p-8 bg-white rounded-lg shadow border"><p>{t('dashboard.noAccess')}</p></div>;
+            return <div className="text-center p-8 bg-white rounded-lg shadow border">
+                <p>{t('dashboard.noAccess') || 'شما دسترسی به این بخش را ندارید'}</p>
+            </div>;
         }
         
-        return content;
+        return content || <div className="text-center p-8 bg-white rounded-lg shadow border">
+            <p>محتوا در حال بارگذاری...</p>
+        </div>;
     };
 
     return (

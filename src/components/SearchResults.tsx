@@ -16,6 +16,7 @@ interface PopularRoutesProps {
 const PopularRoutes: React.FC<PopularRoutesProps> = ({ routes, onSearch }) => {
     const { t } = useLocalization();
 
+
     const handleRouteClick = (from: string, to: string) => {
         const today = new Date().toISOString().split('T')[0];
         const query: SearchQuery = {
@@ -63,7 +64,10 @@ interface SearchResultsProps {
   onSearch: (query: SearchQuery) => void;
 }
 
-const durationToMinutes = (duration: string): number => {
+const durationToMinutes = (duration: string | number): number => {
+    if (typeof duration === 'number') {
+        return duration;
+    }
     const hoursMatch = duration.match(/(\d+)h/);
     const minutesMatch = duration.match(/(\d+)m/);
     const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
@@ -76,15 +80,24 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectF
   const [sortOption, setSortOption] = useState<SortOption>('best');
   const { t } = useLocalization();
 
+  console.log('🔍 SearchResults component - flights prop:', flights);
+  console.log('🔍 SearchResults component - flights length:', flights.length);
+  console.log('🔍 SearchResults component - flights type:', typeof flights);
+  console.log('🔍 SearchResults component - flights is array:', Array.isArray(flights));
+  console.log('🔍 SearchResults component - flights data:', flights);
+  console.log('🔍 SearchResults component - flights[0]:', flights[0]);
+
   const topAd = advertisements.find(ad => ad.isActive && ad.placement === AdPlacement.SEARCH_RESULTS_TOP);
 
-  if (flights.length === 0) {
-    return <PopularRoutes routes={popularRoutes} onSearch={onSearch} />;
-  }
+
+
 
   const sortedFlights = [...flights].sort((a, b) => {
+    console.log('🔍 Sorting flights:', flights.length, 'flights');
     if (sortOption === 'price') {
-      return (a.price + a.taxes) - (b.price + b.taxes);
+      const aPrice = (typeof a.price === 'string' ? parseInt(a.price) : a.price) + (typeof a.taxes === 'string' ? parseInt(a.taxes) : a.taxes);
+      const bPrice = (typeof b.price === 'string' ? parseInt(b.price) : b.price) + (typeof b.taxes === 'string' ? parseInt(b.taxes) : b.taxes);
+      return aPrice - bPrice;
     }
     if (sortOption === 'duration') {
         return durationToMinutes(a.duration) - durationToMinutes(b.duration);
@@ -92,7 +105,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectF
      if (sortOption === 'best') {
         if (flights.length <= 1) return 0;
 
-        const prices = flights.map(f => f.price + f.taxes);
+        const prices = flights.map(f => (typeof f.price === 'string' ? parseInt(f.price) : f.price) + (typeof f.taxes === 'string' ? parseInt(f.taxes) : f.taxes));
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
 
@@ -101,7 +114,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectF
         const maxDuration = Math.max(...durations);
 
         const getScore = (flight: Flight) => {
-            const priceScore = maxPrice === minPrice ? 0 : ((flight.price + flight.taxes) - minPrice) / (maxPrice - minPrice);
+            const flightPrice = (typeof flight.price === 'string' ? parseInt(flight.price) : flight.price) + (typeof flight.taxes === 'string' ? parseInt(flight.taxes) : flight.taxes);
+            const priceScore = maxPrice === minPrice ? 0 : (flightPrice - minPrice) / (maxPrice - minPrice);
             const durationScore = maxDuration === minDuration ? 0 : (durationToMinutes(flight.duration) - minDuration) / (maxDuration - minDuration);
             // 60% weight for price, 40% for duration
             return 0.6 * priceScore + 0.4 * durationScore;
@@ -112,21 +126,132 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectF
     return 0;
   });
 
-  return (
-    <div className="space-y-6">
-      {topAd && <AdBanner advertisement={topAd} />}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-slate-800">
-            {t('searchResults.title')}
-            <span className="text-sm font-normal text-slate-500 mr-2">{t('searchResults.found', sortedFlights.length)}</span>
-          </h2>
-          <SortDropdown selected={sortOption} onSelect={setSortOption} />
+  console.log('🔍 About to render sortedFlights:', sortedFlights.length, 'flights');
+  console.log('🔍 About to render - flights.length:', flights.length);
+  console.log('🔍 About to render - sortedFlights.length:', sortedFlights.length);
+  console.log('🔍 About to render - sortedFlights data:', sortedFlights);
+
+  // Show loading state
+  console.log('🔍 Checking flights.length === 0:', flights.length === 0);
+  console.log('🔍 flights.length:', flights.length);
+  console.log('🔍 flights:', flights);
+  console.log('🔍 flights.length === 0 result:', flights.length === 0);
+  console.log('🔍 flights.length !== 0 result:', flights.length !== 0);
+  console.log('🔍 flights.length > 0 result:', flights.length > 0);
+  console.log('🔍 flights.length === 0 condition:', flights.length === 0);
+  console.log('🔍 flights.length === 0 condition result:', flights.length === 0);
+  if (flights.length === 0) {
+    console.log('🔍 Rendering no flights UI - flights.length is 0');
+    console.log('🔍 flights array:', flights);
+    console.log('🔍 flights.length:', flights.length);
+    console.log('🔍 flights === 0:', flights.length === 0);
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <div className="mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">{t('searchResults.noFlights')}</h3>
+            <p className="text-slate-600 mb-6">{t('searchResults.noFlightsDescription')}</p>
+          </div>
+          
+          {/* Popular Routes */}
+          <PopularRoutes routes={popularRoutes} onSearch={onSearch} />
         </div>
-        <div className="space-y-4">
-          {sortedFlights.map((flight) => (
-            <FlightCard key={flight.id} flight={flight} onSelect={onSelectFlight} refundPolicies={refundPolicies} currentUser={currentUser} currencies={currencies} />
-          ))}
+      </div>
+    );
+  }
+
+  console.log('🔍 Rendering SearchResults with flights:', flights.length, 'flights');
+  console.log('🔍 Rendering SearchResults with sortedFlights:', sortedFlights.length, 'flights');
+  console.log('🔍 flights.length > 0:', flights.length > 0);
+  console.log('🔍 flights.length !== 0:', flights.length !== 0);
+  console.log('🔍 About to render flight cards - flights.length:', flights.length);
+  console.log('🔍 About to render flight cards - sortedFlights.length:', sortedFlights.length);
+  console.log('🔍 About to render flight cards - sortedFlights:', sortedFlights);
+  console.log('🔍 About to render flight cards - flights.length > 0:', flights.length > 0);
+  console.log('🔍 About to render flight cards - sortedFlights.length > 0:', sortedFlights.length > 0);
+  console.log('🔍 About to render flight cards - flights.length === 0:', flights.length === 0);
+  console.log('🔍 About to render flight cards - sortedFlights.length === 0:', sortedFlights.length === 0);
+  console.log('🔍 About to render flight cards - flights.length !== 0:', flights.length !== 0);
+  console.log('🔍 About to render flight cards - sortedFlights.length !== 0:', sortedFlights.length !== 0);
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-8">
+          {/* Results Header */}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+                  {t('searchResults.title')}
+                </h2>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-slate-600 font-medium">
+                    {t('searchResults.resultsCount', { count: sortedFlights.length })}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Sort Options */}
+              <div className="w-full sm:w-auto">
+                <SortDropdown value={sortOption} onChange={setSortOption} />
+              </div>
+            </div>
+          </div>
+
+          {/* Top Advertisement */}
+          {topAd && (
+            <div className="rounded-2xl overflow-hidden shadow-lg">
+              <AdBanner 
+                advertisement={topAd} 
+                currentUser={currentUser}
+                onAdClick={() => {
+                  // Handle ad click
+                  console.log('Ad clicked:', topAd.id);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Flight Results */}
+          <div className="space-y-6">
+            {console.log('🔍 Rendering flight cards for:', sortedFlights.length, 'flights')}
+            {console.log('🔍 sortedFlights array:', sortedFlights)}
+            {console.log('🔍 sortedFlights.length > 0:', sortedFlights.length > 0)}
+            {console.log('🔍 sortedFlights.length === 0:', sortedFlights.length === 0)}
+            {console.log('🔍 sortedFlights.length !== 0:', sortedFlights.length !== 0)}
+            {console.log('🔍 sortedFlights.length > 0 result:', sortedFlights.length > 0)}
+            {console.log('🔍 sortedFlights.length === 0 result:', sortedFlights.length === 0)}
+            {console.log('🔍 sortedFlights.length !== 0 result:', sortedFlights.length !== 0)}
+            {console.log('🔍 sortedFlights.length > 0 condition:', sortedFlights.length > 0)}
+            {console.log('🔍 sortedFlights.length === 0 condition:', sortedFlights.length === 0)}
+            {console.log('🔍 sortedFlights.length !== 0 condition:', sortedFlights.length !== 0)}
+            {sortedFlights.map((flight, index) => {
+              console.log('🔍 Rendering flight card:', index, flight.id, flight.flightNumber);
+              console.log('🔍 Flight object:', flight);
+              return (
+                <div 
+                  key={flight.id} 
+                  className="transform transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <FlightCard 
+                    flight={flight} 
+                    onSelect={onSelectFlight} 
+                    refundPolicies={refundPolicies} 
+                    currentUser={currentUser} 
+                    currencies={currencies} 
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

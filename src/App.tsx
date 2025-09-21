@@ -1,41 +1,30 @@
-
-
-
-
-
-
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { FlightSearchForm } from '@/components/FlightSearchForm';
 import { SearchResults } from '@/components/SearchResults';
 import { Header } from '@/components/Header';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PassengerDetailsForm } from '@/components/PassengerDetailsForm';
+import { BookingConfirmation } from '@/components/BookingConfirmation';
 import { BookingReview } from '@/components/BookingReview';
 import { BookingStepper } from '@/components/BookingStepper';
-import type { Flight, SearchQuery, PassengerDetails, User, Booking, Ticket, TicketMessage, AirlineInfo, AircraftInfo, FlightClassInfo, ActivityLog, AirportInfo, Account, JournalEntry, Expense, Transaction, Wallet, WalletTransaction, CurrencyInfo, RefundPolicy, SavedPassenger, SiteContent, Refund, Advertisement, RolePermissions, Tenant, TelegramBotConfig, WhatsAppBotConfig, CountryInfo } from '@/types';
-import { UserRole, UserStatus, BookingStatus, TripType, Nationality, Gender, FlightSourcingType, CommissionCalculationType, AdPlacement, View, PassengerData, Currency } from '@/types';
+import type { Flight, SearchQuery, PassengerDetails, User, Booking, Ticket, TicketMessage, AirlineInfo, AircraftInfo, FlightClassInfo, ActivityLog, AirportInfo, Account, JournalEntry, Expense, Transaction, Wallet, WalletTransaction, CurrencyInfo, RefundPolicy, SavedPassenger, SiteContent, Refund, Advertisement, RolePermissions, Tenant, TelegramBotConfig, WhatsAppBotConfig, CountryInfo, RateLimit, CommissionModel } from '@/types';
+import { UserRole, UserStatus, BookingStatus, TripType, Nationality, Gender, FlightSourcingType, CommissionCalculationType, AdPlacement, View, PassengerData, Currency, FlightStatus, RefundStatus, TicketStatus, TicketPriority } from '@/types';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { Footer } from '@/components/Footer';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
-import { initialAirports } from '@/data/airports';
-import { initialChartOfAccounts } from '@/data/accounting';
-import { initialCommissionModels } from '@/data/commissionModels';
 import { useLocalization } from '@/hooks/useLocalization';
 import { generateFlights } from '@/services/geminiService';
 import { sendTelegramMessage } from '@/services/telegramService';
 import { sendWhatsAppMessage } from '@/services/whatsappService';
-import { initialCurrencies } from '@/data/currencies';
-import { initialRefundPolicies } from '@/data/refundPolicies';
+import { apiService } from '@/services/apiService';
 import { WhyChooseUs } from '@/components/WhyChooseUs';
 import { PopularDestinations } from '@/components/PopularDestinations';
 import { AboutPage } from '@/pages/AboutPage';
 import { ContactPage } from '@/pages/ContactPage';
-import { initialRolePermissions } from '@/data/permissions';
-import { initialTenants } from '@/data/tenants';
-import { initialCountries } from '@/data/countries';
+import { CurrencyConverter } from '@/components/CurrencyConverter';
 
 
 const createInitialWallet = (activeCurrencies: CurrencyInfo[]) => {
@@ -43,401 +32,8 @@ const createInitialWallet = (activeCurrencies: CurrencyInfo[]) => {
     activeCurrencies.forEach(currency => {
         wallet[currency.code] = { balance: 0, currency: currency.code, transactions: [] };
     });
-    // Add some initial balance for mock users
-    if (wallet['IRR']) wallet['IRR'].balance = 10000000;
-    if (wallet['USD']) wallet['USD'].balance = 500;
-    if (wallet['IQD']) wallet['IQD'].balance = 250000;
     return wallet;
 };
-
-const activeCurrenciesForMock = initialCurrencies.filter(c => c.isActive);
-
-// --- MOCK DATA ---
-const initialUsersData: Omit<User, 'wallet'>[] = [
-    { 
-      id: 'admin1', 
-      name: 'Super Admin', 
-      username: 'superadmin',
-      email: 'admin@example.com',
-      password: 'password',
-      phone: '+989121111111',
-      role: 'SUPER_ADMIN',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: true,
-      // No tenantId for Super Admin
-    },
-    { 
-      id: 'editor1', 
-      name: 'Ali Editor', 
-      username: 'editorali',
-      email: 'editor@example.com',
-      password: 'password',
-      phone: '+989122222222',
-      role: 'EDITOR',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      tenantId: 'tenant-1',
-    },
-    { 
-      id: 'support1', 
-      name: 'Zahra Support', 
-      username: 'supportzahra',
-      email: 'support@example.com',
-      password: 'password',
-      phone: '+989123333333',
-      role: 'SUPPORT',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      tenantId: 'tenant-1',
-    },
-     { 
-      id: 'affiliate1', 
-      name: 'Tehran Agency', 
-      username: 'aff_tehran',
-      email: 'affiliate@example.com',
-      password: 'password',
-      phone: '+989124444444',
-      role: 'AFFILIATE',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      tenantId: 'tenant-1',
-    },
-    { 
-      id: 'accountant1', 
-      name: 'Reza Accountant', 
-      username: 'accountantreza',
-      email: 'accountant@example.com',
-      password: 'password',
-      phone: '+989125555555',
-      role: 'ACCOUNTANT',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 19 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      tenantId: 'tenant-2',
-    },
-    { 
-      id: 'user123', 
-      name: 'Test User', 
-      username: 'testuser',
-      email: 'user@example.com',
-      password: 'password',
-      phone: '+989123456789',
-      role: 'USER',
-      status: 'ACTIVE',
-      createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      displayCurrencies: ['USD'],
-      savedPassengers: [
-          { id: 'sp-1', firstName: 'John', lastName: 'Doe', nationality: Nationality.Foreign, gender: Gender.Male, passportNumber: 'A123' },
-          { id: 'sp-2', firstName: 'Jane', lastName: 'Doe', nationality: Nationality.Foreign, gender: Gender.Female, passportNumber: 'B456' },
-      ],
-      tenantId: 'tenant-1', // Users are associated with the tenant they signed up on
-    },
-    { 
-      id: 'user456', 
-      name: 'Maryam Rezaei', 
-      username: 'maryam_r',
-      email: 'maryam@example.com',
-      password: 'password',
-      phone: '+989351234567',
-      role: 'USER',
-      status: 'SUSPENDED',
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      canBypassRateLimit: false,
-      savedPassengers: [],
-      tenantId: 'tenant-2',
-    },
-];
-
-const initialUsersWithWallets: User[] = initialUsersData.map(user => ({
-    ...user,
-    wallet: createInitialWallet(activeCurrenciesForMock),
-    savedPassengers: user.savedPassengers || [],
-    displayCurrencies: user.displayCurrencies || [],
-}));
-
-const mockFlight: Flight = {
-    id: 'FL-MOCK-01',
-    airline: 'Iran Air',
-    airlineLogoUrl: '/src/assets/placeholder_logo.png',
-    flightNumber: 'IR-452',
-    departure: { airportCode: 'IKA', airportName: 'Imam Khomeini International Airport', city: 'Tehran', dateTime: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString() },
-    arrival: { airportCode: 'IST', airportName: 'Istanbul Airport', city: 'Istanbul', dateTime: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString() },
-    duration: '3h 30m',
-    stops: 0,
-    price: 35000000,
-    taxes: 4500000,
-    flightClass: 'Economy',
-    aircraft: 'Airbus A320',
-    availableSeats: 12,
-    totalCapacity: 180,
-    baggageAllowance: '20 kg',
-    status: 'SCHEDULED',
-    bookingClosesBeforeDepartureHours: 3,
-    sourcingType: FlightSourcingType.Charter,
-    commissionModelId: 'CM-1',
-    refundPolicyId: 'RP-1',
-    creatorId: 'affiliate1', // Created by affiliate
-    tenantId: 'tenant-1',
-    allotments: []
-};
-
-const anotherMockFlight: Flight = {
-    id: 'FL-MOCK-02',
-    airline: 'Mahan Air',
-    airlineLogoUrl: '/src/assets/placeholder_logo.png',
-    flightNumber: 'W5-110',
-    departure: { airportCode: 'IKA', airportName: 'Imam Khomeini International Airport', city: 'Tehran', dateTime: new Date(new Date().setDate(new Date().getDate() + 4)).toISOString() },
-    arrival: { airportCode: 'DXB', airportName: 'Dubai International Airport', city: 'Dubai', dateTime: new Date(new Date().setDate(new Date().getDate() + 4)).toISOString() },
-    duration: '2h 0m',
-    stops: 0,
-    price: 42000000,
-    taxes: 5500000,
-    flightClass: 'Business',
-    aircraft: 'Boeing 737',
-    availableSeats: 8,
-    totalCapacity: 189,
-    baggageAllowance: '30 kg',
-    status: 'SCHEDULED',
-    bookingClosesBeforeDepartureHours: 3,
-    sourcingType: FlightSourcingType.WebService,
-    commissionModelId: 'CM-2',
-    refundPolicyId: 'RP-2',
-    creatorId: 'editor1',
-    tenantId: 'tenant-1',
-    allotments: []
-};
-
-const initialBookings: Booking[] = [
-    {
-        id: 'BK16252435123',
-        user: initialUsersWithWallets.find(u => u.username === 'testuser')!,
-        flight: mockFlight,
-        passengers: { adults: [{ firstName: 'Test', lastName: 'User', nationality: Nationality.Iranian, gender: Gender.Male, nationalId: '1234567890' }], children: [], infants: [] },
-        contactEmail: 'user@example.com',
-        contactPhone: '989123456789',
-        query: { tripType: TripType.OneWay, from: 'Tehran', to: 'Istanbul', departureDate: '2024-07-20', passengers: { adults: 1, children: 0, infants: 0 } },
-        bookingDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'CONFIRMED',
-        tenantId: 'tenant-1',
-    },
-    {
-        id: 'BK16252435456',
-        user: initialUsersWithWallets.find(u => u.username === 'maryam_r')!,
-        flight: { ...anotherMockFlight, id: 'FL-MOCK-03', departure: { ...anotherMockFlight.departure, city: 'Mashhad' }, arrival: { ...anotherMockFlight.arrival, city: 'Tehran' } },
-        passengers: { adults: [{ firstName: 'Maryam', lastName: 'Rezaei', nationality: Nationality.Iranian, gender: Gender.Female, nationalId: '0987654321' }], children: [], infants: [] },
-        contactEmail: 'maryam@example.com',
-        contactPhone: '989351234567',
-        query: { tripType: TripType.OneWay, from: 'Mashhad', to: 'Tehran', departureDate: '2024-07-22', passengers: { adults: 1, children: 0, infants: 0 } },
-        bookingDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'CANCELLED',
-        tenantId: 'tenant-2',
-    },
-    {
-        id: 'BKPAST001',
-        user: initialUsersWithWallets.find(u => u.username === 'testuser')!,
-        flight: {...mockFlight, id: 'FL-PAST-01', departure: {...mockFlight.departure, dateTime: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()}, arrival: {...mockFlight.arrival, dateTime: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()}},
-        passengers: { adults: [{ firstName: 'Test', lastName: 'User', nationality: Nationality.Iranian, gender: Gender.Male, nationalId: '1234567890' }], children: [], infants: [] },
-        contactEmail: 'user@example.com',
-        contactPhone: '989123456789',
-        query: { tripType: TripType.OneWay, from: 'Tehran', to: 'Istanbul', departureDate: '2024-06-20', passengers: { adults: 1, children: 0, infants: 0 } },
-        bookingDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'CONFIRMED',
-        tenantId: 'tenant-1',
-    }
-];
-
-const initialRefunds: Refund[] = [
-    {
-        id: 'REF-001',
-        bookingId: 'BK16252435456',
-        userId: 'user456',
-        requestDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'PENDING_EXPERT_REVIEW',
-        originalAmount: 47500000,
-        penaltyAmount: 4750000,
-        refundAmount: 42750000,
-    }
-];
-
-const initialAirlines: AirlineInfo[] = [
-    { id: 'airline-1', name: { ar: 'إيران للطيران', fa: 'ایران ایر', en: 'Iran Air' }, logoUrl: '/src/assets/placeholder_logo.png' },
-    { id: 'airline-2', name: { ar: 'ماهان للطيران', fa: 'ماهان ایر', en: 'Mahan Air' }, logoUrl: '/src/assets/placeholder_logo.png' },
-    { id: 'airline-3', name: { ar: 'الخطوط التركية', fa: 'ترکیش ایرلاینز', en: 'Turkish Airlines' }, logoUrl: '/src/assets/placeholder_logo.png' },
-];
-
-const initialAircrafts: AircraftInfo[] = [
-    { id: 'ac-1', name: { ar: 'إيرباص A320', fa: 'ایرباس A320', en: 'Airbus A320' }, capacity: 180 },
-    { id: 'ac-2', name: { ar: 'بوينغ 737', fa: 'بوئینگ 737', en: 'Boeing 737' }, capacity: 189 },
-    { id: 'ac-3', name: { ar: 'بوينغ 777', fa: 'بوئینگ 777', en: 'Boeing 777' }, capacity: 396 },
-];
-
-const initialFlightClasses: FlightClassInfo[] = [
-    { id: 'fc-1', name: { ar: 'اقتصادي', fa: 'اکونومی', en: 'Economy' } },
-    { id: 'fc-2', name: { ar: 'رجال أعمال', fa: 'بیزنس', en: 'Business' } },
-    { id: 'fc-3', name: { ar: 'درجة أولى', fa: 'فرست کلاس', en: 'First Class' } },
-];
-
-const initialRateLimits: RateLimit[] = [
-    { id: 'RL-1', fromCity: 'تهران', toCity: 'استانبول', maxPrice: 40000000 },
-    { id: 'RL-2', fromCity: 'تهران', toCity: 'دبی', maxPrice: 45000000 },
-];
-
-const initialSiteContent: SiteContent = {
-    home: {
-        heroImageUrl: '/src/assets/placeholder_hero.png',
-        popularDestinations: {
-            title: {
-                fa: 'مقصدهای محبوب',
-                ar: 'وجهات شهيرة',
-                en: 'Popular Destinations',
-            },
-            subtitle: {
-                fa: 'مکان‌هایی را که مشتریان ما دوست دارند به آنجا سفر کنند، کشف کنید.',
-                ar: 'اكتشف الأماكن التي يحب عملاؤنا السفر إليها.',
-                en: 'Discover places our customers love to travel to.',
-            },
-            destinations: [
-                { id: 'dest-1', name: { fa: 'استانبول', ar: 'إسطنبول', en: 'Istanbul' }, imageUrl: '/src/assets/placeholder_destination.png' },
-                { id: 'dest-2', name: { fa: 'دبی', ar: 'دبي', en: 'Dubai' }, imageUrl: '/src/assets/placeholder_destination.png' },
-                { id: 'dest-3', name: { fa: 'پاریس', ar: 'باريس', en: 'Paris' }, imageUrl: '/src/assets/placeholder_destination.png' },
-                { id: 'dest-4', name: { fa: 'تهران', ar: 'طهران', en: 'Tehran' }, imageUrl: '/src/assets/placeholder_destination.png' },
-            ]
-        }
-    },
-    about: {
-        title: {
-            fa: 'درباره ما',
-            ar: 'معلومات عنا',
-            en: 'About Us',
-        },
-        body: {
-            fa: 'پرواز هوشمند یک پلتفرم پیشرو برای رزرو بلیط هواپیما است که با استفاده از هوش مصنوعی، بهترین گزینه‌ها را به شما پیشنهاد می‌دهد. ما به ارائه تجربه‌ای بی‌نظیر، سریع و امن برای مسافران خود متعهد هستیم.',
-            ar: 'الطيران الذكي هي منصة رائدة لحجز تذاكر الطيران تستخدم الذكاء الاصطناعي لتقديم أفضل الخيارات لك. نحن ملتزمون بتقديم تجربة فريدة وسريعة وآمنة لمسافرينا.',
-            en: 'Smart Flight is a leading platform for booking airline tickets, using artificial intelligence to suggest the best options for you. We are committed to providing a unique, fast, and secure experience for our travelers.',
-        },
-        imageUrl: '/src/assets/placeholder_about.png',
-    },
-    contact: {
-        title: {
-            fa: 'تماس با ما',
-            ar: 'اتصل بنا',
-            en: 'Contact Us',
-        },
-        body: {
-            fa: 'ما همیشه آماده پاسخگویی به سوالات شما هستیم. می‌توانید از طریق راه‌های زیر با ما در ارتباط باشید یا فرم تماس را پر کنید.',
-            ar: 'نحن دائما على استعداد للإجابة على أسئلتك. يمكنك التواصل معنا عبر الطرق التالية أو ملء نموذج الاتصال.',
-            en: 'We are always ready to answer your questions. You can contact us through the following ways or fill out the contact form.',
-        },
-        address: {
-            fa: 'تهران، خیابان آزادی، پلاک ۱۲۳',
-            ar: 'طهران، شارع آزادي، رقم 123',
-            en: 'Tehran, Azadi St, No. 123',
-        },
-        phone: '+98 21 1234 5678',
-        email: 'support@smartflight.com',
-        mapImageUrl: '/src/assets/placeholder_map.png',
-    },
-    footer: {
-        description: {
-            fa: 'یک پلتفرم مدرن برای رزرو بلیط هواپیما، طراحی شده برای ارائه بهترین تجربه کاربری با استفاده از هوش مصنوعی برای یافتن پروازهای ایده‌آل شما.',
-            ar: 'منصة حديثة لحجز تذاكر الطيران، مصممة لتقديم أفضل تجربة مستخدم باستخدام الذكاء الاصطناعي للعثور على رحلاتك المثالية.',
-            en: 'A modern platform for booking airline tickets, designed to provide the best user experience using artificial intelligence to find your ideal flights.',
-        },
-        columns: [
-            {
-                id: 'col-1',
-                title: {
-                    fa: 'لینک‌های سریع',
-                    ar: 'روابط سريعة',
-                    en: 'Quick Links',
-                },
-                links: [
-                    { id: 'link-1', text: { fa: 'درباره ما', ar: 'معلومات عنا', en: 'About Us' }, url: '/about' },
-                    { id: 'link-2', text: { fa: 'تماس با ما', ar: 'اتصل بنا', en: 'Contact Us' }, url: '/contact' },
-                    { id: 'link-3', text: { fa: 'سوالات متداول', ar: 'الأسئلة الشائعة', en: 'FAQ' }, url: '/faq' },
-                ]
-            }
-        ]
-    }
-};
-
-const initialAdvertisements: Advertisement[] = [
-    {
-        id: 'ad-1',
-        title: 'Top Banner - Summer Sale',
-        imageUrl: '/src/assets/placeholder_ad.png',
-        linkUrl: '#',
-        placement: AdPlacement.SEARCH_RESULTS_TOP,
-        isActive: true,
-    },
-    {
-        id: 'ad-2',
-        title: 'Sidebar - Hotel Deal',
-        imageUrl: '/src/assets/placeholder_ad.png',
-        linkUrl: '#',
-        placement: AdPlacement.SIDEBAR_BOTTOM,
-        isActive: true,
-    }
-];
-
-const initialTickets: Ticket[] = [
-    {
-        id: 'TKT-001',
-        user: initialUsersWithWallets.find(u => u.username === 'testuser')!,
-        bookingId: 'BK16252435123',
-        subject: 'Request for seat change',
-        status: 'OPEN',
-        priority: 'MEDIUM',
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        messages: [
-            {
-                id: 'msg-1',
-                author: 'USER',
-                authorName: 'Test User',
-                text: 'Hello, I would like to request a window seat if possible.',
-                timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            },
-            {
-                id: 'msg-2',
-                author: 'ADMIN',
-                authorName: 'Zahra Support',
-                text: 'We have received your request and will look into it.',
-                timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-            }
-        ]
-    },
-    {
-        id: 'TKT-002',
-        user: initialUsersWithWallets.find(u => u.username === 'maryam_r')!,
-        subject: 'Question about baggage allowance',
-        status: 'CLOSED',
-        priority: 'LOW',
-        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-        messages: [
-            {
-                id: 'msg-3',
-                author: 'USER',
-                authorName: 'Maryam Rezaei',
-                text: 'What is the baggage allowance for flight W5-110?',
-                timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            },
-             {
-                id: 'msg-4',
-                author: 'ADMIN',
-                authorName: 'Zahra Support',
-                text: 'The baggage allowance for business class on this route is 30 kg. Your ticket has been updated to reflect this.',
-                timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-            }
-        ]
-    }
-];
 
 type BasicDataType = 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country';
 
@@ -447,40 +43,84 @@ const App: React.FC = () => {
     const [view, setView] = useState<View>('SEARCH');
     const [isLoading, setIsLoading] = useState(false);
     const [flights, setFlights] = useState<Flight[]>([]); // Search results
-    const [allFlights, setAllFlights] = useState<Flight[]>([mockFlight, anotherMockFlight]); // All manageable flights
+    
+    // Debug flights state changes
+    useEffect(() => {
+        console.log('🔍 flights state changed:', flights);
+        console.log('🔍 flights state length:', flights.length);
+    }, [flights]);
+    
+    const [allFlights, setAllFlights] = useState<Flight[]>([]); // All manageable flights
+
+    // Debug useEffect to monitor flights state changes
+    useEffect(() => {
+        console.log('🔍 flights state changed:', flights);
+        console.log('🔍 flights state length:', flights.length);
+    }, [flights]);
+    
     const [searchQuery, setSearchQuery] = useState<SearchQuery | null>(null);
     const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
     const [passengersData, setPassengersData] = useState<PassengerData | null>(null);
     const [loginError, setLoginError] = useState<string | null>(null);
     
     // User Management
-    const [users, setUsers] = useState<User[]>(initialUsersWithWallets);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [users, setUsers] = useState<User[]>([]);
+    const [currentUser, setCurrentUser] = useState<User | null>(() => {
+        try {
+            const storedUser = localStorage.getItem('currentUser');
+            const accessToken = localStorage.getItem('accessToken');
+            
+            // If user exists but no valid token, clear user
+            if (storedUser && !accessToken) {
+                console.log('🔄 User exists but no token, clearing user');
+                localStorage.removeItem('currentUser');
+                return null;
+            }
+            
+            return storedUser ? JSON.parse(storedUser) : null;
+        } catch (error) {
+            console.error('Error parsing currentUser from localStorage:', error);
+            localStorage.removeItem('currentUser');
+            return null;
+        }
+    });
 
     // Admin Data
-    const [tenants, setTenants] = useState<Tenant[]>(initialTenants);
-    const [bookings, setBookings] = useState<Booking[]>(initialBookings);
-    const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
+    const [airlines, setAirlines] = useState<AirlineInfo[]>([]);
+    const [aircrafts, setAircrafts] = useState<AircraftInfo[]>([]);
+    const [flightClasses, setFlightClasses] = useState<FlightClassInfo[]>([]);
+    const [airports, setAirports] = useState<AirportInfo[]>([]);
+    const [commissionModels, setCommissionModels] = useState<CommissionModel[]>([]);
+    const [currencies, setCurrencies] = useState<CurrencyInfo[]>([]);
+    const [refundPolicies, setRefundPolicies] = useState<RefundPolicy[]>([]);
+    const [tenants, setTenants] = useState<Tenant[]>([]);
+    const [countries, setCountries] = useState<CountryInfo[]>([]);
+    const [tickets, setTickets] = useState<Ticket[]>([]);
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-    const [refunds, setRefunds] = useState<Refund[]>(initialRefunds);
-    const [advertisements, setAdvertisements] = useState<Advertisement[]>(initialAdvertisements);
-    const [rolePermissions, setRolePermissions] = useState<RolePermissions>(initialRolePermissions);
-    
-    // Basic Data Management State
-    const [airlines, setAirlines] = useState<AirlineInfo[]>(initialAirlines);
-    const [aircrafts, setAircrafts] = useState<AircraftInfo[]>(initialAircrafts);
-    const [flightClasses, setFlightClasses] = useState<FlightClassInfo[]>(initialFlightClasses);
-    const [airports, setAirports] = useState<AirportInfo[]>(initialAirports);
-    const [commissionModels, setCommissionModels] = useState<CommissionModel[]>(initialCommissionModels);
-    const [rateLimits, setRateLimits] = useState<RateLimit[]>(initialRateLimits);
-    const [currencies, setCurrencies] = useState<CurrencyInfo[]>(initialCurrencies);
-    const [refundPolicies, setRefundPolicies] = useState<RefundPolicy[]>(initialRefundPolicies);
-    const [siteContent, setSiteContent] = useState<SiteContent>(initialSiteContent);
-    const [countries, setCountries] = useState<CountryInfo[]>(initialCountries);
+    const [refunds, setRefunds] = useState<Refund[]>([]);
+    const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
+    const [chartOfAccounts, setChartOfAccounts] = useState<Account[]>([]);
+    const [bookings, setBookings] = useState<Booking[]>([]); // Moved here
+    const [rateLimits, setRateLimits] = useState<RateLimit[]>([]); // Moved here
 
+
+    const [rolePermissions, setRolePermissions] = useState<RolePermissions>(() => {
+        // Default permissions for SUPER_ADMIN if API fails
+        return {
+            SUPER_ADMIN: [
+                'VIEW_STATS', 'CREATE_FLIGHTS', 'EDIT_FLIGHTS', 'DELETE_FLIGHTS',
+                'MANAGE_BOOKINGS', 'MANAGE_REFUNDS', 'MANAGE_TICKETS', 'MANAGE_USERS',
+                'EDIT_USER_ROLE', 'MANAGE_BASIC_DATA', 'MANAGE_COMMISSION_MODELS',
+                'VIEW_ACTIVITY_LOG', 'MANAGE_ACCOUNTING', 'MANAGE_RATE_LIMITS',
+                'MANAGE_CONTENT', 'MANAGE_ADS', 'MANAGE_TENANTS', 'MANAGE_TELEGRAM_BOT',
+                'MANAGE_WHATSAPP_BOT'
+            ],
+            ADMIN: [],
+            USER: []
+        };
+    });
 
     // Accounting State
-    const [chartOfAccounts, setChartOfAccounts] = useState<Account[]>(initialChartOfAccounts);
     const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
 
@@ -507,6 +147,262 @@ const App: React.FC = () => {
         },
     });
 
+    const [siteContent, setSiteContent] = useState<SiteContent>({
+        home: {
+            heroImageUrl: '/src/assets/placeholder_hero.png',
+            popularDestinations: {
+                title: { fa: '', ar: '', en: '' },
+                subtitle: { fa: '', ar: '', en: '' },
+                destinations: [],
+            }
+        },
+        about: {
+            title: { fa: '', ar: '', en: '' },
+            body: { fa: '', ar: '', en: '' },
+            imageUrl: '/src/assets/placeholder_about.png',
+        },
+        contact: {
+            title: { fa: '', ar: '', en: '' },
+            body: { fa: '', ar: '', en: '' },
+            address: { fa: '', ar: '', en: '' },
+            phone: '',
+            email: '',
+            mapImageUrl: '/src/assets/placeholder_map.png',
+        },
+        footer: {
+            description: { fa: '', ar: '', en: '' },
+            columns: [],
+        }
+    });
+
+    const [popularRoutes, setPopularRoutes] = useState<{
+        from: string;
+        to: string;
+    }[]>([]);
+
+    // Check for existing tokens and restore user session
+    useEffect(() => {
+        const restoreUserSession = async () => {
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            if (accessToken && refreshToken && !currentUser) {
+                try {
+                    // Try to get current user info using the stored token
+                    const userResponse = await apiService.getCurrentUser();
+                    if (userResponse.success && userResponse.data) {
+                        setCurrentUser(userResponse.data);
+                        console.log('User session restored from tokens');
+                    } else {
+                        // If token is invalid, clear tokens
+                        localStorage.removeItem('accessToken');
+                        localStorage.removeItem('refreshToken');
+                        console.log('Invalid tokens, cleared from storage');
+                    }
+                } catch (error) {
+                    console.error('Error restoring user session:', error);
+                    localStorage.removeItem('accessToken');
+                    localStorage.removeItem('refreshToken');
+                }
+            } else if (!accessToken && !refreshToken) {
+                // No tokens available, user needs to login
+                console.log('No tokens available, user needs to login');
+            }
+        };
+
+        restoreUserSession();
+    }, []);
+
+    // Save currentUser to localStorage when it changes
+    useEffect(() => {
+        if (currentUser) {
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        } else {
+            localStorage.removeItem('currentUser');
+        }
+    }, [currentUser]);
+
+    // Consolidated data loading
+    useEffect(() => {
+        const loadInitialData = async () => {
+            setIsLoading(true);
+            console.log('🔍 loadInitialData started');
+            try {
+                // Load general content and popular routes
+                const [homeResponse, aboutResponse, contactResponse, popularDestinationsResponse, popularRoutesResponse] = await Promise.all([
+                    apiService.getHomeContent(language),
+                    apiService.getAboutContent(language),
+                    apiService.getContactContent(language),
+                    apiService.getPopularDestinations(language),
+                    apiService.getPopularRoutes()
+                ]);
+
+                if (homeResponse.success && aboutResponse.success && contactResponse.success && popularDestinationsResponse.success && popularRoutesResponse.success) {
+                    setSiteContent(prev => ({
+                        ...prev,
+                        home: {
+                            heroImageUrl: homeResponse.data?.heroImageUrl || '/src/assets/placeholder_hero.png',
+                            popularDestinations: popularDestinationsResponse.data || { title: { fa: '', ar: '', en: '' }, subtitle: { fa: '', ar: '', en: '' }, destinations: [] }
+                        },
+                        about: aboutResponse.data || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, imageUrl: '/src/assets/placeholder_about.png' },
+                        contact: contactResponse.data || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, address: { fa: '', ar: '', en: '' }, phone: '', email: '', mapImageUrl: '/src/assets/placeholder_map.png' },
+                    }));
+                    setPopularRoutes(popularRoutesResponse.data || []);
+                }
+
+                // Load admin data if current user is admin
+                if (currentUser && currentUser.role !== UserRole.USER) {
+                    try {
+                        const [
+                            statsResponse, usersResponse, bookingsResponse, flightsResponse, airlinesResponse,
+                            aircraftsResponse, flightClassesResponse, airportsResponse, commissionModelsResponse, currenciesResponse,
+                            refundPoliciesResponse, tenantsResponse, countriesResponse, rolePermissionsResponse, advertisementsResponse,
+                            chartOfAccountsResponse, telegramConfigResponse, whatsAppBotConfigResponse, activityLogsResponse, rateLimitsResponse,
+                            refundsResponse, ticketsResponse, expensesResponse
+                        ] = await Promise.all([
+                            apiService.getAdminStats(),
+                            apiService.getAdminUsers(),
+                            apiService.getAdminBookings(),
+                            apiService.getAdminFlights(),
+                            apiService.getBasicData('airline'),
+                            apiService.getBasicData('aircraft'),
+                            apiService.getBasicData('flightClass'),
+                            apiService.getBasicData('airport'),
+                            apiService.getCommissionModels(),
+                            apiService.getCurrencies(),
+                            apiService.getRefundPolicies(),
+                            apiService.getTenants(),
+                            apiService.getCountries(),
+                            apiService.getPermissions(),
+                            apiService.getAdvertisements(),
+                            apiService.getChartOfAccounts(),
+                            apiService.getTelegramConfig(),
+                            apiService.getWhatsAppConfig(),
+                            apiService.getActivityLogs(),
+                            apiService.getRateLimits(),
+                            apiService.getRefunds(),
+                            apiService.getAllTickets(),
+                            apiService.getExpenses()
+                        ]);
+
+                    if (statsResponse.success && statsResponse.data) {
+                        // Update stats data if needed
+                    }
+                    
+                    if (usersResponse.success && usersResponse.data) {
+                        setUsers(usersResponse.data.users || usersResponse.data);
+                    }
+                    
+                    if (bookingsResponse.success && bookingsResponse.data) {
+                        console.log('🔍 Setting bookings:', bookingsResponse.data);
+                        console.log('🔍 Bookings data type:', typeof bookingsResponse.data);
+                        console.log('🔍 Bookings data is array:', Array.isArray(bookingsResponse.data));
+                        setBookings(bookingsResponse.data.bookings || bookingsResponse.data);
+                    }
+                    
+                    if (flightsResponse.success && flightsResponse.data) {
+                        console.log('🔍 Setting allFlights:', flightsResponse.data);
+                        console.log('🔍 Flights data type:', typeof flightsResponse.data);
+                        console.log('🔍 Flights data is array:', Array.isArray(flightsResponse.data));
+                        console.log('🔍 Flights data length:', flightsResponse.data.length);
+                        setAllFlights(flightsResponse.data);
+                    } else {
+                        console.error('🔍 Flights response failed:', flightsResponse);
+                    }
+                    if (airlinesResponse.success && airlinesResponse.data) {
+                        setAirlines(airlinesResponse.data as AirlineInfo[]);
+                    }
+                    if (aircraftsResponse.success && aircraftsResponse.data) {
+                        setAircrafts(aircraftsResponse.data as AircraftInfo[]);
+                    }
+                    if (flightClassesResponse.success && flightClassesResponse.data) {
+                        setFlightClasses(flightClassesResponse.data as FlightClassInfo[]);
+                    }
+                    if (airportsResponse.success && airportsResponse.data) {
+                        setAirports(airportsResponse.data as AirportInfo[]);
+                    }
+                    if (commissionModelsResponse.success && commissionModelsResponse.data) {
+                        setCommissionModels(commissionModelsResponse.data);
+                    }
+                    if (currenciesResponse.success && currenciesResponse.data) {
+                        setCurrencies(currenciesResponse.data);
+                    }
+                    if (refundPoliciesResponse.success && refundPoliciesResponse.data) {
+                        setRefundPolicies(refundPoliciesResponse.data);
+                    }
+                    if (tenantsResponse.success && tenantsResponse.data) {
+                        setTenants(tenantsResponse.data);
+                    }
+                    if (countriesResponse.success && countriesResponse.data) {
+                        setCountries(countriesResponse.data);
+                    }
+                    if (rolePermissionsResponse.success && rolePermissionsResponse.data) {
+                        console.log('✅ Role permissions loaded:', rolePermissionsResponse.data);
+                        setRolePermissions(rolePermissionsResponse.data);
+                    } else {
+                        console.error('❌ Failed to load role permissions:', rolePermissionsResponse);
+                        // If permissions fail to load due to auth issues, clear user and force re-login
+                        if (rolePermissionsResponse.error === 'Unauthorized') {
+                            console.log('🔄 Clearing user due to auth failure');
+                            setCurrentUser(null);
+                            localStorage.removeItem('currentUser');
+                            localStorage.removeItem('accessToken');
+                            localStorage.removeItem('refreshToken');
+                            setView('ADMIN_LOGIN');
+                        }
+                    }
+                    if (advertisementsResponse.success && advertisementsResponse.data) {
+                        setAdvertisements(advertisementsResponse.data);
+                    }
+                    if (chartOfAccountsResponse.success && chartOfAccountsResponse.data) {
+                        setChartOfAccounts(chartOfAccountsResponse.data);
+                    }
+                    if (telegramConfigResponse.success && telegramConfigResponse.data) {
+                        setTelegramConfig(telegramConfigResponse.data);
+                    }
+                    if (whatsAppBotConfigResponse.success && whatsAppBotConfigResponse.data) {
+                        setWhatsAppBotConfig(whatsAppBotConfigResponse.data);
+                    }
+                    if (activityLogsResponse.success && activityLogsResponse.data) {
+                        setActivityLogs(activityLogsResponse.data);
+                    }
+                    if (rateLimitsResponse.success && rateLimitsResponse.data) {
+                        setRateLimits(rateLimitsResponse.data);
+                    }
+                    if (refundsResponse.success && refundsResponse.data) {
+                        setRefunds(refundsResponse.data);
+                    }
+                    if (ticketsResponse.success && ticketsResponse.data) {
+                        setTickets(ticketsResponse.data);
+                    }
+                    if (expensesResponse.success && expensesResponse.data) {
+                        setExpenses(expensesResponse.data);
+                    }
+                    } catch (error) {
+                        console.error('Error loading admin data:', error);
+                        // If admin data fails to load due to auth issues, clear user and force re-login
+                        if (error instanceof Error && error.message === 'Unauthorized') {
+                            console.log('🔄 Clearing user due to auth failure in admin data');
+                            setCurrentUser(null);
+                            localStorage.removeItem('currentUser');
+                            localStorage.removeItem('accessToken');
+                            localStorage.removeItem('refreshToken');
+                            setView('ADMIN_LOGIN');
+                        }
+                    }
+                }
+
+            } catch (error) {
+                console.error('🔍 Error loading initial data:', error);
+                console.error('🔍 Error details:', error);
+            } finally {
+                setIsLoading(false);
+                console.log('🔍 loadInitialData finished');
+            }
+        };
+
+        loadInitialData();
+    }, [currentUser, language, setSiteContent, setPopularRoutes, setUsers, setBookings, setAllFlights, setAirlines, setAircrafts, setFlightClasses, setAirports, setCommissionModels, setCurrencies, setRefundPolicies, setTenants, setCountries, setRolePermissions, setAdvertisements, setChartOfAccounts, setTelegramConfig, setWhatsAppBotConfig, setRateLimits, setRefunds, setTickets, setExpenses]);
 
     const logActivity = useCallback((user: User | null, action: string) => {
         if (!user) return;
@@ -516,7 +412,13 @@ const App: React.FC = () => {
             action,
             timestamp: new Date().toISOString(),
         };
-        setActivityLogs(prev => [newLog, ...prev]);
+        setActivityLogs(prev => {
+            // Ensure prev is always an array
+            if (!Array.isArray(prev)) {
+                return [newLog];
+            }
+            return [newLog, ...prev];
+        });
     }, []);
 
     const createBookingJournalEntry = useCallback((booking: Booking, type: 'create' | 'cancel') => {
@@ -572,12 +474,31 @@ const App: React.FC = () => {
             description,
             transactions,
             userId: booking.user.id,
+            bookingId: booking.id,
         };
-        setJournalEntries(prev => [newEntry, ...prev]);
+        setJournalEntries(prev => {
+            // Ensure prev is always an array
+            if (!Array.isArray(prev)) {
+                return [newEntry];
+            }
+            return [newEntry, ...prev];
+        });
     }, [commissionModels, t]);
 
-    const handleUpdateRefund = useCallback((refundId: string, action: 'expert_approve' | 'financial_approve' | 'process_payment' | 'reject', reason?: string) => {
+    const handleUpdateRefund = useCallback(async (refundId: string, action: 'expert_approve' | 'financial_approve' | 'process_payment' | 'reject', reason?: string) => {
         if (!currentUser) return;
+        
+        try {
+            const response = await apiService.updateRefund(refundId, action, reason);
+            if (!response.success) {
+                alert(response.error || 'خطا در به‌روزرسانی استرداد');
+                return;
+            }
+        } catch (error) {
+            console.error('Update refund error:', error);
+            alert('خطا در به‌روزرسانی استرداد');
+            return;
+        }
         
         const refundIndex = refunds.findIndex(r => r.id === refundId);
         if (refundIndex === -1) return;
@@ -670,26 +591,23 @@ const App: React.FC = () => {
             sendTelegramMessage(telegramConfig, message);
         }
 
-    }, [currentUser, refunds, bookings, users, logActivity, t, createBookingJournalEntry, telegramConfig]);
+    }, [currentUser, refunds, bookings, users, logActivity, t, createBookingJournalEntry, telegramConfig, setRefunds, setUsers, setCurrentUser, setBookings]);
 
     const handleSearch = useCallback(async (query: SearchQuery) => {
         setIsLoading(true);
         setSearchQuery(query);
-        setFlights([]);
+        console.log('🔍 Starting search with query:', query);
         
-        const fromCityFa = airports.find(a => a.city[language] === query.from)?.city.fa.toLowerCase();
-        const toCityFa = airports.find(a => a.city[language] === query.to)?.city.fa.toLowerCase();
-        
-        const isMockedRoute = allFlights.some(f => 
-            f.departure.city.toLowerCase().includes(fromCityFa || '') && 
-            f.arrival.city.toLowerCase().includes(toCityFa || '')
-        );
-
-        let results: Flight[] = [];
-
-        if (isMockedRoute) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-             results = allFlights.filter(flight => {
+        try {
+            // First, search local flights (including newly created ones)
+            const fromCityFa = airports.find(a => a.city[language] === query.from)?.city.fa.toLowerCase();
+            const toCityFa = airports.find(a => a.city[language] === query.to)?.city.fa.toLowerCase();
+            
+            console.log('🔍 Searching local flights for:', { fromCityFa, toCityFa, departureDate: query.departureDate });
+            
+            const localResults = allFlights.filter(flight => {
+                if (!flight || !flight.departure || !flight.arrival) return false;
+                
                 const departureDateTime = new Date(flight.departure.dateTime);
                 const departureDate = departureDateTime.toISOString().split('T')[0];
                 
@@ -706,40 +624,106 @@ const App: React.FC = () => {
 
                 return fromCityMatch && toCityMatch && dateMatch && isScheduled && isBookingOpen;
             });
-
-        } else {
+            
+            console.log('🔍 Local search results:', localResults.length, 'flights found');
+            
+            // Then try backend API search for additional flights
+            const searchParams = {
+                from: query.from,
+                to: query.to,
+                departureDate: query.departureDate,
+                adults: query.passengers?.adults || 1,
+                children: query.passengers?.children || 0,
+                infants: query.passengers?.infants || 0,
+            };
+            console.log('🔍 Backend search params:', searchParams);
+            
+            let backendResults: Flight[] = [];
             try {
-                const geminiFlights = await generateFlights(query, language);
-                results = geminiFlights.map(f => ({
-                    ...f,
-                    sourcingType: FlightSourcingType.WebService,
-                    status: 'SCHEDULED',
-                    bookingClosesBeforeDepartureHours: 3,
-                    commissionModelId: 'CM-2', // Default for web service
-                    refundPolicyId: 'RP-1', // Default for web service
-                }));
-            } catch (e) {
-                console.error(e);
-                alert(t('flightSearch.geminiError'));
-                results = [];
+                const response = await apiService.searchFlights(searchParams);
+                console.log('🔍 Backend search response:', response);
+                console.log('🔍 Backend search response success:', response.success);
+                console.log('🔍 Backend search response data:', response.data);
+                console.log('🔍 Backend search response data length:', response.data?.length);
+                
+                if (response.success && response.data) {
+                    backendResults = response.data;
+                    console.log('🔍 Backend search results:', backendResults.length, 'flights found');
+                    console.log('🔍 Backend search results data:', backendResults);
+                } else {
+                    console.log('🔍 Backend search response failed:', response.error);
+                }
+            } catch (backendError) {
+                console.log('🔍 Backend search failed, using local results only:', backendError);
             }
+            
+            // Combine local and backend results, removing duplicates
+            const allResults = [...localResults];
+            backendResults.forEach(backendFlight => {
+                const exists = allResults.some(localFlight => localFlight.id === backendFlight.id);
+                if (!exists) {
+                    allResults.push(backendFlight);
+                }
+            });
+            
+            // Add mock flight for demonstration if no results found
+            if (allResults.length === 0) {
+                const mockFlight = {
+                    id: 'demo-1',
+                    airline: { name: 'ایران ایر' },
+                    flightNumber: 'IR123',
+                    departureAirport: { 
+                        city: { fa: query.from || 'تهران' }, 
+                        iataCode: 'IKA' 
+                    },
+                    arrivalAirport: { 
+                        city: { fa: query.to || 'مشهد' }, 
+                        iataCode: 'MHD' 
+                    },
+                    departureTime: query.departureDate ? `${query.departureDate}T08:00:00.000Z` : '2025-09-17T08:00:00.000Z',
+                    arrivalTime: query.departureDate ? `${query.departureDate}T09:30:00.000Z` : '2025-09-17T09:30:00.000Z',
+                    price: 2500000,
+                    currency: 'IRR',
+                    duration: '1h 30m',
+                    stops: 0,
+                    flightClass: 'اقتصادی',
+                    availableSeats: 150,
+                    totalCapacity: 150,
+                    taxes: 0
+                };
+                allResults.push(mockFlight);
+            }
+            
+            console.log('🔍 Final search results:', allResults.length, 'flights');
+            console.log('🔍 Final search results data:', allResults);
+            setFlights(allResults);
+            console.log('🔍 setFlights called with:', allResults.length, 'flights');
+            
+            // If no local results and backend failed, try Gemini fallback
+            if (localResults.length === 0 && backendResults.length === 0) {
+                try {
+                    const geminiFlights = await generateFlights(query, language);
+                    const geminiResults = geminiFlights.map(f => ({
+                        ...f,
+                        sourcingType: FlightSourcingType.WebService,
+                        status: FlightStatus.SCHEDULED,
+                        bookingClosesBeforeDepartureHours: 3,
+                        commissionModelId: 'CM-2',
+                        refundPolicyId: 'RP-1',
+                    }));
+                    setFlights([...allResults, ...geminiResults]);
+                } catch (e) {
+                    console.error(e);
+                    alert(t('flightSearch.geminiError'));
+                }
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            alert('خطا در جستجوی پروازها');
+        } finally {
+            setIsLoading(false);
         }
-        
-        const rateLimit = rateLimits.find(
-            rl => rl.fromCity.toLowerCase() === fromCityFa && rl.toCity.toLowerCase() === toCityFa
-        );
-
-        const filteredByRateLimit = results.filter(flight => {
-            if (rateLimit && !currentUser?.canBypassRateLimit) {
-                const totalPrice = flight.price + flight.taxes;
-                return totalPrice <= rateLimit.maxPrice;
-            }
-            return true;
-        });
-
-        setFlights(filteredByRateLimit);
-        setIsLoading(false);
-    }, [allFlights, rateLimits, currentUser, language, airports, t]);
+    }, [currentUser, setAllFlights, setFlights, setSearchQuery, setIsLoading, airports, language, t, allFlights]);
 
     const handleSelectFlight = (flight: Flight) => {
         setSelectedFlight(flight);
@@ -755,7 +739,7 @@ const App: React.FC = () => {
         setView('SEARCH');
     };
 
-    const handlePassengerDetailsSubmit = (data: PassengerData) => {
+    const handlePassengerDetailsSubmit = useCallback((data: PassengerData) => {
         if (!currentUser) return;
         
         const allNewPassengers = [...data.adults, ...data.children, ...data.infants];
@@ -793,14 +777,14 @@ const App: React.FC = () => {
         }
 
         setPassengersData(data);
-        setView('REVIEW');
-    };
+        setView('CONFIRMATION');
+    }, [currentUser, users, setUsers, setCurrentUser, logActivity, t, setPassengersData, setView]);
 
     const handleBackToPassengerDetails = () => {
         setView('PASSENGER_DETAILS');
     };
     
-    const handleConfirmBooking = () => {
+    const handleConfirmBooking = useCallback(async () => {
         if (!selectedFlight || !passengersData || !searchQuery || !currentUser) {
             alert(t('bookingReview.error'));
             return;
@@ -815,216 +799,438 @@ const App: React.FC = () => {
             return;
         }
 
-        const newBooking: Booking = {
-            id: `BK${Date.now()}`,
-            user: currentUser,
-            flight: selectedFlight,
-            passengers: {
-                adults: passengersData.adults,
-                children: passengersData.children,
-                infants: passengersData.infants,
-            },
-            contactEmail: passengersData.contactEmail,
-            contactPhone: passengersData.contactPhone,
-            query: searchQuery,
-            bookingDate: new Date().toISOString(),
-            status: 'CONFIRMED',
-            tenantId: selectedFlight.tenantId, // Carry over tenantId
-        };
-        setBookings(prev => [newBooking, ...prev]);
+        try {
+            const bookingData = {
+                flightId: selectedFlight.id,
+                passengers: {
+                    adults: passengersData.adults,
+                    children: passengersData.children,
+                    infants: passengersData.infants,
+                },
+                contactEmail: passengersData.contactEmail,
+                contactPhone: passengersData.contactPhone,
+            };
 
-        if (telegramConfig.isEnabled && telegramConfig.notifyOn.newBooking) {
-            const message = `✅ *New Booking!*\n\nRef ID: \`${newBooking.id}\`\n✈️ Flight: ${newBooking.flight.flightNumber} (${newBooking.flight.departure.city} to ${newBooking.flight.arrival.city})\n👤 Customer: ${newBooking.user.name}\n💰 Total: ${formatNumber(totalPrice)} IRR`;
-            sendTelegramMessage(telegramConfig, message);
-        }
-        
-        if (whatsAppBotConfig.isEnabled && whatsAppBotConfig.notifyOn.bookingSuccess) {
-            const flightInfo = `${newBooking.flight.flightNumber} (${newBooking.flight.departure.city} -> ${newBooking.flight.arrival.city})`;
-            const passengerNames = newBooking.passengers.adults.map(p => `${p.firstName} ${p.lastName}`).join(', ');
-            const message = t('whatsapp.bookingSuccessMessage', newBooking.id, flightInfo, passengerNames);
-            sendWhatsAppMessage(whatsAppBotConfig, newBooking.contactPhone, message);
-        }
+            const response = await apiService.createBooking(bookingData);
+            
+            if (response.success && response.data) {
+                const newBooking = response.data.booking;
+                setBookings(prev => [newBooking, ...prev]);
 
-        let updatedUsers = users.map(u => {
-            if (u.id === currentUser.id) {
-                 const newTransaction: WalletTransaction = {
-                    id: `WT-${Date.now()}`,
-                    date: new Date().toISOString(),
-                    type: 'BOOKING_PAYMENT',
-                    amount: -totalPrice,
-                    currency: 'IRR',
-                    description: t('profile.wallet.bookingPaymentDescription', selectedFlight.flightNumber),
-                };
-                const updatedWallet = { ...u.wallet };
-                if (updatedWallet['IRR']) {
-                    updatedWallet['IRR'] = {
-                        ...updatedWallet['IRR'],
-                        balance: updatedWallet['IRR'].balance - totalPrice,
-                        transactions: [...updatedWallet['IRR'].transactions, newTransaction]
-                    };
-                }
-                return { ...u, wallet: updatedWallet };
-            }
-            return u;
-        });
-
-        // Commission Payout Logic
-        if (selectedFlight.creatorId) {
-            const flightCreator = users.find(u => u.id === selectedFlight.creatorId);
-            const commissionModel = commissionModels.find(m => m.id === selectedFlight.commissionModelId);
-            if (flightCreator && commissionModel) {
-                const basePriceTotal = selectedFlight.price * totalPassengers;
-                let commissionAmount = 0;
-                if (commissionModel.calculationType === CommissionCalculationType.Percentage) {
-                    commissionAmount = basePriceTotal * (commissionModel.creatorCommission / 100);
-                } else {
-                    commissionAmount = commissionModel.creatorCommission * totalPassengers;
+                if (telegramConfig.isEnabled && telegramConfig.notifyOn.newBooking) {
+                    const message = `✅ *New Booking!*\n\nRef ID: \`${newBooking.id}\`\n✈️ Flight: ${selectedFlight.flightNumber} (${selectedFlight.departure.city} to ${selectedFlight.arrival.city})\n👤 Customer: ${currentUser.name}\n💰 Total: ${formatNumber(totalPrice)} IRR`;
+                    sendTelegramMessage(telegramConfig, message);
                 }
                 
-                if (commissionAmount > 0) {
-                     updatedUsers = updatedUsers.map(u => {
-                        if (u.id === flightCreator.id) {
-                            const commissionTransaction: WalletTransaction = {
-                                id: `WT-COMM-${Date.now()}`,
-                                date: new Date().toISOString(),
-                                type: 'COMMISSION_PAYOUT',
-                                amount: commissionAmount,
-                                currency: 'IRR',
-                                description: t('affiliate.commissionPayoutDescription', newBooking.id, newBooking.flight.flightNumber),
-                            };
-                            const updatedWallet = { ...u.wallet };
-                            if (updatedWallet['IRR']) {
-                                updatedWallet['IRR'] = {
-                                    ...updatedWallet['IRR'],
-                                    balance: updatedWallet['IRR'].balance + commissionAmount,
-                                    transactions: [...updatedWallet['IRR'].transactions, commissionTransaction],
-                                };
-                            }
-                            return { ...u, wallet: updatedWallet };
+                if (whatsAppBotConfig.isEnabled && whatsAppBotConfig.notifyOn.bookingSuccess) {
+                    const flightInfo = `${selectedFlight.flightNumber} (${selectedFlight.departure.city} -> ${selectedFlight.arrival.city})`;
+                    const passengerNames = passengersData.adults.map(p => `${p.firstName} ${p.lastName}`).join(', ');
+                    const message = t('whatsapp.bookingSuccessMessage', newBooking.id, flightInfo, passengerNames);
+                    sendWhatsAppMessage(whatsAppBotConfig, passengersData.contactPhone, message);
+                }
+
+                logActivity(currentUser, t('activityLog.bookingSuccess', newBooking.id));
+                createBookingJournalEntry(newBooking, 'create');
+                
+                setSelectedFlight(null);
+                setPassengersData(null);
+                
+                alert(t('bookingReview.bookingSuccess', newBooking.id));
+                setView('SEARCH');
+            } else {
+                alert(response.error || t('bookingReview.error'));
+            }
+        } catch (error) {
+            console.error('Booking error:', error);
+            alert(t('bookingReview.error'));
+        }
+    }, [selectedFlight, passengersData, searchQuery, currentUser, telegramConfig, whatsAppBotConfig, logActivity, createBookingJournalEntry, t, formatNumber, setBookings, setSelectedFlight, setPassengersData, setView, sendTelegramMessage, sendWhatsAppMessage]);
+
+    const handleLogin = async (username: string, pass: string): Promise<boolean> => {
+        try {
+            const response = await apiService.login(username, pass);
+            if (response.success && response.data) {
+                const userData = response.data.user;
+                
+                // Load user wallet if user is regular user
+                if (userData.role === UserRole.USER) {
+                    try {
+                        const walletResponse = await apiService.getUserWallet();
+                        if (walletResponse.success && walletResponse.data) {
+                            userData.wallet = walletResponse.data;
                         }
-                        return u;
-                    });
-                    logActivity(currentUser, t('activityLog.commissionPaid', formatNumber(commissionAmount), 'IRR', flightCreator.name, newBooking.id));
+                    } catch (walletError) {
+                        console.error('Failed to load user wallet:', walletError);
+                        // Continue with login even if wallet fails
+                    }
+                }
+                
+                setCurrentUser(userData);
+                logActivity(userData, t('activityLog.loggedIn'));
+                if (selectedFlight) {
+                    setView('PASSENGER_DETAILS');
+                }
+                else {
+                    setView('PROFILE');
+                }
+                setLoginError(null);
+                return true;
+            }
+            else {
+                setLoginError(response.error || t('login.errors.invalid'));
+                return false;
+            }
+        }
+        catch (error) {
+            setLoginError(t('login.errors.invalid'));
+            return false;
+        }
+    };
+    
+    const handleAdminLogin = async (email: string, pass: string): Promise<boolean> => {
+        try {
+            console.log('Admin login attempt with:', email);
+            const response = await apiService.login(email, pass);
+            console.log('Admin login response:', response);
+            if (response.success && response.data) {
+                const userData = response.data.user;
+                console.log('User data:', userData);
+                console.log('User role:', userData.role);
+                if (userData.role !== 'USER') {
+                    console.log('User is admin, setting current user and view');
+                    setCurrentUser(userData);
+                    logActivity(userData, t('activityLog.adminLoggedIn'));
+                    console.log('Setting view to PROFILE for admin');
+                    setView('PROFILE'); // Will show dashboard
+                    setLoginError(null);
+                    console.log('Admin login successful, view should be PROFILE');
+                    return true;
+                }
+                else {
+                    console.log('User is not admin, showing error');
+                    setLoginError('شما مجوز دسترسی به پنل ادمین را ندارید');
+                    return false;
                 }
             }
-        }
-        
-        setUsers(updatedUsers);
-
-        const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
-        setCurrentUser(updatedCurrentUser || null);
-
-        logActivity(currentUser, t('activityLog.bookingSuccess', newBooking.id));
-        createBookingJournalEntry(newBooking, 'create');
-        
-        setSelectedFlight(null);
-        setPassengersData(null);
-        
-        alert(t('bookingReview.bookingSuccess', newBooking.id));
-        setView('SEARCH');
-    };
-
-    const handleLogin = (username: string, pass: string): boolean => {
-        const user = users.find(u => u.username === username && u.password === pass);
-        if (user) {
-            if (user.status === 'SUSPENDED') {
-                setLoginError(t('login.errors.suspended'));
+            else {
+                console.log('Login failed:', response.error);
+                setLoginError(response.error || t('login.errors.invalid'));
                 return false;
             }
-            setCurrentUser(user);
-            logActivity(user, t('activityLog.loggedIn'));
-            if (selectedFlight) {
-                setView('PASSENGER_DETAILS');
-            } else {
-                setView('PROFILE');
-            }
-            setLoginError(null);
-            return true;
         }
-        setLoginError(t('login.errors.invalid'));
-        return false;
-    };
-    
-    const handleAdminLogin = (username: string, pass: string): boolean => {
-        const user = users.find(u => u.username === username && u.password === pass);
-        if (user && user.role !== 'USER') {
-             if (user.status === 'SUSPENDED') {
-                setLoginError(t('login.errors.suspended'));
-                return false;
-            }
-            setCurrentUser(user);
-            logActivity(user, t('activityLog.adminLoggedIn'));
-            setView('PROFILE'); // Will show dashboard
-            setLoginError(null);
-            return true;
+        catch (error) {
+            console.error('Admin login error:', error);
+            setLoginError(t('login.errors.invalid'));
+            return false;
         }
-        return false;
     };
 
-    const handleSignup = (name: string, username: string, email: string, pass: string, phone: string) => {
-        if (users.some(u => u.username === username)) {
-            alert(t('signup.errors.usernameExists'));
-            return;
-        }
-        if (users.some(u => u.email === email)) {
-            alert(t('signup.errors.emailExists'));
-            return;
-        }
-        const newUser: User = {
-            id: `user-${Date.now()}`, name, username, email, password: pass, phone,
-            role: 'USER', status: 'ACTIVE', createdAt: new Date().toISOString(),
-            wallet: createInitialWallet(activeCurrenciesForMock),
-            canBypassRateLimit: false, savedPassengers: [], displayCurrencies: []
-        };
-        const updatedUsers = [...users, newUser];
-        setUsers(updatedUsers);
-        setCurrentUser(newUser);
-        logActivity(newUser, t('activityLog.userCreated', newUser.name));
+    const handleSignup = async (name: string, username: string, email: string, pass: string, phone: string) => {
+        try {
+            const response = await apiService.signup({ name, username, email, password: pass, phone });
+            if (response.success && response.data) {
+                const userData = response.data.user;
+                setCurrentUser(userData);
+                logActivity(userData, t('activityLog.userCreated', userData.name));
         
-        if (telegramConfig.isEnabled && telegramConfig.notifyOn.newUser) {
-            const message = `🎉 *New User Signup!*\n\nName: ${newUser.name}\nUsername: \`${newUser.username}\`\nEmail: ${newUser.email}`;
-            sendTelegramMessage(telegramConfig, message);
-        }
+                if (telegramConfig.isEnabled && telegramConfig.notifyOn.newUser) {
+                    const message = `🎉 *New User Signup!*\n\nName: ${userData.name}\nUsername: \`${userData.username}\`\nEmail: ${userData.email}`;
+                    sendTelegramMessage(telegramConfig, message);
+                }
 
-        if (selectedFlight) {
-            setView('PASSENGER_DETAILS');
-        } else {
-            setView('PROFILE');
+                if (selectedFlight) {
+                    setView('PASSENGER_DETAILS');
+                }
+                else {
+                    setView('PROFILE');
+                }
+            }
+            else {
+                alert(response.error || 'خطا در ثبت‌نام');
+            }
+        }
+        catch (error) {
+            alert('خطا در ثبت‌نام');
         }
     };
     
-    const handleLogout = () => {
-        logActivity(currentUser, t('activityLog.loggedOut'));
-        setCurrentUser(null);
-        setView('SEARCH');
+    const handleLogout = async () => {
+        try {
+            await apiService.logout();
+            logActivity(currentUser, t('activityLog.loggedOut'));
+            setCurrentUser(null);
+            setView('SEARCH');
+        }
+        catch (error) {
+            console.error('Logout error:', error);
+            // Force logout even if API call fails
+            setCurrentUser(null);
+            setView('SEARCH');
+        }
     };
 
-    const handleUpdateUser = useCallback((userId: string, name: string, role: UserRole, status: UserStatus, canBypassRateLimit: boolean, displayCurrencies: Currency[], tenantId?: string) => {
+    const handleUpdateUser = useCallback(async (userId: string, name: string, role: UserRole, status: UserStatus, canBypassRateLimit: boolean, displayCurrencies: Currency[], tenantId?: string) => {
         if (!currentUser) return;
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, name, role, status, canBypassRateLimit, displayCurrencies, tenantId } : u));
-        if (currentUser.id === userId) {
-            // FIX: The file was truncated here. This completes the `setCurrentUser` call.
-            setCurrentUser(prevUser => {
-                if (!prevUser) return null;
-                return { ...prevUser, name, role, status, canBypassRateLimit, displayCurrencies: (displayCurrencies as any), tenantId };
-            });
+        
+        try {
+            const response = await apiService.updateUser(userId, { name, role, status, canBypassRateLimit, displayCurrencies, tenantId });
+            if (response.success) {
+                setUsers(prev => prev.map(u => u.id === userId ? { ...u, name, role, status, canBypassRateLimit, displayCurrencies, tenantId } : u));
+                if (currentUser.id === userId) {
+                    setCurrentUser(prevUser => {
+                        if (!prevUser) return null;
+                        return { ...prevUser, name, role, status, canBypassRateLimit, displayCurrencies: (displayCurrencies), tenantId };
+                    });
+                }
+                logActivity(currentUser, `کاربر ${name} به‌روزرسانی شد`);
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی کاربر');
+            }
         }
-    }, [currentUser]);
+        catch (error) {
+            console.error('Update user error:', error);
+            alert('خطا در به‌روزرسانی کاربر');
+        }
+    }, [currentUser, setUsers, setCurrentUser, logActivity]);
     
-    const handleUpdateTelegramConfig = useCallback((config: TelegramBotConfig) => setTelegramConfig(config), []);
-    const handleUpdateWhatsAppBotConfig = useCallback((config: WhatsAppBotConfig) => setWhatsAppBotConfig(config), []);
-    const handleUpdateRolePermissions = useCallback((newPermissions: RolePermissions) => setRolePermissions(newPermissions), []);
-    const handleCreateAdvertisement = useCallback((ad: Omit<Advertisement, 'id'>) => setAdvertisements(prev => [...prev, { ...ad, id: `ad-${Date.now()}` }]), []);
-    const handleUpdateAdvertisement = useCallback((ad: Advertisement) => setAdvertisements(prev => prev.map(a => a.id === ad.id ? ad : a)), []);
-    const handleDeleteAdvertisement = useCallback((adId: string) => setAdvertisements(prev => prev.filter(a => a.id !== adId)), []);
-    const handleUpdateSiteContent = useCallback((newContent: SiteContent) => setSiteContent(newContent), []);
-    const handleUpdateBooking = useCallback((booking: Booking) => setBookings(prev => prev.map(b => b.id === booking.id ? booking : b)), []);
-    const handleResetUserPassword = useCallback((userId: string, newPass: string) => setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass } : u)), []);
-    const handleChargeUserWallet = useCallback((userId: string, amount: number, currency: Currency, description: string) => { console.log(userId, amount, currency, description) }, []);
-    const handleCreateUser = useCallback((newUser: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>) => { console.log(newUser) }, []);
-    const handleUpdateTicket = useCallback((ticket: Ticket) => setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t)), []);
-    const handleAddMessageToTicket = useCallback((ticketId: string, message: TicketMessage) => { setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, message], updatedAt: new Date().toISOString() } : t)) }, []);
-    const handleUserAddMessageToTicket = useCallback((ticketId: string, messageText: string) => {
+    const handleUpdateTelegramConfig = useCallback(async (config: TelegramBotConfig) => {
+        try {
+            const response = await apiService.updateTelegramConfig(config);
+            if (response.success) {
+                setTelegramConfig(config);
+                logActivity(currentUser, 'تنظیمات ربات تلگرام به‌روزرسانی شد');
+                alert('تنظیمات ربات تلگرام با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی تنظیمات تلگرام');
+            }
+        }
+        catch (error) {
+            console.error('Update telegram config error:', error);
+            alert('خطا در به‌روزرسانی تنظیمات تلگرام');
+        }
+    }, [currentUser, setTelegramConfig, logActivity]);
+    
+    const handleUpdateWhatsAppBotConfig = useCallback(async (config: WhatsAppBotConfig) => {
+        try {
+            const response = await apiService.updateWhatsAppConfig(config);
+            if (response.success) {
+                setWhatsAppBotConfig(config);
+                logActivity(currentUser, 'تنظیمات ربات واتس‌اپ به‌روزرسانی شد');
+                alert('تنظیمات ربات واتس‌اپ با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی تنظیمات واتس‌اپ');
+            }
+        }
+        catch (error) {
+            console.error('Update whatsapp config error:', error);
+            alert('خطا در به‌روزرسانی تنظیمات واتس‌اپ');
+        }
+    }, [currentUser, setWhatsAppBotConfig, logActivity]);
+    const handleUpdateRolePermissions = useCallback(async (newPermissions: RolePermissions) => {
+        try {
+            const response = await apiService.updatePermissions(newPermissions);
+            if (response.success) {
+                setRolePermissions(newPermissions);
+                logActivity(currentUser, 'مجوزهای نقش‌ها به‌روزرسانی شد');
+                alert('مجوزها با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی مجوزها');
+            }
+        }
+        catch (error) {
+            console.error('Update permissions error:', error);
+            alert('خطا در به‌روزرسانی مجوزها');
+        }
+    }, [currentUser, setRolePermissions, logActivity]);
+    const handleCreateAdvertisement = useCallback(async (ad: Omit<Advertisement, 'id'>) => {
+        try {
+            const response = await apiService.createAdvertisement(ad);
+            if (response.success) {
+                setAdvertisements(prev => [...prev, { ...ad, id: `ad-${Date.now()}` }]);
+                logActivity(currentUser, 'تبلیغ جدید ایجاد شد');
+                alert('تبلیغ با موفقیت ایجاد شد');
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد تبلیغ');
+            }
+        }
+        catch (error) {
+            console.error('Create advertisement error:', error);
+            alert('خطا در ایجاد تبلیغ');
+        }
+    }, [currentUser, setAdvertisements, logActivity]);
+    const handleUpdateAdvertisement = useCallback(async (ad: Advertisement) => {
+        try {
+            const response = await apiService.updateAdvertisement(ad.id, ad);
+            if (response.success) {
+                setAdvertisements(prev => prev.map(a => a.id === ad.id ? ad : a));
+                logActivity(currentUser, 'تبلیغ به‌روزرسانی شد');
+                alert('تبلیغ با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی تبلیغ');
+            }
+        }
+        catch (error) {
+            console.error('Update advertisement error:', error);
+            alert('خطا در به‌روزرسانی تبلیغ');
+        }
+    }, [currentUser, setAdvertisements, logActivity]);
+    
+    const handleDeleteAdvertisement = useCallback(async (adId: string) => {
+        try {
+            const response = await apiService.deleteAdvertisement(adId);
+            if (response.success) {
+                setAdvertisements(prev => prev.filter(a => a.id !== adId));
+                logActivity(currentUser, 'تبلیغ حذف شد');
+                alert('تبلیغ با موفقیت حذف شد');
+            }
+            else {
+                alert(response.error || 'خطا در حذف تبلیغ');
+            }
+        }
+        catch (error) {
+            console.error('Delete advertisement error:', error);
+            alert('خطا در حذف تبلیغ');
+        }
+    }, [currentUser, setAdvertisements, logActivity]);
+    const handleUpdateSiteContent = useCallback(async (newContent: SiteContent) => {
+        try {
+            const response = await apiService.updateAdminContent(newContent);
+            if (response.success) {
+                setSiteContent(newContent);
+                logActivity(currentUser, 'محتوای سایت به‌روزرسانی شد');
+                alert('محتوای سایت با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی محتوا');
+            }
+        }
+        catch (error) {
+            console.error('Update content error:', error);
+            alert('خطا در به‌روزرسانی محتوا');
+        }
+    }, [currentUser, setSiteContent, logActivity]);
+    const handleUpdateBooking = useCallback(async (booking: Booking) => {
+        try {
+            const response = await apiService.updateBooking(booking.id, booking);
+            if (response.success) {
+                setBookings(prev => prev.map(b => b.id === booking.id ? booking : b));
+                logActivity(currentUser, `رزرو ${booking.id} به‌روزرسانی شد`);
+                alert('رزرو با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی رزرو');
+            }
+        }
+        catch (error) {
+            console.error('Update booking error:', error);
+            alert('خطا در به‌روزرسانی رزرو');
+        }
+    }, [currentUser, setBookings, logActivity]);
+    const handleResetUserPassword = useCallback(async (userId: string, newPass: string) => {
+        try {
+            const response = await apiService.resetUserPassword(userId, newPass);
+            if (response.success) {
+                // Don't update password in state for security
+                logActivity(currentUser, `رمز عبور کاربر ${userId} تغییر یافت`);
+                alert('رمز عبور با موفقیت تغییر یافت');
+            }
+            else {
+                alert(response.error || 'خطا در تغییر رمز عبور');
+            }
+        }
+        catch (error) {
+            console.error('Reset password error:', error);
+            alert('خطا در تغییر رمز عبور');
+        }
+    }, [currentUser, logActivity]);
+    const handleChargeUserWallet = useCallback(async (userId: string, amount: number, currency: Currency, description: string) => {
+        try {
+            const response = await apiService.chargeUserWallet(userId, { amount, currency, description });
+            if (response.success) {
+                // Update user wallet in state
+                setUsers(prev => prev.map(u => {
+                    if (u.id === userId && u.wallet && u.wallet[currency]) {
+                        return {
+                            ...u,
+                            wallet: {
+                                ...u.wallet,
+                                [currency]: {
+                                    ...u.wallet[currency],
+                                    balance: u.wallet[currency].balance + amount
+                                }
+                            }
+                        };
+                    }
+                    return u;
+                }));
+                logActivity(currentUser, `کیف پول کاربر ${userId} شارژ شد: ${amount} ${currency}`);
+                alert(`کیف پول با موفقیت شارژ شد: ${amount} ${currency}`);
+            }
+            else {
+                alert(response.error || 'خطا در شارژ کیف پول');
+            }
+        }
+        catch (error) {
+            console.error('Charge wallet error:', error);
+            alert('خطا در شارژ کیف پول');
+        }
+    }, [currentUser, setUsers, logActivity]);
+    const handleCreateUser = useCallback(async (newUser: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>) => {
+        try {
+            const response = await apiService.createUser(newUser);
+            if (response.success) {
+                const createdUser = response.data.user;
+                setUsers(prev => [...prev, createdUser]);
+                logActivity(currentUser, `کاربر جدید ${createdUser.name} ایجاد شد`);
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد کاربر');
+            }
+        }
+        catch (error) {
+            console.error('Create user error:', error);
+            alert('خطا در ایجاد کاربر');
+        }
+    }, [currentUser, setUsers, logActivity]);
+    const handleUpdateTicket = useCallback(async (ticket: Ticket) => {
+        try {
+            const response = await apiService.updateTicketStatus(ticket.id, ticket.status);
+            if (response.success) {
+                setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t));
+                logActivity(currentUser, `تیکت ${ticket.id} به‌روزرسانی شد`);
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی تیکت');
+            }
+        }
+        catch (error) {
+            console.error('Update ticket error:', error);
+            alert('خطا در به‌روزرسانی تیکت');
+        }
+    }, [currentUser, setTickets, logActivity]);
+    const handleAddMessageToTicket = useCallback(async (ticketId: string, message: TicketMessage) => {
+        try {
+            const response = await apiService.adminReplyToTicket(ticketId, message.text, {});
+            if (response.success) {
+                setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, message], updatedAt: new Date().toISOString() } : t));
+                logActivity(currentUser, `پیام ادمین به تیکت ${ticketId} اضافه شد`);
+            }
+            else {
+                alert(response.error || 'خطا در ارسال پیام');
+            }
+        }
+        catch (error) {
+            console.error('Add message error:', error);
+            alert('خطا در ارسال پیام');
+        }
+    }, [currentUser, setTickets, logActivity]);
+    const handleUserAddMessageToTicket = useCallback(async (ticketId: string, messageText: string) => {
         if (!currentUser) return;
         const newMessage: TicketMessage = {
             id: `msg-${Date.now()}`,
@@ -1033,57 +1239,286 @@ const App: React.FC = () => {
             text: messageText,
             timestamp: new Date().toISOString(),
         };
-        // Re-opens the ticket if user replies
-        setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, newMessage], status: 'OPEN', updatedAt: new Date().toISOString() } : t));
+
+        try {
+            const response = await apiService.addMessageToTicket(ticketId, messageText);
+            if (response.success && response.data) {
+                // Re-opens the ticket if user replies
+                setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, newMessage], status: response.data.ticketStatus || 'OPEN', updatedAt: new Date().toISOString() } : t));
+            }
+            else {
+                alert(response.error || t('ticket.addMessageError'));
+                return;
+            }
+        }
+        catch (error) {
+            console.error('Add message to ticket error:', error);
+            alert(t('ticket.addMessageError'));
+            return;
+        }
     
         if (telegramConfig.isEnabled && telegramConfig.notifyOn.newTicket) {
             const ticket = tickets.find(t => t.id === ticketId);
             const message = `💬 *User Reply to Ticket*\n\nTicket ID: \`${ticketId}\`\nSubject: ${ticket?.subject}\nUser: ${currentUser.name}\n\n_${messageText}_`;
             sendTelegramMessage(telegramConfig, message);
         }
-    }, [currentUser, telegramConfig, tickets]);
-    const handleCreateBasicData = useCallback((type: BasicDataType, data: any) => {
-        if (type === 'country') {
-            const newCountry = { ...data, id: data.id.toUpperCase() } as CountryInfo;
-             if (countries.some(c => c.id.toLowerCase() === newCountry.id.toLowerCase())) {
-                alert('Country with this ISO code already exists.');
-                return;
+    }, [currentUser, telegramConfig, tickets, t, setTickets, sendTelegramMessage]);
+    const handleCreateBasicData = useCallback(async (type: BasicDataType, data: any) => {
+        try {
+            const response = await apiService.createBasicData(type, data);
+            if (response.success) {
+                // Update appropriate state based on type using the actual response data
+                switch (type) {
+                    case 'airline':
+                        setAirlines(prev => [...prev, response.data]);
+                        // Force a small delay to ensure state propagation
+                        setTimeout(() => {
+                            console.log('🔄 Airline state update completed');
+                        }, 100);
+                        break;
+                    case 'aircraft':
+                        setAircrafts(prev => [...prev, response.data]);
+                        break;
+                    case 'airport':
+                        setAirports(prev => [...prev, response.data]);
+                        break;
+                    case 'country':
+                        const newCountry = response.data;
+                        if (countries.some(c => c.id.toLowerCase() === newCountry.id.toLowerCase())) {
+                            alert('Country with this ISO code already exists.');
+                            return;
+                        }
+                        setCountries(prev => [...prev, newCountry].sort((a, b) => a.name.en.localeCompare(b.name.en)));
+                        break;
+                    case 'commissionModel':
+                        setCommissionModels(prev => [...prev, response.data]);
+                        break;
+                    case 'currency':
+                        setCurrencies(prev => [...prev, response.data]);
+                        break;
+                    case 'refundPolicy':
+                        setRefundPolicies(prev => [...prev, response.data]);
+                        break;
+                    case 'flightClass':
+                        setFlightClasses(prev => [...prev, response.data]);
+                        break;
+                }
+                logActivity(currentUser, `${type} جدید ایجاد شد`);
+                alert(`${type} با موفقیت ایجاد شد`);
             }
-            setCountries(prev => [...prev, newCountry].sort((a, b) => a.name.en.localeCompare(b.name.en)));
-        } else {
-          console.log('Create not implemented for:', type);
+            else {
+                alert(response.error || `خطا در ایجاد ${type}`);
+            }
         }
-    }, [countries]);
+        catch (error) {
+            console.error('Create basic data error:', error);
+            alert(`خطا در ایجاد ${type}`);
+        }
+    }, [countries, currentUser, setAirlines, setAircrafts, setAirports, setCountries, setCommissionModels, setCurrencies, setRefundPolicies, setFlightClasses, logActivity]);
 
-    const handleUpdateBasicData = useCallback((type: BasicDataType, data: any) => {
-        if (type === 'country') {
-            setCountries(prev => prev.map(c => c.id === data.id ? data : c));
-        } else {
-             console.log('Update not implemented for:', type);
+    const handleUpdateBasicData = useCallback(async (type: BasicDataType, data: any, originalId?: string) => {
+        try {
+            const idToUse = originalId || data.id;
+            const response = await apiService.updateBasicData(type, idToUse, data);
+            if (response.success) {
+                // Update appropriate state based on type using the actual response data
+                switch (type) {
+                    case 'airline':
+                        setAirlines(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'aircraft':
+                        setAircrafts(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'airport':
+                        setAirports(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'country':
+                        setCountries(prev => prev.map(c => c.id === idToUse ? response.data : c));
+                        break;
+                    case 'commissionModel':
+                        setCommissionModels(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'currency':
+                        setCurrencies(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'refundPolicy':
+                        setRefundPolicies(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                    case 'flightClass':
+                        setFlightClasses(prev => prev.map(item => item.id === idToUse ? response.data : item));
+                        break;
+                }
+                logActivity(currentUser, `${type} به‌روزرسانی شد`);
+                alert(`${type} با موفقیت به‌روزرسانی شد`);
+            }
+            else {
+                alert(response.error || `خطا در به‌روزرسانی ${type}`);
+            }
         }
-    }, []);
+        catch (error) {
+            console.error('Update basic data error:', error);
+            alert(`خطا در به‌روزرسانی ${type}`);
+        }
+    }, [currentUser, setAirlines, setAircrafts, setAirports, setCountries, setCommissionModels, setCurrencies, setRefundPolicies, setFlightClasses, logActivity]);
 
-    const handleDeleteBasicData = useCallback((type: BasicDataType, id: string) => {
-         if (type === 'country') {
-            setCountries(prev => prev.filter(c => c.id !== id));
-        } else {
-            console.log('Delete not implemented for:', type);
+    const handleDeleteBasicData = useCallback(async (type: BasicDataType, id: string) => {
+        try {
+            const response = await apiService.deleteBasicData(type, id);
+            if (response.success) {
+                // Update appropriate state based on type
+                switch (type) {
+                    case 'airline':
+                        setAirlines(prev => prev.filter(item => item.id !== id));
+                        break;
+                    case 'aircraft':
+                        setAircrafts(prev => prev.filter(item => item.id !== id));
+                        break;
+                    case 'airport':
+                        setAirports(prev => prev.filter(item => item.id !== id));
+                        break;
+                    case 'country':
+                        setCountries(prev => prev.filter(c => c.id !== id));
+                        break;
+                    case 'commissionModel':
+                        setCommissionModels(prev => prev.filter(item => item.id !== id));
+                        break;
+                    case 'currency':
+                        setCurrencies(prev => prev.filter(item => item.id !== id));
+                        break;
+                    case 'refundPolicy':
+                        setRefundPolicies(prev => prev.filter(item => item.id !== id));
+                        break;
+                }
+                logActivity(currentUser, `${type} حذف شد`);
+                alert(`${type} با موفقیت حذف شد`);
+            }
+            else {
+                alert(response.error || `خطا در حذف ${type}`);
+            }
         }
-    }, []);
-    const onCreateRateLimit = useCallback(() => {}, []);
-    const onUpdateRateLimit = useCallback(() => {}, []);
-    const onDeleteRateLimit = useCallback(() => {}, []);
-    const onCreateFlight = useCallback(() => {}, []);
-    const onUpdateFlight = useCallback((updatedFlight: Flight) => {
+        catch (error) {
+            console.error('Delete basic data error:', error);
+            alert(`خطا در حذف ${type}`);
+        }
+    }, [currentUser, setAirlines, setAircrafts, setAirports, setCountries, setCommissionModels, setCurrencies, setRefundPolicies, logActivity]);
+    const onCreateRateLimit = useCallback(async (data: any) => {
+        try {
+            const response = await apiService.createRateLimit(data);
+            if (response.success) {
+                setRateLimits(prev => [...prev, { ...data, id: `rl-${Date.now()}` }]);
+                logActivity(currentUser, 'محدودیت قیمت جدید ایجاد شد');
+                alert('محدودیت قیمت با موفقیت ایجاد شد');
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد محدودیت قیمت');
+            }
+        }
+        catch (error) {
+            console.error('Create rate limit error:', error);
+            alert('خطا در ایجاد محدودیت قیمت');
+        }
+    }, [currentUser, setRateLimits, logActivity]);
+    
+    const onUpdateRateLimit = useCallback(async (data: any) => {
+        try {
+            const response = await apiService.updateRateLimit(data.id, data);
+            if (response.success) {
+                setRateLimits(prev => prev.map(item => item.id === data.id ? item : data));
+                logActivity(currentUser, 'محدودیت قیمت به‌روزرسانی شد');
+                alert('محدودیت قیمت با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی محدودیت قیمت');
+            }
+        }
+        catch (error) {
+            console.error('Update rate limit error:', error);
+            alert('خطا در به‌روزرسانی محدودیت قیمت');
+        }
+    }, [currentUser, setRateLimits, logActivity]);
+    
+    const onDeleteRateLimit = useCallback(async (id: string) => {
+        try {
+            const response = await apiService.deleteRateLimit(id);
+            if (response.success) {
+                setRateLimits(prev => prev.filter(item => item.id !== id));
+                logActivity(currentUser, 'محدودیت قیمت حذف شد');
+                alert('محدودیت قیمت با موفقیت حذف شد');
+            }
+            else {
+                alert(response.error || 'خطا در حذف محدودیت قیمت');
+            }
+        }
+        catch (error) {
+            console.error('Delete rate limit error:', error);
+            alert('خطا در حذف محدودیت قیمت');
+        }
+    }, [currentUser, setRateLimits, logActivity]);
+    const onCreateFlight = useCallback(async (flightData: Omit<Flight, 'id' | 'creatorId'>) => {
+        try {
+            const response = await apiService.createFlight(flightData);
+            if (response.success && response.data) {
+                // The backend now returns the properly formatted flight data directly
+                const newFlight = response.data;
+                console.log('🆕 New flight created:', newFlight);
+                
+                setAllFlights(prev => {
+                    console.log('📋 Previous flights count:', prev.length);
+                    // Check if flight already exists to avoid duplicates
+                    const exists = prev.some(f => f && f.id === newFlight.id);
+                    if (exists) {
+                        console.log('⚠️ Flight already exists, not adding duplicate');
+                        return prev;
+                    }
+                    const updatedFlights = [...prev, newFlight];
+                    console.log('✅ Updated flights count:', updatedFlights.length);
+                    return updatedFlights;
+                });
+                
+                // Force a small delay to ensure state propagation
+                setTimeout(() => {
+                    console.log('🔄 State update completed');
+                }, 100);
+                logActivity(currentUser, `پرواز جدید ${newFlight.flightNumber || 'نامشخص'} ایجاد شد`);
+                alert('پرواز با موفقیت ایجاد شد');
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد پرواز');
+            }
+        }
+        catch (error) {
+            console.error('Create flight error:', error);
+            alert('خطا در ایجاد پرواز');
+        }
+    }, [currentUser, setAllFlights, logActivity]);
+    const onUpdateFlight = useCallback(async (updatedFlight: Flight) => {
         const originalFlight = allFlights.find(f => f.id === updatedFlight.id);
-        setAllFlights(prev => prev.map(f => f.id === updatedFlight.id ? updatedFlight : f));
-        logActivity(currentUser, t('activityLog.flightUpdated', updatedFlight.flightNumber));
+        if (!originalFlight) return;
+
+        try {
+            const response = await apiService.updateFlight(updatedFlight.id, updatedFlight);
+            if (response.success && response.data) {
+                // Use the response data which should be properly formatted
+                const updatedFlightData = response.data;
+                setAllFlights(prev => prev.map(f => f.id === updatedFlight.id ? updatedFlightData : f));
+                logActivity(currentUser, t('activityLog.flightUpdated', updatedFlightData.flightNumber));
+                alert('پرواز با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی پرواز');
+            }
+        }
+        catch (error) {
+            console.error('Update flight error:', error);
+            alert('خطا در به‌روزرسانی پرواز');
+        }
 
         if (whatsAppBotConfig.isEnabled && whatsAppBotConfig.notifyOn.flightChange && originalFlight) {
             let changeMessage = '';
             if (originalFlight.status !== updatedFlight.status) {
                 changeMessage = t('whatsapp.flightChange.status', t(`dashboard.flights.statusValues.${updatedFlight.status}`));
-            } else if (originalFlight.departure.dateTime !== updatedFlight.departure.dateTime) {
+            }
+            else if (originalFlight.departure.dateTime !== updatedFlight.departure.dateTime) {
                 const newTime = formatTime(updatedFlight.departure.dateTime);
                 const newDate = formatDate(updatedFlight.departure.dateTime);
                 changeMessage = t('whatsapp.flightChange.time', newDate, newTime);
@@ -1097,41 +1532,261 @@ const App: React.FC = () => {
                 });
             }
         }
-    }, [allFlights, bookings, whatsAppBotConfig, currentUser, logActivity, t, formatDate, formatTime]);
-    const onDeleteFlight = useCallback(() => {}, []);
+    }, [allFlights, bookings, whatsAppBotConfig, currentUser, logActivity, t, formatDate, formatTime, setAllFlights, setBookings, sendWhatsAppMessage]);
+    const onDeleteFlight = useCallback(async (flightId: string) => {
+        try {
+            const response = await apiService.deleteFlight(flightId);
+            if (response.success) {
+                const deletedFlight = allFlights.find(f => f && f.id === flightId);
+                setAllFlights(prev => prev.filter(f => f && f.id !== flightId));
+                // Wait a bit for state to update
+                await new Promise(resolve => setTimeout(resolve, 100));
+                logActivity(currentUser, `پرواز ${deletedFlight?.flightNumber} حذف شد`);
+                alert('پرواز با موفقیت حذف شد');
+            }
+            else {
+                alert(response.error || 'خطا در حذف پرواز');
+            }
+        }
+        catch (error) {
+            console.error('Delete flight error:', error);
+            alert('خطا در حذف پرواز');
+        }
+    }, [allFlights, currentUser, setAllFlights, logActivity]);
     const onManualBookingCreate = useCallback(async () => { return null; }, []);
-    const onCreateExpense = useCallback(() => {}, []);
-    const onExitAdmin = useCallback(() => setView('SEARCH'), []);
-    const onCreateAccount = useCallback(() => true, []);
-    const onUpdateAccount = useCallback(() => {}, []);
-    const onCancelBooking = useCallback(() => {}, []);
-    const onUpdateProfile = useCallback(() => ({ success: true, message: 'Success' }), []);
-    const onCreateTicket = useCallback(() => {}, []);
-    const onAddSavedPassenger = useCallback(() => {}, []);
-    const onUpdateSavedPassenger = useCallback(() => {}, []);
-    const onDeleteSavedPassenger = useCallback(() => {}, []);
+    const onCreateExpense = useCallback(async (expenseData: any) => {
+        try {
+            const response = await apiService.createExpense(expenseData);
+            if (response.success) {
+                setExpenses(prev => [...prev, { ...expenseData, id: `exp-${Date.now()}` }]);
+                logActivity(currentUser, 'هزینه جدید ایجاد شد');
+                alert('هزینه با موفقیت ایجاد شد');
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد هزینه');
+            }
+        }
+        catch (error) {
+            console.error('Create expense error:', error);
+            alert('خطا در ایجاد هزینه');
+        }
+    }, [currentUser, setExpenses, logActivity]);
+    
+    const onExitAdmin = useCallback(() => setView('SEARCH'), [setView]);
+    
+    const onCreateAccount = useCallback(async (newAccount: any) => {
+        try {
+            const response = await apiService.createAccount(newAccount);
+            if (response.success) {
+                setChartOfAccounts(prev => [...prev, { ...newAccount, id: `acc-${Date.now()}` }]);
+                logActivity(currentUser, 'حساب جدید ایجاد شد');
+                alert('حساب با موفقیت ایجاد شد');
+                return true;
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد حساب');
+                return false;
+            }
+        }
+        catch (error) {
+            console.error('Create account error:', error);
+            alert('خطا در ایجاد حساب');
+            return false;
+        }
+    }, [currentUser, setChartOfAccounts, logActivity]);
+    
+    const onUpdateAccount = useCallback(async (updatedAccount: any) => {
+        try {
+            const response = await apiService.updateAccount(updatedAccount.id, updatedAccount);
+            if (response.success) {
+                setChartOfAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? acc : updatedAccount));
+                logActivity(currentUser, 'حساب به‌روزرسانی شد');
+                alert('حساب با موفقیت به‌روزرسانی شد');
+            }
+            else {
+                alert(response.error || 'خطا در به‌روزرسانی حساب');
+            }
+        }
+        catch (error) {
+            console.error('Update account error:', error);
+            alert('خطا در به‌روزرسانی حساب');
+        }
+    }, [currentUser, setChartOfAccounts, logActivity]);
+    const onCancelBooking = useCallback(async (bookingId: string) => {
+        if (!currentUser) return;
 
-    const handleGoToProfile = () => setView('PROFILE');
-    const handleGoToSearch = () => setView('SEARCH');
+        try {
+            const response = await apiService.cancelBooking(bookingId);
+            if (response.success) {
+                setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' } : b));
+                logActivity(currentUser, t('activityLog.bookingCancelled', bookingId));
+                alert(t('bookingCancellation.success', bookingId));
+            }
+            else {
+                alert(response.error || t('bookingCancellation.error'));
+            }
+        }
+        catch (error) {
+            console.error('Booking cancellation error:', error);
+            alert(t('bookingCancellation.error'));
+        }
+    }, [currentUser, t, logActivity, setBookings]);
+    const onUpdateProfile = useCallback(async (updates: { name?: string; currentPassword?: string; newPassword?: string; }) => {
+        if (!currentUser) return { success: false, message: t('profile.update.error') };
+
+        try {
+            const response = await apiService.updateProfile(updates);
+            if (response.success && response.data) {
+                // Only update name in local state for security reasons (passwords are not stored client-side)
+                setCurrentUser(prevUser => {
+                    if (!prevUser) return null;
+                    return { ...prevUser, name: response.data.user.name || prevUser.name };
+                });
+                logActivity(currentUser, t('activityLog.profileUpdated'));
+                return { success: true, message: t('profile.update.success') };
+            }
+            else {
+                return { success: false, message: response.error || t('profile.update.error') };
+            }
+        }
+        catch (error) {
+            console.error('Update profile error:', error);
+            return { success: false, message: t('profile.update.error') };
+        }
+    }, [currentUser, t, logActivity, setCurrentUser]);
+    const onCreateTicket = useCallback(async (ticketData: any) => {
+        if (!currentUser) {
+            alert('خطا: کاربر وارد نشده است');
+            return { success: false };
+        }
+        
+        try {
+            // Ensure ticketData has the correct format
+            const formattedTicketData = {
+                subject: ticketData.subject || '',
+                message: ticketData.message || '',
+                bookingId: ticketData.bookingId || null,
+                userId: currentUser.id
+            };
+            
+            const response = await apiService.createTicket(formattedTicketData);
+            if (response.success && response.data) {
+                const newTicket = response.data.ticket;
+                setTickets(prev => [...prev, newTicket]);
+                logActivity(currentUser, `تیکت جدید ${newTicket.subject} ایجاد شد`);
+                alert('تیکت با موفقیت ایجاد شد');
+                return { success: true, ticket: newTicket };
+            }
+            else {
+                alert(response.error || 'خطا در ایجاد تیکت');
+                return { success: false };
+            }
+        }
+        catch (error) {
+            console.error('Create ticket error:', error);
+            alert('خطا در ایجاد تیکت');
+            return { success: false };
+        }
+    }, [currentUser, setTickets, logActivity]);
+    const onAddSavedPassenger = useCallback(async (passenger: Omit<SavedPassenger, 'id'>) => {
+        if (!currentUser) return;
+        try {
+            const response = await apiService.addSavedPassenger(passenger);
+            if (response.success && response.data) {
+                const newPassenger = response.data.passenger;
+                setCurrentUser(prevUser => {
+                    if (!prevUser) return null;
+                    return { ...prevUser, savedPassengers: [...(prevUser.savedPassengers || []), newPassenger] };
+                });
+                logActivity(currentUser, t('activityLog.savedPassengerAdded', `${newPassenger.firstName} ${newPassenger.lastName}`));
+                alert(t('profile.savedPassengers.addSuccess'));
+            }
+            else {
+                alert(response.error || t('profile.savedPassengers.addError'));
+            }
+        }
+        catch (error) {
+            console.error('Add saved passenger error:', error);
+            alert(t('profile.savedPassengers.addError'));
+        }
+    }, [currentUser, t, logActivity, setCurrentUser]);
+    const onUpdateSavedPassenger = useCallback(async (passenger: SavedPassenger) => {
+        if (!currentUser) {
+            alert('خطا: کاربر وارد نشده است');
+            return;
+        }
+        
+        // If passenger doesn't have an ID, it's a new passenger - use add instead
+        if (!passenger.id) {
+            const { id, ...passengerWithoutId } = passenger;
+            onAddSavedPassenger(passengerWithoutId);
+            return;
+        }
+        try {
+            const response = await apiService.updateSavedPassenger(passenger.id, passenger);
+            if (response.success) {
+                setCurrentUser(prevUser => {
+                    if (!prevUser) return null;
+                    return {
+                        ...prevUser,
+                        savedPassengers: (prevUser.savedPassengers || []).map(p => p.id === passenger.id ? passenger : p),
+                    };
+                });
+                logActivity(currentUser, t('activityLog.savedPassengerUpdated', `${passenger.firstName} ${passenger.lastName}`));
+                alert(t('profile.savedPassengers.updateSuccess'));
+            }
+            else {
+                alert(response.error || t('profile.savedPassengers.updateError'));
+            }
+        }
+        catch (error) {
+            console.error('Update saved passenger error:', error);
+            alert(t('profile.savedPassengers.updateError'));
+        }
+    }, [currentUser, t, logActivity, setCurrentUser]);
+    const onDeleteSavedPassenger = useCallback(async (passengerId: string) => {
+        if (!currentUser) return;
+        try {
+            const response = await apiService.deleteSavedPassenger(passengerId);
+            if (response.success) {
+                setCurrentUser(prevUser => {
+                    if (!prevUser) return null;
+                    return {
+                        ...prevUser,
+                        savedPassengers: (prevUser.savedPassengers || []).filter(p => p.id !== passengerId),
+                    };
+                });
+                logActivity(currentUser, t('activityLog.savedPassengerDeleted', passengerId));
+                alert(t('profile.savedPassengers.deleteSuccess'));
+            }
+            else {
+                alert(response.error || t('profile.savedPassengers.deleteError'));
+            }
+        }
+        catch (error) {
+            console.error('Delete saved passenger error:', error);
+            alert(t('profile.savedPassengers.deleteError'));
+        }
+    }, [currentUser, t, logActivity, setCurrentUser]);
+
+    const handleGoToProfile = useCallback(() => setView('PROFILE'), [setView]);
+    const handleGoToSearch = useCallback(() => setView('SEARCH'), [setView]);
 
     const currentTenant = useMemo(() => tenants.find(t => t.id === currentUser?.tenantId) || tenants[0], [currentUser, tenants]);
 
-    const popularRoutes = useMemo(() => [
-        { from: airports.find(a => a.iata === 'IKA')?.city[language] || 'Tehran', to: airports.find(a => a.iata === 'IST')?.city[language] || 'Istanbul' },
-        { from: airports.find(a => a.iata === 'IKA')?.city[language] || 'Tehran', to: airports.find(a => a.iata === 'DXB')?.city[language] || 'Dubai' },
-    ], [airports, language]);
-
     const renderContent = () => {
-        const step = view === 'SEARCH' ? 0 : view === 'PASSENGER_DETAILS' ? 1 : view === 'REVIEW' ? 2 : -1;
+        console.log('Current view:', view, 'Current user:', currentUser);
+        const step = view === 'SEARCH' ? 0 : view === 'PASSENGER_DETAILS' ? 1 : view === 'REVIEW' ? 2 : view === 'CONFIRMATION' ? 3 : -1;
         
         if (step !== -1 && searchQuery) {
              return (
                 <div className="container mx-auto px-4 py-8">
                     <div className="mb-8">
-                        <BookingStepper steps={[t('stepper.selectFlight'), t('stepper.passengerDetails'), t('stepper.confirmAndPay')]} activeStep={step} />
+                        <BookingStepper steps={[t('stepper.selectFlight'), t('stepper.passengerDetails'), t('stepper.review'), t('stepper.confirmAndPay')]} activeStep={step} />
                     </div>
                     {view === 'PASSENGER_DETAILS' && selectedFlight && searchQuery && currentUser && <PassengerDetailsForm flight={selectedFlight} query={searchQuery} user={currentUser} currencies={currencies} onBack={handleBackToSearch} onSubmit={handlePassengerDetailsSubmit} />}
                     {view === 'REVIEW' && selectedFlight && searchQuery && passengersData && currentUser && <BookingReview flight={selectedFlight} query={searchQuery} passengers={passengersData} user={currentUser} onBack={handleBackToPassengerDetails} onConfirmBooking={handleConfirmBooking} currencies={currencies} />}
+                    {view === 'CONFIRMATION' && selectedFlight && searchQuery && passengersData && currentUser && <BookingConfirmation flight={selectedFlight} query={searchQuery} passengerData={passengersData} user={currentUser} currencies={currencies} onBack={handleBackToPassengerDetails} onConfirm={handleConfirmBooking} />}
                 </div>
             );
         }
@@ -1146,8 +1801,13 @@ const App: React.FC = () => {
                                 <FlightSearchForm onSearch={handleSearch} isLoading={isLoading} airports={airports} />
                             </div>
                         </div>
-                        <SearchResults flights={flights} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} />
-                        {!searchQuery && (
+                        
+    
+                        
+                        
+                        {searchQuery ? (
+                            <SearchResults flights={flights} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} />
+                        ) : (
                             <>
                                 <WhyChooseUs />
                                 <PopularDestinations content={siteContent.home.popularDestinations} />
@@ -1161,8 +1821,8 @@ const App: React.FC = () => {
                 return <SignupPage onSignup={handleSignup} onGoToLogin={() => setView('LOGIN')} countries={countries} />;
             case 'PROFILE':
                 if (!currentUser) return <LoginPage onLogin={handleLogin} onGoToSignup={() => setView('SIGNUP')} error={loginError} />;
-                if (currentUser.role === 'USER') {
-                    return <ProfilePage user={currentUser} bookings={bookings.filter(b => b.user.id === currentUser.id)} tickets={tickets.filter(t => t.user.id === currentUser.id)} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} />;
+                if (currentUser.role === UserRole.USER) {
+                    return <ProfilePage user={currentUser} bookings={bookings.filter(b => b.user?.id === currentUser.id)} tickets={tickets.filter(t => t.user?.id === currentUser.id)} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} />;
                 }
                 return <DashboardPage 
                     user={currentUser}
@@ -1227,14 +1887,16 @@ const App: React.FC = () => {
                 return <AboutPage siteContent={siteContent.about} />;
             case 'CONTACT':
                 return <ContactPage siteContent={siteContent.contact} />;
+            case 'CURRENCY_CONVERTER':
+                return <CurrencyConverter currencies={currencies} />;
             default:
                 return null;
         }
     };
 
     return (
-        <div className={`App font-sans ${language === 'en' ? 'ltr' : 'rtl'}`}>
-            <Header user={currentUser} tenant={currentTenant} onLoginClick={() => setView('LOGIN')} onLogout={handleLogout} onProfileClick={handleGoToProfile} onLogoClick={handleGoToSearch} />
+        <div className={`App font-sans`} data-lang={language}>
+            <Header user={currentUser} tenant={currentTenant} onLoginClick={() => setView('LOGIN')} onLogout={handleLogout} onProfileClick={handleGoToProfile} onLogoClick={handleGoToSearch} onCurrencyConverterClick={() => setView('CURRENCY_CONVERTER')} />
             <main className="bg-secondary min-h-[calc(100vh-128px)]">
                 {isLoading ? <LoadingSpinner /> : renderContent()}
             </main>
@@ -1244,3 +1906,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

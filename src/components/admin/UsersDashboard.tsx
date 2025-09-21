@@ -80,7 +80,7 @@ export const UsersDashboard: React.FC<UsersDashboardProps> = ({ users, currentUs
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {users.map(user => {
-                            const userTenant = tenants.find(t => t.id === user.tenantId);
+                            const userTenant = user.tenantId ? tenants.find(t => t.id === user.tenantId) : null;
                             return (
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>

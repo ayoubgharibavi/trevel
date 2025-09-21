@@ -129,7 +129,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ user, curren
                             {displayedPermissions.length > 0 ? (
                                 <ul className="list-disc list-inside space-y-1">
                                     {displayedPermissions.map(p => (
-                                        <li key={p}>{permissionDescriptions[p][language]}</li>
+                                        <li key={p}>{permissionDescriptions[p]?.[language] || p}</li>
                                     ))}
                                 </ul>
                             ) : (

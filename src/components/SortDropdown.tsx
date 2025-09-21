@@ -6,11 +6,11 @@ import { useLocalization } from '../hooks/useLocalization';
 export type SortOption = 'price' | 'duration' | 'best';
 
 interface SortDropdownProps {
-  selected: SortOption;
-  onSelect: (option: SortOption) => void;
+  value: SortOption;
+  onChange: (option: SortOption) => void;
 }
 
-export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }) => {
+export const SortDropdown: React.FC<SortDropdownProps> = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useLocalization();
@@ -34,7 +34,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }
   }, []);
 
   const handleSelect = (option: SortOption) => {
-    onSelect(option);
+    onChange(option);
     setIsOpen(false);
   };
 
@@ -49,7 +49,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }
           aria-expanded={isOpen}
         >
           <span className="font-semibold">{t('searchResults.sort')}</span>
-          <span className="mr-2">{sortLabels[selected]}</span>
+          <span className="mr-2">{sortLabels[value]}</span>
           <ChevronDownIcon className="-mr-1 ml-2 h-5 w-5 text-slate-500" />
         </button>
       </div>
@@ -65,7 +65,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }
              <a
               href="#"
               onClick={(e) => { e.preventDefault(); handleSelect('best'); }}
-              className={`block px-4 py-2 text-sm ${selected === 'best' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
+              className={`block px-4 py-2 text-sm ${value === 'best' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
               role="menuitem"
             >
               {sortLabels['best']}
@@ -73,7 +73,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); handleSelect('price'); }}
-              className={`block px-4 py-2 text-sm ${selected === 'price' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
+              className={`block px-4 py-2 text-sm ${value === 'price' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
               role="menuitem"
             >
               {sortLabels['price']}
@@ -81,7 +81,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ selected, onSelect }
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); handleSelect('duration'); }}
-              className={`block px-4 py-2 text-sm ${selected === 'duration' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
+              className={`block px-4 py-2 text-sm ${value === 'duration' ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-secondary`}
               role="menuitem"
             >
               {sortLabels['duration']}

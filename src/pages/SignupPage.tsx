@@ -3,7 +3,7 @@ import { useLocalization } from '../hooks/useLocalization';
 import type { CountryInfo } from '../types';
 
 interface SignupPageProps {
-    onSignup: (name: string, username: string, email: string, pass: string, phone: string) => void;
+    onSignup: (name: string, username: string, email: string, pass: string, phone: string) => Promise<void>;
     onGoToLogin: () => void;
     countries: CountryInfo[];
 }
@@ -21,11 +21,11 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onSignup, onGoToLogin, c
         return [...countries].sort((a, b) => a.name[language].localeCompare(b.name[language]));
     }, [countries, language]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (name && username && email && password && phone) {
             const fullPhoneNumber = `${countryCode}${phone.replace(/^0+/, '')}`; // Remove leading zeros from phone
-            onSignup(name, username, email, password, fullPhoneNumber);
+            await onSignup(name, username, email, password, fullPhoneNumber);
         }
     };
 

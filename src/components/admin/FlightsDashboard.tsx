@@ -96,18 +96,21 @@ const ActionsDropdown: React.FC<{
 const FlightStats: React.FC<{ flights: Flight[], bookings: Booking[], aircrafts: AircraftInfo[] }> = ({ flights, bookings, aircrafts }) => {
     const { t, formatNumber } = useLocalization();
     const stats = useMemo(() => {
-        const upcomingFlights = flights.filter(f => new Date(f.departure.dateTime) >= new Date() && f.status === 'SCHEDULED');
+        const upcomingFlights = flights.filter(f => f && f.departure && f.departure.dateTime && new Date(f.departure.dateTime) >= new Date() && f.status === 'SCHEDULED');
         
         let totalSeats = 0;
         let totalSold = 0;
         let totalRevenue = 0;
 
         upcomingFlights.forEach(flight => {
-            const aircraft = aircrafts.find(a => a.name['en'] === flight.aircraft || a.name['fa'] === flight.aircraft || a.name['ar'] === flight.aircraft);
-            const capacity = flight.totalCapacity || (aircraft ? aircraft.capacity : 0);
+            const aircraft = aircrafts.find(a => a.id === flight.aircraft);
+            const capacity = flight.availableSeats || (aircraft ? aircraft.capacity : 0);
             const sold = bookings
                 .filter(b => b.flight.id === flight.id && b.status === 'CONFIRMED')
-                .reduce((sum, b) => sum + b.passengers.adults.length + b.passengers.children.length + b.passengers.infants.length, 0);
+                .reduce((sum, b) => {
+                    if (!b.passengers) return sum;
+                    return sum + (b.passengers.adults?.length || 0) + (b.passengers.children?.length || 0) + (b.passengers.infants?.length || 0);
+                }, 0);
             
             totalSeats += capacity;
             totalSold += sold;
@@ -149,6 +152,8 @@ interface FlightsListProps {
     flights: Flight[];
     bookings: Booking[];
     aircrafts: AircraftInfo[];
+    airlines: AirlineInfo[];
+    airports: AirportInfo[];
     currentUser: User;
     rolePermissions: RolePermissions;
     onAddNew: () => void;
@@ -179,15 +184,29 @@ const StatusBadge: React.FC<{ status: FlightStatus }> = ({ status }) => {
         SCHEDULED: 'bg-green-100 text-green-800',
         CANCELLED: 'bg-red-100 text-red-800',
         DELAYED: 'bg-yellow-100 text-yellow-800',
+        DEPARTED: 'bg-blue-100 text-blue-800',
+        ARRIVED: 'bg-gray-100 text-gray-800',
     };
     return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${styles[status]}`}>{t(`dashboard.flights.statusValues.${status}`)}</span>;
 };
 
-const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts, currentUser, rolePermissions, onAddNew, onEdit, onDelete, onUpdateFlight, onShowReport, onShowCapacity }) => {
+
+const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts, airlines, airports, currentUser, rolePermissions, onAddNew, onEdit, onDelete, onUpdateFlight, onShowReport, onShowCapacity }) => {
     const { t, formatNumber, formatDate, language } = useLocalization();
-    const handleToggleStatus = (flight: Flight) => {
-        const newStatus = flight.status === 'SCHEDULED' ? 'CANCELLED' : 'SCHEDULED';
-        onUpdateFlight({ ...flight, status: newStatus });
+    const handleToggleStatus = async (flight: Flight) => {
+        try {
+            const newStatus = flight.status === 'SCHEDULED' ? 'CANCELLED' : 'SCHEDULED';
+            const updatedFlight = { ...flight, status: newStatus };
+            
+            // Call the update function
+            await onUpdateFlight(updatedFlight);
+            
+            // Show success message
+            console.log(`✅ Flight ${flight.flightNumber} status updated to ${newStatus}`);
+        } catch (error) {
+            console.error('❌ Error updating flight status:', error);
+            // You could add a toast notification here
+        }
     };
 
     const canCreate = hasPermission(currentUser.role, Permission.CREATE_FLIGHTS, rolePermissions) ||
@@ -216,22 +235,37 @@ const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts,
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {flights.length > 0 ? flights.map(flight => {
-                            const aircraft = aircrafts.find(a => a.name[language] === flight.aircraft);
-                            const totalCapacity = flight.totalCapacity || (aircraft ? aircraft.capacity : 0);
+                        {flights.length > 0 ? flights.filter((flight, index, self) => 
+                            flight && flight.id && index === self.findIndex(f => f && f.id && f.id === flight.id)
+                        ).map(flight => {
+                            const aircraft = aircrafts.find(a => a.id === flight.aircraft);
+                            const availableCapacity = flight.availableSeats || (aircraft ? aircraft.capacity : 0);
                             const soldSeats = bookings
                                 .filter(b => b.flight.id === flight.id && b.status === 'CONFIRMED')
-                                .reduce((sum, b) => sum + b.passengers.adults.length + b.passengers.children.length + b.passengers.infants.length, 0);
-                            const loadFactor = totalCapacity > 0 ? (soldSeats / totalCapacity) * 100 : 0;
+                                .reduce((sum, b) => {
+                                    if (!b.passengers) return sum;
+                                    return sum + (b.passengers.adults?.length || 0) + (b.passengers.children?.length || 0) + (b.passengers.infants?.length || 0);
+                                }, 0);
+                            const loadFactor = availableCapacity > 0 ? (soldSeats / availableCapacity) * 100 : 0;
                             const revenue = soldSeats * (flight.price + flight.taxes);
 
                             return (
                                 <tr key={flight.id}>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                        <div className="font-semibold text-slate-800">{flight.airline}</div>
+                                        <div className="font-semibold text-slate-800">
+                                            {airlines.find(a => a.id === flight.airline)?.name[language] || flight.airline}
+                                        </div>
                                         <div className="font-mono text-slate-500 text-xs">{flight.flightNumber}</div>
                                     </td>
-                                    <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-700">{flight.departure.city} &rarr; {flight.arrival.city}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-700">
+                                        {(() => {
+                                            const departureAirport = airports.find(a => a.iata === flight.departure?.airportCode);
+                                            const arrivalAirport = airports.find(a => a.iata === flight.arrival?.airportCode);
+                                            const departureCity = departureAirport?.city[language] || flight.departure?.city || 'نامشخص';
+                                            const arrivalCity = arrivalAirport?.city[language] || flight.arrival?.city || 'نامشخص';
+                                            return `${departureCity} ← ${arrivalCity}`;
+                                        })()}
+                                    </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                         <button type="button" onClick={() => onShowCapacity(flight)} className="text-right hover:bg-slate-50 p-1 rounded-md transition-colors w-full">
                                             <div className="flex items-center">
@@ -240,7 +274,7 @@ const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts,
                                                 </div>
                                                 <span className="mr-2 font-semibold">{loadFactor.toFixed(1)}%</span>
                                             </div>
-                                            <span className="text-xs text-slate-500">({formatNumber(soldSeats)}/{formatNumber(totalCapacity)})</span>
+                                            <span className="text-xs text-slate-500">({formatNumber(soldSeats)}/{formatNumber(availableCapacity)})</span>
                                         </button>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap font-semibold font-mono text-slate-800">{formatNumber(revenue / 10)}</td>
@@ -277,12 +311,13 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
         departure: { airportCode: '', airportName: '', city: '', dateTime: '' },
         arrival: { airportCode: '', airportName: '', city: '', dateTime: '' },
         duration: '', stops: 0, price: 0, taxes: 0, flightClass: '', aircraft: '',
-        availableSeats: 0, totalCapacity: 0, baggageAllowance: '', status: 'SCHEDULED' as FlightStatus,
+        availableSeats: 100, totalCapacity: 100, baggageAllowance: '', status: 'SCHEDULED' as FlightStatus,
         bookingClosesBeforeDepartureHours: 3,
         sourcingType: FSTEnum.Charter,
         commissionModelId: undefined,
         refundPolicyId: undefined,
         allotments: [],
+        tenantId: '',
     };
 
     const [formData, setFormData] = useState<Omit<Flight, 'id'> | Flight>(initialFormState);
@@ -295,18 +330,30 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
     const toDateTimeLocal = (isoString: string | undefined) => {
         if (!isoString) return '';
         const date = new Date(isoString);
-        date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-        return date.toISOString().slice(0, 16);
+        // Convert to local time by adding timezone offset
+        const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+        return localDate.toISOString().slice(0, 16);
     };
 
     const fromDateTimeLocal = (localString: string) => {
         if (!localString) return new Date().toISOString();
-        return new Date(localString).toISOString();
+        // Convert from local time to UTC
+        const localDate = new Date(localString);
+        const utcDate = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000));
+        return utcDate.toISOString();
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        const finalValue = type === 'number' ? parseFloat(value) || 0 : value;
+        let finalValue = value;
+        
+        if (type === 'number') {
+            finalValue = parseFloat(value) || 0;
+        } else if (name === 'duration') {
+            // Keep duration as string for frontend display, will be converted to number in transformFlightDataForBackend
+            finalValue = value;
+        }
+        
         setFormData(prev => ({ ...prev, [name]: finalValue }));
     };
 
@@ -317,34 +364,47 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
     const handleAirportChange = (endpoint: 'departure' | 'arrival', iata: string) => {
         const airport = airports.find(a => a.iata === iata);
         if (airport) {
-            setFormData(prev => ({ ...prev, [endpoint]: { ...(prev[endpoint] as object), city: airport.city[language], airportCode: airport.iata, airportName: airport.name[language] } }));
+            setFormData(prev => ({ 
+                ...prev, 
+                [endpoint]: { 
+                    ...(prev[endpoint] as object), 
+                    city: airport.city[language], 
+                    airportCode: airport.iata, 
+                    airportName: airport.name[language] 
+                } 
+            }));
+            console.log(`✅ ${endpoint} airport selected:`, { iata, city: airport.city[language] });
+        } else {
+            console.error(`❌ Airport not found for IATA: ${iata}`);
         }
     };
     
     const handleAirlineChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const airlineName = e.target.value;
-        const selectedAirline = airlines.find(a => a.name[language] === airlineName);
+        const airlineId = e.target.value;
+        const selectedAirline = airlines.find(a => a.id === airlineId);
         if (selectedAirline) {
-            setFormData(prev => ({...prev, airline: selectedAirline.name[language], airlineLogoUrl: selectedAirline.logoUrl, refundPolicyId: '' }));
+            setFormData(prev => ({...prev, airline: selectedAirline.id, airlineLogoUrl: selectedAirline.logoUrl, refundPolicyId: '' }));
         }
     };
     
     const handleAircraftChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const aircraftName = e.target.value;
-        const selectedAircraft = aircrafts.find(a => a.name[language] === aircraftName);
+        const aircraftId = e.target.value;
+        const selectedAircraft = aircrafts.find(a => a.id === aircraftId);
         setFormData(prev => ({
             ...prev,
-            aircraft: aircraftName,
+            aircraft: aircraftId,
             totalCapacity: selectedAircraft ? selectedAircraft.capacity : 0,
+            availableSeats: selectedAircraft ? selectedAircraft.capacity : 0,
         }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('📝 Form submitted with data:', formData);
         onSave(formData as Flight);
     };
     
-    const selectedAirline = airlines.find(a => a.name[language] === formData.airline);
+    const selectedAirline = airlines.find(a => a.id === formData.airline);
     
     const isDomestic = useMemo(() => {
         const fromAirport = airports.find(a => a.iata === formData.departure?.airportCode);
@@ -373,8 +433,8 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
 
     const handleAddAllotment = () => {
         const newAllotment: SeatAllotment = {
-            id: `allot-${Date.now()}`,
-            agencyId: '',
+            id: `allot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            agentId: '',
             seats: 0,
             expiresAt: '',
         };
@@ -400,16 +460,16 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
                     <legend className="px-2 font-semibold text-primary">{t('dashboard.flights.form.mainInfo')}</legend>
                     <select name="airline" value={formData.airline} onChange={handleAirlineChange} className="w-full p-2 border rounded bg-white" required>
                         <option value="" disabled>{t('dashboard.flights.form.airline')}</option>
-                        {airlines.map(a => <option key={a.id} value={a.name[language]}>{a.name[language]}</option>)}
+                        {airlines.map(a => <option key={a.id} value={a.id}>{a.name[language]}</option>)}
                     </select>
                     <input type="text" name="flightNumber" placeholder={t('dashboard.flights.flightNumber')} value={formData.flightNumber || ''} onChange={handleChange} className="w-full p-2 border rounded" required />
                     <select name="aircraft" value={formData.aircraft} onChange={handleAircraftChange} className="w-full p-2 border rounded bg-white" required>
                         <option value="" disabled>{t('dashboard.flights.form.aircraft')}</option>
-                        {aircrafts.map(a => <option key={a.id} value={a.name[language]}>{a.name[language]}</option>)}
+                        {aircrafts.map(a => <option key={a.id} value={a.id}>{a.name[language]}</option>)}
                     </select>
                     <select name="flightClass" value={formData.flightClass} onChange={handleChange} className="w-full p-2 border rounded bg-white" required>
                         <option value="" disabled>{t('dashboard.flights.form.flightClass')}</option>
-                        {flightClasses.map(fc => <option key={fc.id} value={fc.name[language]}>{fc.name[language]}</option>)}
+                        {flightClasses.map(fc => <option key={fc.id} value={fc.id}>{fc.name[language]}</option>)}
                     </select>
                 </fieldset>
 
@@ -477,7 +537,7 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
                     {selectedPolicy && (
                         <div className="lg:col-span-3 text-xs bg-slate-50 p-2 rounded-md border text-slate-600">
                             <p className="font-semibold">{t('dashboard.flights.form.selectedPolicyRules')}</p>
-                            {selectedPolicy.rules.length > 0 ? (
+                            {selectedPolicy.rules && Array.isArray(selectedPolicy.rules) && selectedPolicy.rules.length > 0 ? (
                                  <ul className="list-disc list-inside space-y-1">
                                     {selectedPolicy.rules.sort((a,b) => b.hoursBeforeDeparture - a.hoursBeforeDeparture).map(rule => (
                                         <li key={rule.id}>{t('profile.myBookings.cancelModal.policyRule', rule.hoursBeforeDeparture, rule.penaltyPercentage)}</li>
@@ -496,8 +556,8 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
                                 <SearchableSelect
                                     placeholder={t('dashboard.flights.form.agency')}
                                     options={affiliates.map(u => ({ value: u.id, label: u.name }))}
-                                    value={allotment.agencyId}
-                                    onChange={value => handleAllotmentChange(allotment.id, 'agencyId', value)}
+                                    value={allotment.agentId}
+                                    onChange={value => handleAllotmentChange(allotment.id, 'agentId', value)}
                                 />
                                 <input type="number" placeholder={t('dashboard.flights.form.seats')} value={allotment.seats} onChange={e => handleAllotmentChange(allotment.id, 'seats', Number(e.target.value))} className="w-full p-2 border rounded" />
                                 <input type="datetime-local" placeholder={t('dashboard.flights.form.deadline')} value={toDateTimeLocal(allotment.expiresAt)} onChange={e => handleAllotmentChange(allotment.id, 'expiresAt', fromDateTimeLocal(e.target.value))} className="w-full p-2 border rounded" />
@@ -519,11 +579,116 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
 };
 
 export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, bookings, users, currentUser, rolePermissions, airlines, aircrafts, flightClasses, airports, commissionModels, refundPolicies, onCreateFlight, onUpdateFlight, onDeleteFlight }) => {
+    // Debug logging
+    console.log('🔍 FlightsDashboard rendered with:', {
+        flightsCount: flights?.length || 0,
+        bookingsCount: bookings?.length || 0,
+        usersCount: users?.length || 0,
+        currentUser: currentUser?.name || 'undefined',
+        flights: flights?.slice(0, 2) || [],
+        flightsType: typeof flights,
+        flightsIsArray: Array.isArray(flights)
+    });
+
+    // Monitor flights changes
+    React.useEffect(() => {
+        console.log('📊 Flights changed:', flights?.length || 0, 'flights');
+        if (flights && flights.length > 0) {
+            console.log('🛫 Latest flight:', flights[flights.length - 1]);
+        }
+    }, [flights]);
+
     const [view, setView] = useState<'list' | 'form'>('list');
     const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
     const [reportFlight, setReportFlight] = useState<Flight | null>(null);
     const [capacityModalFlight, setCapacityModalFlight] = useState<Flight | null>(null);
     const { t, language } = useLocalization();
+
+    // Parse duration string like "2h 30m" to minutes
+    const parseDurationToMinutes = (duration: string): number => {
+        if (!duration) return 0;
+        
+        const hoursMatch = duration.match(/(\d+)h/);
+        const minutesMatch = duration.match(/(\d+)m/);
+        
+        const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0;
+        const minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
+        
+        return hours * 60 + minutes;
+    };
+
+    // Transform frontend flight data to backend format
+    const transformFlightDataForBackend = (flightData: Omit<Flight, 'id' | 'creatorId'>) => {
+        console.log('🔄 Transforming flight data for backend:', {
+            departure: flightData.departure,
+            arrival: flightData.arrival,
+            availableAirports: airports.length
+        });
+        
+        // Validate required fields
+        if (!flightData.departure?.airportCode) {
+            console.error('❌ Departure airport code is missing');
+            throw new Error('فرودگاه مبدأ انتخاب نشده است');
+        }
+        if (!flightData.arrival?.airportCode) {
+            console.error('❌ Arrival airport code is missing');
+            throw new Error('فرودگاه مقصد انتخاب نشده است');
+        }
+        
+        // Find airport IDs from airport codes
+        const departureAirport = airports.find(a => a.iata === flightData.departure?.airportCode);
+        const arrivalAirport = airports.find(a => a.iata === flightData.arrival?.airportCode);
+        
+        console.log('🔍 Airport search results:', {
+            departureAirport: departureAirport ? { id: departureAirport.id, iata: departureAirport.iata } : null,
+            arrivalAirport: arrivalAirport ? { id: arrivalAirport.id, iata: arrivalAirport.iata } : null
+        });
+        
+        if (!departureAirport || !arrivalAirport) {
+            console.error('❌ Airport not found in database');
+            throw new Error('فرودگاه مبدأ یا مقصد یافت نشد');
+        }
+
+        console.log('🔍 transformFlightDataForBackend - flightData.departure:', flightData.departure);
+        console.log('🔍 transformFlightDataForBackend - flightData.arrival:', flightData.arrival);
+        
+        return {
+            airline: flightData.airline,
+            airlineLogoUrl: flightData.airlineLogoUrl,
+            flightNumber: flightData.flightNumber,
+            departure: {
+                airportId: departureAirport.id,
+                terminal: '', // Default empty terminal
+                scheduledTime: new Date(flightData.departure?.dateTime || '').toISOString(),
+                gate: '', // Default empty gate
+            },
+            arrival: {
+                airportId: arrivalAirport.id,
+                terminal: '', // Default empty terminal
+                scheduledTime: new Date(flightData.arrival?.dateTime || '').toISOString(),
+                gate: '', // Default empty gate
+            },
+            duration: parseDurationToMinutes(flightData.duration || ''),
+            stops: flightData.stops || 0,
+            price: flightData.price || 0,
+            taxes: flightData.taxes || 0,
+            flightClass: flightData.flightClass,
+            aircraft: flightData.aircraft,
+            availableSeats: flightData.availableSeats || 0,
+            totalCapacity: flightData.totalCapacity || 0,
+            baggageAllowance: flightData.baggageAllowance || '',
+            status: flightData.status || 'SCHEDULED',
+            bookingClosesBeforeDepartureHours: flightData.bookingClosesBeforeDepartureHours || 3,
+            sourcingType: flightData.sourcingType || 'MANUAL',
+            commissionModelId: flightData.commissionModelId || null,
+            refundPolicyId: flightData.refundPolicyId || null,
+            allotments: flightData.allotments?.map(allotment => ({
+                class: flightData.flightClass,
+                seats: allotment.seats,
+                price: flightData.price + flightData.taxes,
+            })) || [],
+        };
+    };
     
     const handleAddNew = () => {
         setFlightToEdit(null);
@@ -535,14 +700,58 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
         setView('form');
     };
 
-    const handleSave = (flightData: Omit<Flight, 'id'> | Flight) => {
-        if ('id' in flightData && flightData.id) {
-            onUpdateFlight(flightData);
-        } else {
-            onCreateFlight(flightData as Omit<Flight, 'id' | 'creatorId'>);
+    const handleSave = async (flightData: Omit<Flight, 'id'> | Flight) => {
+        try {
+            console.log('🔍 Validating flight data:', {
+                departure: flightData.departure,
+                arrival: flightData.arrival,
+                airline: flightData.airline,
+                flightNumber: flightData.flightNumber
+            });
+            
+            // Validate required fields before processing
+            if (!flightData.departure?.airportCode) {
+                console.error('❌ Departure airport not selected');
+                alert('لطفاً فرودگاه مبدأ را انتخاب کنید');
+                return;
+            }
+            if (!flightData.arrival?.airportCode) {
+                console.error('❌ Arrival airport not selected');
+                alert('لطفاً فرودگاه مقصد را انتخاب کنید');
+                return;
+            }
+            if (!flightData.airline) {
+                console.error('❌ Airline not selected');
+                alert('لطفاً ایرلاین را انتخاب کنید');
+                return;
+            }
+            if (!flightData.flightNumber) {
+                console.error('❌ Flight number not entered');
+                alert('لطفاً شماره پرواز را وارد کنید');
+                return;
+            }
+            
+            console.log('✅ All validations passed, transforming data...');
+            
+            if ('id' in flightData && flightData.id) {
+                // For updates, also transform the data to ensure duration is converted to number
+                const transformedData = transformFlightDataForBackend(flightData as Omit<Flight, 'id' | 'creatorId'>);
+                console.log('🔄 Updating flight with transformed data:', transformedData);
+                onUpdateFlight({ ...flightData, ...transformedData });
+            } else {
+                // Transform frontend data to backend format
+                const transformedData = transformFlightDataForBackend(flightData as Omit<Flight, 'id' | 'creatorId'>);
+                console.log('🆕 Creating flight with transformed data:', transformedData);
+                await onCreateFlight(transformedData);
+                // Wait a bit for state to update
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            setView('list');
+            setFlightToEdit(null);
+        } catch (error) {
+            console.error('❌ Error saving flight:', error);
+            alert(error instanceof Error ? error.message : 'خطا در ذخیره پرواز');
         }
-        setView('list');
-        setFlightToEdit(null);
     };
 
     const handleCancel = () => {
@@ -552,6 +761,18 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
 
     const canCreate = hasPermission(currentUser.role, Permission.CREATE_FLIGHTS, rolePermissions) ||
                       (currentUser.role === 'AFFILIATE' && hasPermission(currentUser.role, Permission.CREATE_OWN_FLIGHTS, rolePermissions));
+    
+    // Error boundary check
+    if (!flights) {
+        return (
+            <div className="bg-white p-6 rounded-lg shadow border">
+                <div className="text-center py-10">
+                    <div className="text-red-600 text-lg font-semibold">خطا در بارگذاری پروازها</div>
+                    <div className="text-slate-500 mt-2">لطفاً صفحه را تازه‌سازی کنید</div>
+                </div>
+            </div>
+        );
+    }
     
     return (
         <div className="bg-white p-6 rounded-lg shadow border">
@@ -571,6 +792,8 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
                         flights={flights} 
                         bookings={bookings}
                         aircrafts={aircrafts}
+                        airlines={airlines}
+                        airports={airports}
                         currentUser={currentUser}
                         rolePermissions={rolePermissions}
                         onAddNew={handleAddNew}

@@ -23,14 +23,29 @@ const DataModal: React.FC<{
     const [formData, setFormData] = useState<Partial<CommissionModel>>({});
 
     useEffect(() => {
-        setFormData(item || { calculationType: CommissionCalculationType.Percentage });
+        if (!item) {
+            setFormData({ calculationType: CommissionCalculationType.Percentage });
+            return;
+        }
+        
+        // Parse JSON strings back to objects for form editing
+        const parsedItem = { ...item };
+        if (typeof parsedItem.name === 'string') {
+            try {
+                parsedItem.name = JSON.parse(parsedItem.name);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        
+        setFormData(parsedItem);
     }, [item]);
 
     if (!isOpen) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData as CommissionModel);
+        onSave(formData as CommissionModel | Omit<CommissionModel, 'id'>);
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -119,13 +134,16 @@ export const CommissionModelsManager: React.FC<CommissionModelsManagerProps> = (
         setIsModalOpen(false);
     };
 
-    const handleSave = (data: CommissionModel | Omit<CommissionModel, 'id'>) => {
+    const handleSave = async (data: CommissionModel | Omit<CommissionModel, 'id'>) => {
         if ('id' in data && data.id) {
-            onUpdate(data);
+            await onUpdate(data);
         } else {
-            onCreate(data as Omit<CommissionModel, 'id'>);
+            await onCreate(data as Omit<CommissionModel, 'id'>);
         }
-        handleCloseModal();
+        // Wait a bit for state to update before closing modal
+        setTimeout(() => {
+            handleCloseModal();
+        }, 100);
     };
     
     const formatValue = (value: number, type: CommissionCalculationType) => {
@@ -154,10 +172,13 @@ export const CommissionModelsManager: React.FC<CommissionModelsManagerProps> = (
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {models.map(model => (
+                        {models.map(model => {
+                            // Parse name if it's a JSON string
+                            const parsedName = typeof model.name === 'string' ? JSON.parse(model.name) : model.name;
+                            return (
                             <tr key={model.id}>
-                                <td className="px-6 py-4 font-medium">{model.name[language]}</td>
-                                <td className="px-6 py-4">{t(`dashboard.commissionModels.calcTypes.${model.calculationType}`)}</td>
+                                <td className="px-6 py-4 font-medium">{parsedName[language] || parsedName['fa'] || parsedName['en'] || 'نامشخص'}</td>
+                                <td className="px-6 py-4">{t(`dashboard.commissionModels.calcTypes.${model.calculationType.toUpperCase()}`)}</td>
                                 <td className="px-6 py-4">{formatValue(model.charterCommission, model.calculationType)}</td>
                                 <td className="px-6 py-4">{formatValue(model.creatorCommission, model.calculationType)}</td>
                                 <td className="px-6 py-4">{formatValue(model.webServiceCommission, model.calculationType)}</td>
@@ -166,7 +187,8 @@ export const CommissionModelsManager: React.FC<CommissionModelsManagerProps> = (
                                     <button onClick={() => onDelete(model.id)} className="p-2 text-slate-500 hover:text-red-600 rounded-full hover:bg-slate-100"><TrashIcon className="w-5 h-5" /></button>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                  </table>
             </div>

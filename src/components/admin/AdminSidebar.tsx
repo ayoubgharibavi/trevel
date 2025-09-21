@@ -22,6 +22,7 @@ import { ShieldCheckIcon } from '@/components/icons/ShieldCheckIcon';
 import { BriefcaseIcon } from '@/components/icons/BriefcaseIcon';
 import { TelegramIcon } from '@/components/icons/TelegramIcon';
 import { WhatsappIcon } from '@/components/icons/WhatsappIcon';
+import { CurrencyTomanIcon } from '@/components/icons/CurrencyTomanIcon';
 
 interface AdminSidebarProps {
     activeSection: string;
@@ -53,6 +54,11 @@ const NavItem: React.FC<{
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user, rolePermissions, onSelectSection, onExitAdmin }) => {
     const { t } = useLocalization();
     
+    // Debug log
+    console.log('AdminSidebar - User role:', user.role);
+    console.log('AdminSidebar - Role permissions:', rolePermissions);
+    console.log('AdminSidebar - User permissions:', rolePermissions[user.role]);
+    
     interface Section {
         key: string;
         permissions: Permission[];
@@ -76,6 +82,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user,
         { key: 'ads', permissions: [Permission.MANAGE_ADS], icon: <MegaphoneIcon className="w-5 h-5" /> },
         { key: 'telegram', permissions: [Permission.MANAGE_TELEGRAM_BOT], icon: <TelegramIcon className="w-5 h-5" /> },
         { key: 'whatsapp', permissions: [Permission.MANAGE_WHATSAPP_BOT], icon: <WhatsappIcon className="w-5 h-5" /> },
+        { key: 'exchangeRates', permissions: [Permission.MANAGE_BASIC_DATA], icon: <CurrencyTomanIcon className="w-5 h-5" /> },
         { key: 'activityLog', permissions: [Permission.VIEW_ACTIVITY_LOG], icon: <ClipboardListIcon className="w-5 h-5" /> },
     ];
     
@@ -92,6 +99,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user,
         <div className="bg-white p-4 rounded-lg shadow border space-y-2">
             {sections.map(section => {
                 const hasAccess = section.permissions.some(p => hasPermission(user.role, p, rolePermissions));
+                console.log(`Section ${section.key} - Has access: ${hasAccess}, Permissions needed:`, section.permissions);
                 return hasAccess && (
                     <NavItem 
                         key={section.key}
@@ -103,8 +111,33 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user,
                 )
             })}
             
-            <div className="pt-2 border-t mt-2">
-                 <button
+            <div className="pt-2 border-t mt-2 space-y-2">
+                <button
+                    onClick={() => {
+                        console.log('🔄 Manual token clear requested');
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        window.location.href = window.location.origin;
+                    }}
+                    className="w-full flex items-center p-2 rounded-lg text-right text-red-600 hover:bg-red-50 transition-colors text-sm"
+                >
+                    <span className="ml-3">🔄</span>
+                    <span>پاک کردن کش و ورود مجدد</span>
+                </button>
+                <button
+                    onClick={() => {
+                        console.log('🔍 Debug info:');
+                        console.log('- User:', user);
+                        console.log('- Role permissions:', rolePermissions);
+                        console.log('- localStorage accessToken:', localStorage.getItem('accessToken')?.substring(0, 50));
+                        console.log('- localStorage refreshToken:', localStorage.getItem('refreshToken')?.substring(0, 50));
+                    }}
+                    className="w-full flex items-center p-2 rounded-lg text-right text-blue-600 hover:bg-blue-50 transition-colors text-sm"
+                >
+                    <span className="ml-3">🔍</span>
+                    <span>Debug Info</span>
+                </button>
+                <button
                     onClick={onExitAdmin}
                     className="w-full flex items-center p-3 rounded-lg text-right text-slate-600 hover:bg-slate-100 transition-colors"
                 >

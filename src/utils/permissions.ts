@@ -3,7 +3,23 @@
 import { UserRole, Permission, LocalizedName, type RolePermissions } from '@/types';
 
 export const hasPermission = (role: UserRole, permission: Permission, rolePermissions: RolePermissions): boolean => {
-    return rolePermissions[role]?.includes(permission) || false;
+    const userPermissions = rolePermissions[role] || [];
+    
+    // Emergency fix: For SUPER_ADMIN, always grant all permissions
+    if (role === 'SUPER_ADMIN') {
+        console.log(`✅ SUPER_ADMIN access granted for ${permission}`);
+        return true;
+    }
+    
+    const hasAccess = userPermissions.includes(permission);
+    
+    // Debug log for troubleshooting
+    console.log(`hasPermission check - Role: ${role}, Permission: ${permission}, Has access: ${hasAccess}`, {
+        userPermissions,
+        rolePermissions
+    });
+    
+    return hasAccess;
 };
 
 export const getPermissionsForRole = (role: UserRole, rolePermissions: RolePermissions): Permission[] => {

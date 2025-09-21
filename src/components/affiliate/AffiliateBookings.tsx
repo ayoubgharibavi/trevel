@@ -4,8 +4,7 @@ import type { Booking } from '@/types';
 import { BookingStatus } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { DownloadIcon } from '@/components/icons/DownloadIcon';
-
-declare var html2pdf: any;
+// PDF functionality will use browser print
 
 interface AffiliateBookingsProps {
     bookings: Booking[];
@@ -62,15 +61,37 @@ export const AffiliateBookings: React.FC<AffiliateBookingsProps> = ({ bookings }
     };
 
     const handleExportPDF = () => {
+        // Open print dialog for PDF generation
+        const printWindow = window.open('', '_blank');
         const tableElement = document.getElementById('affiliate-bookings-table');
-        if (tableElement) {
-            html2pdf(tableElement, {
-                margin: 0.5,
-                filename: 'bookings.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
-            });
+        if (printWindow && tableElement) {
+            const content = tableElement.outerHTML;
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>لیست رزروها</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; }
+                        th { background-color: #f5f5f5; font-weight: bold; }
+                        @media print {
+                            body { margin: 0; }
+                            .no-print { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1 style="text-align: center;">لیست رزروها</h1>
+                    <p style="text-align: center;">تاریخ: ${new Date().toLocaleDateString('fa-IR')}</p>
+                    ${content}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
         }
     };
     

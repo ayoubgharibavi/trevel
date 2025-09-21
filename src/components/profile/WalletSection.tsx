@@ -40,7 +40,7 @@ const BalanceCard: React.FC<{
 
 const TransactionRow: React.FC<{ tx: WalletTransaction }> = ({ tx }) => {
     const { formatDate, formatNumber } = useLocalization();
-    const isCredit = tx.type === 'DEPOSIT' || tx.type === 'REFUND';
+    const isCredit = tx.type === 'CREDIT' || tx.type === 'DEPOSIT' || tx.type === 'REFUND';
     const amountColor = isCredit ? 'text-green-600' : 'text-red-600';
     const sign = isCredit ? '+' : '';
 
@@ -59,9 +59,12 @@ const TransactionRow: React.FC<{ tx: WalletTransaction }> = ({ tx }) => {
 export const WalletSection: React.FC<{ wallet: Wallet; currencies: CurrencyInfo[] }> = ({ wallet, currencies }) => {
     const { t } = useLocalization();
     
-    const allTransactions = Object.values(wallet)
+    // Fallback for wallet if it's undefined
+    const safeWallet = wallet || {};
+    
+    const allTransactions = safeWallet ? Object.values(safeWallet)
         .flatMap(balanceInfo => balanceInfo.transactions)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
         
     const activeCurrencies = currencies.filter(c => c.isActive);
     
@@ -73,7 +76,7 @@ export const WalletSection: React.FC<{ wallet: Wallet; currencies: CurrencyInfo[
                     {activeCurrencies.map(currency => (
                         <BalanceCard
                             key={currency.code}
-                            balance={wallet[currency.code]?.balance || 0}
+                            balance={safeWallet?.[currency.code]?.balance || 0}
                             currencyInfo={currency}
                         />
                     ))}

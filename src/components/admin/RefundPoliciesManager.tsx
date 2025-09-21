@@ -25,7 +25,29 @@ const DataModal: React.FC<{
     const [formData, setFormData] = useState<Partial<RefundPolicy>>({});
 
     useEffect(() => {
-        setFormData(item || { name: { fa: '', ar: '', en: '' }, rules: [], airlineId: '', policyType: undefined });
+        if (!item) {
+            setFormData({ name: { fa: '', ar: '', en: '' }, rules: [], airlineId: '', policyType: undefined });
+            return;
+        }
+        
+        // Parse JSON strings back to objects for form editing
+        const parsedItem = { ...item };
+        if (typeof parsedItem.name === 'string') {
+            try {
+                parsedItem.name = JSON.parse(parsedItem.name);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.rules === 'string') {
+            try {
+                parsedItem.rules = JSON.parse(parsedItem.rules);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        
+        setFormData(parsedItem);
     }, [item]);
 
     if (!isOpen) return null;
@@ -121,8 +143,8 @@ const DataModal: React.FC<{
                     <fieldset>
                         <legend className="font-semibold text-slate-700 mb-2">{t('dashboard.refundPolicies.modals.rulesLabel')}</legend>
                         <div className="space-y-3">
-                            {(formData.rules || []).sort((a,b) => a.hoursBeforeDeparture - b.hoursBeforeDeparture).map(rule => (
-                                <div key={rule.id} className="p-3 border rounded-md bg-slate-50 flex items-center gap-4">
+                            {(Array.isArray(formData.rules) ? formData.rules : []).sort((a,b) => a.hoursBeforeDeparture - b.hoursBeforeDeparture).map((rule, index) => (
+                                <div key={rule.id || `rule-${index}`} className="p-3 border rounded-md bg-slate-50 flex items-center gap-4">
                                     <div className="flex-grow grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-medium text-slate-600 mb-1">{t('dashboard.refundPolicies.modals.hoursBeforeDeparture')}</label>
@@ -170,13 +192,16 @@ export const RefundPoliciesManager: React.FC<RefundPoliciesManagerProps> = ({ po
         setIsModalOpen(false);
     };
 
-    const handleSave = (data: RefundPolicy | Omit<RefundPolicy, 'id'>) => {
+    const handleSave = async (data: RefundPolicy | Omit<RefundPolicy, 'id'>) => {
         if ('id' in data && data.id) {
-            onUpdate(data);
+            await onUpdate(data);
         } else {
-            onCreate(data as Omit<RefundPolicy, 'id'>);
+            await onCreate(data as Omit<RefundPolicy, 'id'>);
         }
-        handleCloseModal();
+        // Wait a bit for state to update before closing modal
+        setTimeout(() => {
+            handleCloseModal();
+        }, 100);
     };
 
     return (
@@ -200,24 +225,32 @@ export const RefundPoliciesManager: React.FC<RefundPoliciesManagerProps> = ({ po
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {policies.map(policy => {
+                            // Parse name if it's a JSON string
+                            const parsedName = typeof policy.name === 'string' ? JSON.parse(policy.name) : policy.name;
+                            
                             const airlineName = policy.airlineId
                                 ? airlines.find(a => a.id === policy.airlineId)?.name[language]
                                 : t('dashboard.refundPolicies.generalPolicy');
                             
                             const policyType = policy.policyType 
-                                ? t(`dashboard.refundPolicies.policyTypes.${policy.policyType}` as any)
+                                ? t(`dashboard.refundPolicies.policyTypes.${policy.policyType.toUpperCase()}` as any)
                                 : t('dashboard.refundPolicies.policyTypes.GENERAL');
 
                             return (
                                 <tr key={policy.id}>
-                                    <td className="px-6 py-4 font-medium">{policy.name[language]}</td>
+                                    <td className="px-6 py-4 font-medium">{parsedName[language] || parsedName['fa'] || parsedName['en'] || 'نامشخص'}</td>
                                     <td className="px-6 py-4">
                                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${policy.airlineId ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
                                             {airlineName}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">{policyType}</td>
-                                    <td className="px-6 py-4">{policy.rules.length}</td>
+                                    <td className="px-6 py-4">
+                                        {(() => {
+                                            const rules = typeof policy.rules === 'string' ? JSON.parse(policy.rules) : policy.rules;
+                                            return Array.isArray(rules) ? rules.length : 0;
+                                        })()}
+                                    </td>
                                     <td className="px-6 py-4 text-left space-x-2 space-x-reverse">
                                         <button onClick={() => handleOpenModal(policy)} className="p-2 text-slate-500 hover:text-primary rounded-full hover:bg-slate-100"><EditIcon className="w-5 h-5" /></button>
                                         <button onClick={() => onDelete(policy.id)} className="p-2 text-slate-500 hover:text-red-600 rounded-full hover:bg-slate-100"><TrashIcon className="w-5 h-5" /></button>

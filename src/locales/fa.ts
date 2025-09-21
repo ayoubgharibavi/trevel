@@ -182,6 +182,8 @@ export const fa = {
     },
     from: 'مبدأ',
     to: 'مقصد',
+    fromPlaceholder: 'شهر یا فرودگاه مبدأ را انتخاب کنید',
+    toPlaceholder: 'شهر یا فرودگاه مقصد را انتخاب کنید',
     departureDate: 'تاریخ رفت',
     returnDate: 'تاریخ برگشت',
     passengers: 'مسافران',
@@ -193,6 +195,11 @@ export const fa = {
       children: 'کودکان',
       infants: 'نوزادان',
       total: '{0} مسافر',
+    },
+    validation: {
+      fromRequired: 'لطفاً شهر یا فرودگاه مبدأ را انتخاب کنید',
+      toRequired: 'لطفاً شهر یا فرودگاه مقصد را انتخاب کنید',
+      sameOriginDestination: 'مبدأ و مقصد نمی‌توانند یکسان باشند',
     },
     geminiError: 'خطا در دریافت اطلاعات پرواز رخ داد. ممکن است مشکل از شبکه یا سرویس باشد. لطفاً کمی بعد دوباره تلاش کنید.'
   },
@@ -215,10 +222,13 @@ export const fa = {
   searchResults: {
     title: 'نتایج جستجو',
     found: '({0} پرواز یافت شد)',
+    resultsCount: '{count} پرواز یافت شد',
     sort: 'مرتب‌سازی بر اساس:',
     cheapest: 'ارزان‌ترین',
     fastest: 'سریع‌ترین',
     bestValue: 'بهترین گزینه',
+    noFlights: 'پروازی یافت نشد',
+    noFlightsDescription: 'متأسفانه برای مسیر و تاریخ انتخابی شما پروازی موجود نیست. لطفاً تاریخ یا مقصد دیگری را امتحان کنید.',
   },
   flightCard: {
     class: 'کلاس',
@@ -316,6 +326,7 @@ export const fa = {
   stepper: {
     selectFlight: 'انتخاب پرواز',
     passengerDetails: 'اطلاعات مسافران',
+    review: 'بررسی نهایی',
     confirmAndPay: 'تأیید و پرداخت'
   },
   login: {
@@ -467,13 +478,13 @@ export const fa = {
     panel: 'پنل مدیریت',
     title: 'ورود مدیران',
     subtitle: 'برای دسترسی به پنل کنترل وارد شوید.',
-    username: 'نام کاربری',
-    usernameHint: 'نام کاربری مدیر',
+    email: 'ایمیل',
+    emailHint: 'ایمیل مدیر',
     password: 'رمز عبور',
     login: 'ورود',
     loading: 'در حال ورود...',
     backToSite: 'بازگشت به سایت اصلی',
-    error: 'نام کاربری یا رمز عبور نامعتبر است یا شما دسترسی ندارید.',
+    error: 'ایمیل یا رمز عبور نامعتبر است یا شما دسترسی ندارید.',
   },
   accounting: accounting,
   dashboard: {
@@ -497,6 +508,7 @@ export const fa = {
       ads: 'مدیریت تبلیغات',
       telegram: 'ربات تلگرام',
       whatsapp: 'ربات واتس‌اپ',
+      exchangeRates: 'نرخ ارز',
       activityLog: 'گزارش فعالیت‌ها',
       backToSite: 'بازگشت به سایت',
     },

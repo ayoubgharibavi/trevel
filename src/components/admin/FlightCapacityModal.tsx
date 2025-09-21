@@ -21,12 +21,15 @@ export const FlightCapacityModal: React.FC<FlightCapacityModalProps> = ({ isOpen
     const { t, formatNumber, language } = useLocalization();
 
     const capacityData = useMemo(() => {
-        const aircraft = aircrafts.find(a => a.name[language] === flight.aircraft || a.name['en'] === flight.aircraft || a.name['fa'] === flight.aircraft || a.name['ar'] === flight.aircraft);
+        const aircraft = aircrafts.find(a => a.id === flight.aircraft);
         const totalCapacity = flight.totalCapacity || (aircraft ? aircraft.capacity : 0);
         
         const soldSeats = bookings
             .filter(b => b.flight.id === flight.id && b.status === 'CONFIRMED')
-            .reduce((sum, b) => sum + b.passengers.adults.length + b.passengers.children.length + b.passengers.infants.length, 0);
+            .reduce((sum, b) => {
+                if (!b.passengers) return sum;
+                return sum + (b.passengers.adults?.length || 0) + (b.passengers.children?.length || 0) + (b.passengers.infants?.length || 0);
+            }, 0);
 
         // In the form, `availableSeats` is set as "seats for sale".
         // The mock data doesn't update this value after booking.
@@ -44,7 +47,7 @@ export const FlightCapacityModal: React.FC<FlightCapacityModalProps> = ({ isOpen
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b">
                     <h3 className="text-lg font-bold text-primary">{t('dashboard.flights.capacityReport.title')}</h3>
-                    <p className="text-sm text-slate-500">{flight.flightNumber} ({flight.departure.city} &rarr; {flight.arrival.city})</p>
+                    <p className="text-sm text-slate-500">{flight.flightNumber} ({flight.departure?.city || 'نامشخص'} &rarr; {flight.arrival?.city || 'نامشخص'})</p>
                 </div>
                 <div className="p-4 space-y-2">
                     <InfoRow label={t('dashboard.flights.capacityReport.totalCapacity')} value={formatNumber(capacityData.totalCapacity)} />

@@ -51,37 +51,49 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
     const airlineRevenueChartRef = useRef<HTMLCanvasElement>(null);
     const userGrowthChartRef = useRef<HTMLCanvasElement>(null);
 
+    // Add null checks
+    const safeBookings = bookings || [];
+    const safeUsers = users || [];
+    const safeJournalEntries = journalEntries || [];
+    const safeCommissionModels = commissionModels || [];
+
     const kpiData = useMemo(() => {
-        const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED');
+        const confirmedBookings = safeBookings.filter(b => b.status === 'CONFIRMED');
         const totalRevenue = confirmedBookings.reduce((sum, booking) => {
-            const totalPassengers = booking.passengers.adults.length + booking.passengers.children.length + booking.passengers.infants.length;
-            const flightPrice = booking.flight.price + booking.flight.taxes;
+            // Safe check for passengers
+            const passengers = booking.passengers || { adults: [], children: [], infants: [] };
+            const totalPassengers = (passengers.adults?.length || 0) + (passengers.children?.length || 0) + (passengers.infants?.length || 0);
+            const flight = booking.flight || { price: 0, taxes: 0 };
+            const flightPrice = (flight.price || 0) + (flight.taxes || 0);
             return sum + (flightPrice * totalPassengers);
         }, 0);
         
-        const netProfit = journalEntries.reduce((sum, entry) => {
-            const profitTx = entry.transactions.find(t => t.accountId === '4012'); // Web Service Commission Revenue
-            return sum + (profitTx ? profitTx.credit - profitTx.debit : 0);
+        const netProfit = safeJournalEntries.reduce((sum, entry) => {
+            const transactions = entry.transactions || [];
+            const profitTx = transactions.find(t => t.accountId === '4012'); // Web Service Commission Revenue
+            return sum + (profitTx ? (profitTx.credit || 0) - (profitTx.debit || 0) : 0);
         }, 0);
 
         const totalBookingsCount = confirmedBookings.length;
         const avgBookingValue = totalBookingsCount > 0 ? totalRevenue / totalBookingsCount : 0;
 
         return { totalRevenue, netProfit, totalBookingsCount, avgBookingValue };
-    }, [bookings, journalEntries]);
+    }, [safeBookings, safeJournalEntries]);
 
     const routePerformance = useMemo(() => {
         const routeProfit: Record<string, number> = {};
         const routePopularity: Record<string, number> = {};
         
-        const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED');
+        const confirmedBookings = safeBookings.filter(b => b.status === 'CONFIRMED');
         confirmedBookings.forEach(booking => {
-            const route = `${booking.flight.departure.city} - ${booking.flight.arrival.city}`;
-            const totalPassengers = booking.passengers.adults.length + booking.passengers.children.length + booking.passengers.infants.length;
-            const basePriceTotal = booking.flight.price * totalPassengers;
+            const flight = booking.flight || { departure: { city: 'Unknown' }, arrival: { city: 'Unknown' }, price: 0 };
+            const route = `${flight.departure?.city || 'Unknown'} - ${flight.arrival?.city || 'Unknown'}`;
+            const passengers = booking.passengers || { adults: [], children: [], infants: [] };
+            const totalPassengers = (passengers.adults?.length || 0) + (passengers.children?.length || 0) + (passengers.infants?.length || 0);
+            const basePriceTotal = (flight.price || 0) * totalPassengers;
             
             let profit = 0;
-            const model = commissionModels.find(m => m.id === booking.flight.commissionModelId);
+            const model = safeCommissionModels.find(m => m.id === flight.commissionModelId);
             if (model) {
                 if (model.calculationType === CommissionCalculationType.Percentage) {
                     profit = basePriceTotal * (model.webServiceCommission / 100);
@@ -103,20 +115,23 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
             .slice(0, 5);
 
         return { sortedProfitableRoutes, sortedPopularRoutes };
-    }, [bookings, commissionModels]);
+    }, [safeBookings, safeCommissionModels]);
     
     const airlineRevenue = useMemo(() => {
         const revenueByAirline: Record<string, number> = {};
-        const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED');
+        const confirmedBookings = safeBookings.filter(b => b.status === 'CONFIRMED');
 
         confirmedBookings.forEach(booking => {
-            const totalPassengers = booking.passengers.adults.length + booking.passengers.children.length + booking.passengers.infants.length;
-            const revenue = (booking.flight.price + booking.flight.taxes) * totalPassengers;
-            revenueByAirline[booking.flight.airline] = (revenueByAirline[booking.flight.airline] || 0) + revenue;
+            const passengers = booking.passengers || { adults: [], children: [], infants: [] };
+            const totalPassengers = (passengers.adults?.length || 0) + (passengers.children?.length || 0) + (passengers.infants?.length || 0);
+            const flight = booking.flight || { price: 0, taxes: 0, airline: 'Unknown' };
+            const revenue = ((flight.price || 0) + (flight.taxes || 0)) * totalPassengers;
+            const airline = flight.airline || 'Unknown';
+            revenueByAirline[airline] = (revenueByAirline[airline] || 0) + revenue;
         });
 
         return Object.entries(revenueByAirline).sort(([, a], [, b]) => b - a).slice(0, 5);
-    }, [bookings]);
+    }, [safeBookings]);
 
     const userGrowth = useMemo(() => {
         const now = new Date();
@@ -129,11 +144,11 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
             const dateStr = d.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' });
             dates.push(dateStr);
             
-            const usersUpToDate = users.filter(u => new Date(u.createdAt) <= d).length;
+            const usersUpToDate = safeUsers.filter(u => u.createdAt && new Date(u.createdAt) <= d).length;
             counts.push(usersUpToDate);
         }
         return { dates, counts };
-    }, [users]);
+    }, [safeUsers]);
 
     useEffect(() => {
         const charts: any[] = [];

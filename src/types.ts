@@ -290,6 +290,8 @@ export interface CountryInfo {
     currency: Currency;
 }
 
+export type BasicDataType = 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commissionModel' | 'currency' | 'refundPolicy' | 'country';
+
 export enum Permission {
     VIEW_STATS = 'VIEW_STATS',
     MANAGE_BOOKINGS = 'MANAGE_BOOKINGS',
@@ -525,4 +527,109 @@ export type PassengerData = {
     contactPhone: string;
 };
 
-export type View = 'SEARCH' | 'PASSENGER_DETAILS' | 'REVIEW' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT';
+export type View = 'SEARCH' | 'PASSENGER_DETAILS' | 'REVIEW' | 'CONFIRMATION' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT' | 'CURRENCY_CONVERTER';
+
+export interface TelegramBotConfig {
+    isEnabled: boolean;
+    apiKey: string;
+    chatId: string;
+    notifyOn: {
+        bookingSuccess: boolean;
+        flightChange: boolean;
+        newUser: boolean;
+        newBooking: boolean;
+        refundUpdate: boolean;
+        newTicket: boolean;
+    };
+}
+
+export interface WhatsAppBotConfig {
+    isEnabled: boolean;
+    apiKey: string;
+    phoneNumberId: string;
+    notifyOn: {
+        bookingSuccess: boolean;
+        flightChange: boolean;
+    };
+}
+
+export interface LoginPayload {
+    email: string;
+    password: string;
+}
+
+export interface SignupPayload {
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+    phone: string;
+}
+
+export interface UpdateProfilePayload {
+    name?: string;
+    currentPassword?: string;
+    newPassword?: string;
+}
+
+export interface AddSavedPassengerPayload extends Omit<SavedPassenger, 'id'> {}
+
+export interface UpdateSavedPassengerPayload extends SavedPassenger {}
+
+export interface UpdateUserPayload {
+    name?: string;
+    role?: UserRole;
+    status?: UserStatus;
+    canBypassRateLimit?: boolean;
+    displayCurrencies?: Currency[];
+    tenantId?: string;
+}
+
+export interface CreateExpensePayload {
+    date: string;
+    description: string;
+    amount: number;
+    currency: Currency;
+    accountId: string;
+}
+
+export interface UpdateTenantPayload {
+    name?: string;
+    slug?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    isActive?: boolean;
+    settings?: {
+        theme?: string;
+        logoUrl?: string;
+        homepageContentId?: string;
+        supportedLanguages?: Language[];
+        supportedCurrencies?: Currency[];
+    };
+}
+
+export interface CreateTenantPayload extends Omit<Tenant, 'id' | 'createdAt'> {}
+
+export interface ChargeWalletPayload {
+    amount: number;
+    currency: Currency;
+    description: string;
+}
+
+export interface ApiResponse<T = any> {
+    data: T | null;
+    success: boolean;
+    message?: string;
+    error?: string;
+}
+
+export interface AdminStats {
+    totalUsers: number;
+    totalFlights: number;
+    totalBookings: number;
+    pendingRefunds: number;
+    openTickets: number;
+    totalRevenue: number;
+    totalExpenses: number;
+    profit: number;
+}

@@ -3,8 +3,8 @@ import type { Booking } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { PrintableTicket } from '@/components/PrintableTicket';
 import { DownloadIcon } from '@/components/icons/DownloadIcon';
-
-declare var html2pdf: any;
+import { apiService } from '@/services/apiService';
+// PDF functionality will use browser print and backend API
 
 interface ETicketModalProps {
     booking: Booking;
@@ -21,12 +21,51 @@ export const ETicketModal: React.FC<ETicketModalProps> = ({ booking, onClose }) 
             const element = ticketElementRef.current;
             const filename = `ticket-${ticketToPrint.booking.id}.pdf`;
             const opt = { margin: 0.5, filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } };
-            html2pdf().from(element).set(opt).save().then(() => { setTicketToPrint(null); });
+            // Use browser print for PDF generation
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>بلیط الکترونیکی - ${ticketToPrint.booking.id}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
+                            .ticket { border: 2px solid #333; padding: 20px; max-width: 600px; margin: 0 auto; }
+                            .header { text-align: center; margin-bottom: 20px; }
+                            .info { margin: 10px 0; padding: 5px; border-bottom: 1px dotted #ccc; }
+                            @media print {
+                                body { margin: 0; }
+                                .no-print { display: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${element.innerHTML}
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+                setTicketToPrint(null);
+            }
         }
     }, [ticketToPrint]);
 
     const handleDownloadTicket = (withPrice: boolean) => {
-        setTicketToPrint({ booking: booking, withPrice });
+        // Try backend PDF first, fallback to client-side generation
+        if (withPrice) {
+            try {
+                apiService.downloadETicketPDF(booking.id);
+            } catch (error) {
+                console.error('Backend PDF failed, using client-side:', error);
+                setTicketToPrint({ booking: booking, withPrice });
+            }
+        } else {
+            // Client-side generation for without price
+            setTicketToPrint({ booking: booking, withPrice });
+        }
     };
     
     return (

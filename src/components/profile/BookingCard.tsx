@@ -31,7 +31,7 @@ interface BookingCardProps {
 
 export const BookingCard: React.FC<BookingCardProps> = ({ booking, onViewTicket, onCancelBooking }) => {
     const { t, formatDate } = useLocalization();
-    const isUpcoming = new Date(booking.flight.departure.dateTime) >= new Date();
+    const isUpcoming = booking.flight.departure?.dateTime ? new Date(booking.flight.departure.dateTime) >= new Date() : false;
     const isCancellable = isUpcoming && booking.status === 'CONFIRMED';
     
     return (
@@ -39,16 +39,16 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onViewTicket,
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                     <div className="flex items-center mb-2">
-                        <span className="font-bold text-lg text-primary">{booking.flight.departure.city}</span>
+                        <span className="font-bold text-lg text-primary">{booking.flight.departure?.city || 'نامشخص'}</span>
                         <ArrowLeftIcon className="w-5 h-5 mx-2 text-slate-400" />
-                        <span className="font-bold text-lg text-primary">{booking.flight.arrival.city}</span>
+                        <span className="font-bold text-lg text-primary">{booking.flight.arrival?.city || 'نامشخص'}</span>
                     </div>
                     <div className="flex items-center text-sm text-slate-500">
                         <PlaneTakeoffIcon className="w-4 h-4 ml-2" />
                         <span>{booking.flight.airline} - {t('flightCard.flightNumber')} {booking.flight.flightNumber}</span>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                        {t('flightSearch.departureDate')}: {formatDate(booking.flight.departure.dateTime, { dateStyle: 'full' })}
+                        {t('flightSearch.departureDate')}: {booking.flight.departure?.dateTime ? formatDate(booking.flight.departure.dateTime, { dateStyle: 'full' }) : 'نامشخص'}
                     </p>
                 </div>
                 <div className="flex flex-col items-end gap-2 w-full sm:w-auto">

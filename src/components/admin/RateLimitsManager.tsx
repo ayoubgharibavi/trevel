@@ -128,7 +128,9 @@ export const RateLimitsManager: React.FC<RateLimitsManagerProps> = ({ rateLimits
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {rateLimits.map(limit => (
+                        {rateLimits.filter((limit, index, self) => 
+                            index === self.findIndex(l => l.id === limit.id)
+                        ).map(limit => (
                             <tr key={limit.id}>
                                 <td className="px-6 py-4 font-medium">{limit.fromCity}</td>
                                 <td className="px-6 py-4 font-medium">{limit.toCity}</td>

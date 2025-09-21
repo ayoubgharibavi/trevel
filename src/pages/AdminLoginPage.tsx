@@ -5,29 +5,32 @@ import { PlaneIcon } from '../components/icons/PlaneIcon';
 import { useLocalization } from '../hooks/useLocalization';
 
 interface AdminLoginPageProps {
-    onLogin: (username: string, pass: string) => boolean;
+    onLogin: (email: string, pass: string) => Promise<boolean>;
     onGoToSearch: () => void;
 }
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLogin, onGoToSearch }) => {
-    const [username, setUsername] = useState('superadmin');
-    const [password, setPassword] = useState('password'); // Pre-fill for demo
+    const [email, setEmail] = useState('admin@trevel.com');
+    const [password, setPassword] = useState('admin123'); // Pre-fill for demo
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { t } = useLocalization();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         setIsLoading(true);
 
-        setTimeout(() => {
-            const success = onLogin(username, password);
+        try {
+            const success = await onLogin(email, password);
             if (!success) {
                 setError(t('adminLogin.error'));
             }
-            setIsLoading(false);
-        }, 500);
+        } catch (error) {
+            setError(t('adminLogin.error'));
+        }
+        
+        setIsLoading(false);
     };
 
     return (
@@ -48,14 +51,14 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLogin, onGoToS
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div>
-                            <label htmlFor="username-admin" className="block text-sm font-medium text-slate-700 mb-1">{t('adminLogin.username')}</label>
+                            <label htmlFor="email-admin" className="block text-sm font-medium text-slate-700 mb-1">{t('adminLogin.email')}</label>
                             <input
-                                type="text"
-                                id="username-admin"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                type="email"
+                                id="email-admin"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent"
-                                placeholder={t('adminLogin.usernameHint')}
+                                placeholder={t('adminLogin.emailHint')}
                                 required
                             />
                         </div>

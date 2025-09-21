@@ -5,9 +5,10 @@ import type { SearchQuery, Flight, Language } from '../types';
 // Read API key from Vite env (must be defined at build time)
 const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set.");
-}
+// Temporarily disable Gemini API to avoid CORS issues
+// if (!API_KEY) {
+//   throw new Error("API_KEY environment variable not set.");
+// }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -102,38 +103,24 @@ const generatePrompt = (query: SearchQuery, lang: Language): string => {
 };
 
 export const generateFlights = async (query: SearchQuery, lang: Language): Promise<Flight[]> => {
-  const prompt = generatePrompt(query, lang);
-  const schema = {
-    type: Type.ARRAY,
-    items: getFlightSchema(lang),
-  };
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
+    // Use backend AI search endpoint instead of direct Gemini API call
+    const response = await fetch('http://localhost:3000/api/v1/flights/ai-search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify(query),
     });
 
-    const rawText = response.text;
-    // Attempt to extract JSON from markdown code blocks, e.g., ```json ... ```
-    const jsonMatch = rawText.match(/```(json)?\s*([\s\S]*?)\s*```/);
-    const jsonText = (jsonMatch ? jsonMatch[2] : rawText).trim();
-
-    const flightData = JSON.parse(jsonText);
-
-    if (!Array.isArray(flightData)) {
-      console.error("Gemini response is not an array:", flightData);
-      return [];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
-    return flightData as Flight[];
 
+    const flights = await response.json();
+    return Array.isArray(flights) ? flights : [flights];
   } catch (error) {
-    console.error("Error generating flights with Gemini:", error);
-    throw new Error("Failed to fetch flight data from Gemini API.");
+    console.error('Error generating flights with AI search:', error);
+    return [];
   }
 };

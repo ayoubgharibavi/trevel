@@ -49,10 +49,81 @@ const DataModal: React.FC<{
     type: DataType;
 }> = ({ isOpen, onClose, onSave, item, type }) => {
     const { t } = useLocalization();
-    const [formData, setFormData] = useState<any>(item || {});
+    const [formData, setFormData] = useState<any>(() => {
+        if (!item) return {};
+        
+        // Parse JSON strings back to objects for form editing
+        const parsedItem = { ...item };
+        if (typeof parsedItem.name === 'string') {
+            try {
+                parsedItem.name = JSON.parse(parsedItem.name);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.city === 'string') {
+            try {
+                parsedItem.city = JSON.parse(parsedItem.city);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.country === 'string') {
+            try {
+                parsedItem.country = JSON.parse(parsedItem.country);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.symbol === 'string') {
+            try {
+                parsedItem.symbol = JSON.parse(parsedItem.symbol);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        
+        return parsedItem;
+    });
 
     React.useEffect(() => {
-        setFormData(item || {});
+        if (!item) {
+            setFormData({});
+            return;
+        }
+        
+        // Parse JSON strings back to objects for form editing
+        const parsedItem = { ...item };
+        if (typeof parsedItem.name === 'string') {
+            try {
+                parsedItem.name = JSON.parse(parsedItem.name);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.city === 'string') {
+            try {
+                parsedItem.city = JSON.parse(parsedItem.city);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.country === 'string') {
+            try {
+                parsedItem.country = JSON.parse(parsedItem.country);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        if (typeof parsedItem.symbol === 'string') {
+            try {
+                parsedItem.symbol = JSON.parse(parsedItem.symbol);
+            } catch {
+                // If parsing fails, keep as string
+            }
+        }
+        
+        setFormData(parsedItem);
     }, [item]);
 
     if (!isOpen) return null;
@@ -148,7 +219,7 @@ const DataModal: React.FC<{
                  <>
                     <div>
                         <label className="block text-sm font-medium text-slate-700">کد یاتا (IATA)</label>
-                        <input type="text" value={formData.iata || ''} onChange={e => setFormData({ ...formData, id: e.target.value.toUpperCase(), iata: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded focus:ring-accent focus:border-accent" required maxLength={3} />
+                        <input type="text" value={formData.iata || ''} onChange={e => setFormData({ ...formData, iata: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded focus:ring-accent focus:border-accent" required maxLength={3} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700">نام فرودگاه (فارسی)</label>
@@ -232,7 +303,7 @@ const DataModal: React.FC<{
                  <>
                     <div>
                         <label className="block text-sm font-medium text-slate-700">ISO Code (2 Letters)</label>
-                        <input type="text" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded" required maxLength={2} disabled={!isNew} />
+                        <input type="text" value={formData.id || ''} onChange={e => setFormData({ ...formData, id: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded" required maxLength={2} />
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-slate-700">نام کشور (فارسی)</label>
@@ -278,11 +349,42 @@ const DataModal: React.FC<{
 
 
 export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines, aircrafts, flightClasses, airports, commissionModels, rateLimits, currencies, refundPolicies, countries, onCreate, onUpdate, onDelete, onCreateRateLimit, onUpdateRateLimit, onDeleteRateLimit }) => {
+    // Debug logging
+    console.log('🔍 BasicDataDashboard rendered with:', {
+        airlinesCount: airlines?.length || 0,
+        aircraftsCount: aircrafts?.length || 0,
+        flightClassesCount: flightClasses?.length || 0,
+        airportsCount: airports?.length || 0,
+        currenciesCount: currencies?.length || 0,
+        countriesCount: countries?.length || 0,
+    });
+
+    // Monitor airlines changes
+    React.useEffect(() => {
+        console.log('📊 Airlines changed:', airlines?.length || 0, 'airlines');
+        if (airlines && airlines.length > 0) {
+            console.log('✈️ Latest airline:', airlines[airlines.length - 1]);
+        }
+    }, [airlines]);
+
     const [activeTab, setActiveTab] = useState<DataType>('airline');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Item | null>(null);
     const { language, t } = useLocalization();
     const [airportSearchTerm, setAirportSearchTerm] = useState('');
+
+    // Helper function to parse localized name
+    const parseLocalizedName = (name: any, lang: Language): string => {
+        if (typeof name === 'string') {
+            try {
+                const parsed = JSON.parse(name);
+                return parsed[lang] || parsed['fa'] || parsed['en'] || name;
+            } catch {
+                return name;
+            }
+        }
+        return name[lang] || name['fa'] || name['en'] || '';
+    };
 
     const handleOpenModal = (item: Item | null = null) => {
         setEditingItem(item);
@@ -294,13 +396,24 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
         setIsModalOpen(false);
     };
 
-    const handleSave = (data: Item) => {
-        if (data.id) {
-            onUpdate(activeTab, data);
+    const handleSave = async (data: Item) => {
+        const isNewItem = !data.id;
+        if (data.id && !isNewItem) {
+            // For updates, always use the original item ID for the update operation
+            const updateData = { ...data };
+            // Always use the original editingItem.id for the update operation
+            if (editingItem?.id) {
+                updateData.id = editingItem.id;
+            }
+            // Pass the original ID as a separate parameter
+            await onUpdate(activeTab, updateData, editingItem?.id);
         } else {
-            onCreate(activeTab, data);
+            await onCreate(activeTab, data);
         }
-        handleCloseModal();
+        // Wait a bit for state to update before closing modal
+        setTimeout(() => {
+            handleCloseModal();
+        }, 500);
     };
 
     const handleToggleCurrencyStatus = (currency: CurrencyInfo) => {
@@ -330,7 +443,9 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 headers = [t('dashboard.basicData.headers.aircraftName'), t('dashboard.basicData.headers.capacity')];
                 renderRowCells = (item: AircraftInfo) => (
                     <>
-                        <td className="px-6 py-4 font-medium text-slate-800">{item.name[language]}</td>
+                        <td className="px-6 py-4 font-medium text-slate-800">
+                            {parseLocalizedName(item.name, language)}
+                        </td>
                         <td className="px-6 py-4">{item.capacity}</td>
                     </>
                 );
@@ -340,23 +455,33 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 headers = [t('dashboard.basicData.headers.className')];
                 renderRowCells = (item: FlightClassInfo) => (
                     <>
-                        <td className="px-6 py-4 font-medium text-slate-800">{item.name[language]}</td>
+                        <td className="px-6 py-4 font-medium text-slate-800">
+                            {parseLocalizedName(item.name, language)}
+                        </td>
                     </>
                 );
                 break;
             case 'airport':
-                data = airports.filter(a =>
-                    a.city[language].toLowerCase().includes(airportSearchTerm.toLowerCase()) ||
-                    a.name[language].toLowerCase().includes(airportSearchTerm.toLowerCase()) ||
-                    a.iata.toLowerCase().includes(airportSearchTerm.toLowerCase())
-                );
+                data = airports.filter(a => {
+                    const cityName = parseLocalizedName(a.city, language);
+                    const airportName = parseLocalizedName(a.name, language);
+                    return cityName.toLowerCase().includes(airportSearchTerm.toLowerCase()) ||
+                           airportName.toLowerCase().includes(airportSearchTerm.toLowerCase()) ||
+                           a.iata.toLowerCase().includes(airportSearchTerm.toLowerCase());
+                });
                 headers = [t('dashboard.basicData.headers.iata'), t('dashboard.basicData.headers.airportName'), t('dashboard.basicData.headers.city'), t('dashboard.basicData.headers.country')];
                 renderRowCells = (item: AirportInfo) => (
                     <>
                         <td className="px-6 py-4 font-mono">{item.iata}</td>
-                        <td className="px-6 py-4 font-medium text-slate-800">{item.name[language]}</td>
-                        <td className="px-6 py-4">{item.city[language]}</td>
-                        <td className="px-6 py-4">{item.country[language]}</td>
+                        <td className="px-6 py-4 font-medium text-slate-800">
+                            {parseLocalizedName(item.name, language)}
+                        </td>
+                        <td className="px-6 py-4">
+                            {parseLocalizedName(item.city, language)}
+                        </td>
+                        <td className="px-6 py-4">
+                            {parseLocalizedName(item.country, language)}
+                        </td>
                     </>
                 );
                 break;
@@ -373,9 +498,13 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 headers = [t('dashboard.basicData.headers.currencyName'), t('dashboard.basicData.headers.code'), t('dashboard.basicData.headers.symbol'), t('dashboard.basicData.headers.rateToUsd'), t('dashboard.general.status')];
                 renderRowCells = (item: CurrencyInfo) => (
                     <>
-                        <td className="px-6 py-4 font-medium">{item.name[language]}</td>
+                        <td className="px-6 py-4 font-medium">
+                            {parseLocalizedName(item.name, language)}
+                        </td>
                         <td className="px-6 py-4 font-mono">{item.code}</td>
-                        <td className="px-6 py-4">{item.symbol[language]}</td>
+                        <td className="px-6 py-4">
+                            {parseLocalizedName(item.symbol, language)}
+                        </td>
                         <td className="px-6 py-4">{item.rateToUsd}</td>
                         <td className="px-6 py-4">
                             <button onClick={() => handleToggleCurrencyStatus(item)} title={item.isActive ? "Deactivate" : "Activate"}>
@@ -394,7 +523,9 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 headers = [t('dashboard.basicData.headers.countryName'), 'ISO Code', t('dashboard.basicData.headers.dialingCode')];
                 renderRowCells = (item: CountryInfo) => (
                     <>
-                        <td className="px-6 py-4 font-medium">{item.name[language]}</td>
+                        <td className="px-6 py-4 font-medium">
+                            {parseLocalizedName(item.name, language)}
+                        </td>
                         <td className="px-6 py-4 font-mono">{item.id}</td>
                         <td className="px-6 py-4">{item.dialingCode}</td>
                     </>
@@ -435,7 +566,9 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {data.length > 0 ? data.map(item => (
+                            {data.length > 0 ? data.filter((item, index, self) => 
+                                index === self.findIndex(t => t.id === item.id)
+                            ).map(item => (
                                 <tr key={item.id}>
                                     {renderRowCells(item)}
                                     <td className="px-6 py-4 text-left space-x-2 space-x-reverse">

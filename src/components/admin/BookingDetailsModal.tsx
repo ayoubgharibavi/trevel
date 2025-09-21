@@ -8,12 +8,13 @@ import { EmailIcon } from '@/components/icons/EmailIcon';
 import { SmsIcon } from '@/components/icons/SmsIcon';
 import { WhatsappIcon } from '@/components/icons/WhatsappIcon';
 import { DownloadIcon } from '@/components/icons/DownloadIcon';
+// PDF functionality will use browser print
 import { useLocalization } from '@/hooks/useLocalization';
 import { PrintableTicket } from '@/components/PrintableTicket';
 import { EditIcon } from '@/components/icons/EditIcon';
 
 
-declare var html2pdf: any;
+
 
 interface BookingDetailsModalProps {
     booking: Booking;
@@ -43,7 +44,35 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({ bookin
             const element = ticketElementRef.current;
             const filename = `ticket-${ticketToPrint.booking.id}.pdf`;
             const opt = { margin: 0.5, filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } };
-            html2pdf().from(element).set(opt).save().then(() => { setTicketToPrint(null); });
+            // Use browser print for PDF generation
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>بلیط - ${ticketToPrint.booking.id}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
+                            .ticket { border: 2px solid #333; padding: 20px; max-width: 600px; margin: 0 auto; }
+                            .header { text-align: center; margin-bottom: 20px; }
+                            .info { margin: 10px 0; padding: 5px; border-bottom: 1px dotted #ccc; }
+                            @media print {
+                                body { margin: 0; }
+                                .no-print { display: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${element.innerHTML}
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+                setTicketToPrint(null);
+            }
         }
     }, [ticketToPrint]);
 
@@ -91,7 +120,9 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({ bookin
 
     const handlePassengerChange = (type: 'adults' | 'children' | 'infants', index: number, field: keyof PassengerDetails, value: any) => {
         setEditedBooking(prev => {
-            const updatedPassengersOfType = [...prev.passengers[type]];
+            if (!prev.passengers) return prev;
+            const passengersOfType = prev.passengers[type] || [];
+            const updatedPassengersOfType = [...passengersOfType];
             updatedPassengersOfType[index] = { ...updatedPassengersOfType[index], [field]: value };
             return { ...prev, passengers: { ...prev.passengers, [type]: updatedPassengersOfType } };
         });
@@ -107,10 +138,20 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({ bookin
     const fromDateTimeLocal = (localString: string) => new Date(localString).toISOString();
 
     const renderPassengerDetails = () => {
+        if (!booking.passengers) {
+            return (
+                <div className="mt-4">
+                    <div className="text-center py-4 text-slate-500">
+                        {t('dashboard.bookings.detailsModal.noPassengerData')}
+                    </div>
+                </div>
+            );
+        }
+        
         const passengerSections = [
-            { title: t('passengerDetails.adults'), data: booking.passengers.adults },
-            { title: t('passengerDetails.children'), data: booking.passengers.children },
-            { title: t('passengerDetails.infants'), data: booking.passengers.infants }
+            { title: t('passengerDetails.adults'), data: booking.passengers.adults || [] },
+            { title: t('passengerDetails.children'), data: booking.passengers.children || [] },
+            { title: t('passengerDetails.infants'), data: booking.passengers.infants || [] }
         ];
 
         return passengerSections.map(section => {
@@ -158,27 +199,29 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({ bookin
             <fieldset className="border p-4 rounded-lg">
                 <legend className="px-2 font-semibold text-primary">{t('dashboard.flights.form.departure')}</legend>
                  <div className="grid grid-cols-2 gap-4">
-                    <select value={editedBooking.flight.departure.airportCode} onChange={e => handleAirportChange('departure', e.target.value)} className="p-2 border rounded bg-white">
+                    <select value={editedBooking.flight.departure?.airportCode || ''} onChange={e => handleAirportChange('departure', e.target.value)} className="p-2 border rounded bg-white">
+                        <option value="" disabled>{t('dashboard.flights.form.select')}</option>
                         {airports.map(a => <option key={a.id} value={a.iata}>{a.city[language]} ({a.iata})</option>)}
                     </select>
-                    <input type="datetime-local" value={toDateTimeLocal(editedBooking.flight.departure.dateTime)} onChange={e => handleEndpointChange('departure', 'dateTime', fromDateTimeLocal(e.target.value))} className="p-2 border rounded" />
+                    <input type="datetime-local" value={editedBooking.flight.departure?.dateTime ? toDateTimeLocal(editedBooking.flight.departure.dateTime) : ''} onChange={e => handleEndpointChange('departure', 'dateTime', fromDateTimeLocal(e.target.value))} className="p-2 border rounded" />
                 </div>
             </fieldset>
 
              <fieldset className="border p-4 rounded-lg">
                 <legend className="px-2 font-semibold text-primary">{t('dashboard.flights.form.arrival')}</legend>
                  <div className="grid grid-cols-2 gap-4">
-                    <select value={editedBooking.flight.arrival.airportCode} onChange={e => handleAirportChange('arrival', e.target.value)} className="p-2 border rounded bg-white">
+                    <select value={editedBooking.flight.arrival?.airportCode || ''} onChange={e => handleAirportChange('arrival', e.target.value)} className="p-2 border rounded bg-white">
+                        <option value="" disabled>{t('dashboard.flights.form.select')}</option>
                         {airports.map(a => <option key={a.id} value={a.iata}>{a.city[language]} ({a.iata})</option>)}
                     </select>
-                    <input type="datetime-local" value={toDateTimeLocal(editedBooking.flight.arrival.dateTime)} onChange={e => handleEndpointChange('arrival', 'dateTime', fromDateTimeLocal(e.target.value))} className="p-2 border rounded" />
+                    <input type="datetime-local" value={editedBooking.flight.arrival?.dateTime ? toDateTimeLocal(editedBooking.flight.arrival.dateTime) : ''} onChange={e => handleEndpointChange('arrival', 'dateTime', fromDateTimeLocal(e.target.value))} className="p-2 border rounded" />
                 </div>
             </fieldset>
 
              <div>
                 <h4 className="text-lg font-semibold text-slate-700 mb-2">{t('dashboard.bookings.detailsModal.passengers')}</h4>
-                {['adults', 'children', 'infants'].map(type => 
-                    editedBooking.passengers[type as keyof typeof editedBooking.passengers].map((p, index) => (
+                {editedBooking.passengers ? ['adults', 'children', 'infants'].map(type => 
+                    (editedBooking.passengers[type as keyof typeof editedBooking.passengers] || []).map((p, index) => (
                         <fieldset key={`${type}-${index}`} className="border p-3 rounded-lg mb-3">
                             <legend className="px-2 text-sm font-semibold">{t(`passengerDetails.${type}` as any)} {index + 1}</legend>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -192,7 +235,7 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({ bookin
                             </div>
                         </fieldset>
                     ))
-                )}
+                ) : null}
             </div>
         </form>
     );

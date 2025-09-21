@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 
 interface LoginPageProps {
-    onLogin: (username: string, pass: string) => void;
+    onLogin: (username: string, pass: string) => Promise<boolean>;
     onGoToSignup: () => void;
     error: string | null;
 }
@@ -12,10 +12,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoToSignup, err
     const [password, setPassword] = useState('');
     const { t } = useLocalization();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (username && password) {
-            onLogin(username, password);
+            await onLogin(username, password);
         }
     };
 

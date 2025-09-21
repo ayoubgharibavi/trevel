@@ -2,8 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import type { Flight, Booking, User } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { DownloadIcon } from '@/components/icons/DownloadIcon';
-
-declare var html2pdf: any;
+// PDF functionality will use browser print
 
 interface FlightSalesReportModalProps {
     isOpen: boolean;
@@ -26,7 +25,8 @@ export const FlightSalesReportModal: React.FC<FlightSalesReportModalProps> = ({ 
 
         flightBookings.forEach(booking => {
             const agentId = booking.user.id;
-            const passengerCount = booking.passengers.adults.length + booking.passengers.children.length + booking.passengers.infants.length;
+            const passengers = booking.passengers || { adults: [], children: [], infants: [] };
+            const passengerCount = (passengers.adults?.length || 0) + (passengers.children?.length || 0) + (passengers.infants?.length || 0);
             
             if (!salesByAgent[agentId]) {
                 salesByAgent[agentId] = { agentName: booking.user.name, seats: 0 };
@@ -42,14 +42,38 @@ export const FlightSalesReportModal: React.FC<FlightSalesReportModalProps> = ({ 
     }, [flight, bookings]);
 
     const handleDownloadPDF = () => {
-        if (reportContentRef.current) {
-            html2pdf(reportContentRef.current, {
-                margin: 0.5,
-                filename: `sales-report-${flight?.flightNumber}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            });
+        // Open print dialog for PDF generation
+        const printWindow = window.open('', '_blank');
+        if (printWindow && reportContentRef.current) {
+            const content = reportContentRef.current.innerHTML;
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>گزارش فروش پرواز - ${flight?.flightNumber}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                        th { background-color: #f5f5f5; font-weight: bold; }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        @media print {
+                            body { margin: 0; }
+                            .no-print { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1 style="text-align: center;">گزارش فروش پرواز ${flight?.flightNumber}</h1>
+                    <p style="text-align: center;">تاریخ: ${new Date().toLocaleDateString('fa-IR')}</p>
+                    ${content}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
         }
     };
 
