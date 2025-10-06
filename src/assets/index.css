@@ -26,34 +26,8 @@
   display: none;
 }
 
-/* Font Kalameh */
-@font-face {
-  font-family: Kalameh;
-  font-style: normal;
-  font-weight: 100;
-  src: url(../fonts/Kalameh-Thin.ttf) format("truetype");
-}
-
-@font-face {
-  font-family: Kalameh;
-  font-style: normal;
-  font-weight: 400;
-  src: url(../fonts/Kalameh-Regular.ttf) format("truetype");
-}
-
-@font-face {
-  font-family: Kalameh;
-  font-style: normal;
-  font-weight: 700;
-  src: url(../fonts/Kalameh-Bold.ttf) format("truetype");
-}
-
-@font-face {
-  font-family: Kalameh;
-  font-style: normal;
-  font-weight: 900;
-  src: url(../fonts/Kalameh-Black.ttf) format("truetype");
-}
+/* Font Kalameh - Using Google Fonts instead */
+@import url('https://fonts.googleapis.com/css2?family=Kalameh:wght@100;400;700;900&display=swap');
 
 body {
   position: relative;
@@ -274,7 +248,7 @@ input {
 .hero-background {
   position: absolute;
   inset: 0;
-  background-image: url('/icons/UpdateMain/h-air.jpg');
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(29, 78, 216, 0.8) 100%);
   background-size: cover;
   background-position: center;
   opacity: 0.3;
