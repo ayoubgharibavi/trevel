@@ -7,11 +7,13 @@ import { FlightsModule } from '../flights/flights.module';
 import { FlightsService } from '../flights/flights.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AccountingModule } from '../accounting/accounting.module';
 
 @Module({
   imports: [
     PrismaModule,
     FlightsModule,
+    AccountingModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'dev-secret',
       signOptions: { expiresIn: '24h' },
