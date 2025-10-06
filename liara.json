@@ -2,12 +2,7 @@
   "app": "hur",
   "port": 3000,
   "build": {
-    "location": "iran",
-    "command": "npm ci && npm run build"
+    "location": "iran"
   },
-  "start": {
-    "command": "npm start"
-  },
-  "disks": [],
-  "platform": "node"
+  "disks": []
 }
