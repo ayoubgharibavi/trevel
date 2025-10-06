@@ -3,10 +3,11 @@
   "port": 3000,
   "build": {
     "location": "iran",
-    "command": "npm run build"
+    "command": "npm ci && npm run build"
   },
   "start": {
     "command": "npm start"
   },
-  "disks": []
+  "disks": [],
+  "platform": "node"
 }
