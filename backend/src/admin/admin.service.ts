@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FlightsService } from '../flights/flights.service';
+import { AccountingService } from '../accounting/accounting.service';
+import { AccountingSetupService } from '../accounting/accounting-setup.service';
 import { UpdateUserDto, CreateFlightDto, UpdateFlightDto } from '../common/dto';
 import * as bcrypt from 'bcrypt';
 import { UserRole, UserStatus, BookingStatus, TicketStatus, TransactionType, AccountType, Prisma } from '@prisma/client';
@@ -15,16 +17,163 @@ interface LogEntry {
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService, private flightsService: FlightsService, private configService: ConfigService) {}
+  constructor(
+    private prisma: PrismaService, 
+    private flightsService: FlightsService, 
+    private configService: ConfigService,
+    private accountingService: AccountingService,
+    private accountingSetup: AccountingSetupService
+  ) {}
+
+  async cancelPastFlights() {
+    try {
+      const now = new Date();
+      
+      const pastFlights = await this.prisma.flight.findMany({
+        where: {
+          status: 'ON_TIME',
+          departureTime: {
+            lt: now
+          }
+        }
+      });
+
+      const results = [];
+
+      for (const flight of pastFlights) {
+        // Update flight status to CANCELLED
+        const updatedFlight = await this.prisma.flight.update({
+          where: { id: flight.id },
+          data: { 
+            status: 'CANCELLED',
+            updatedAt: now
+          }
+        });
+
+        // Cancel all related bookings
+        const relatedBookings = await this.prisma.booking.findMany({
+          where: {
+            flightId: flight.id,
+            status: {
+              in: ['CONFIRMED', 'PENDING']
+            }
+          }
+        });
+
+        let cancelledBookings = 0;
+        if (relatedBookings.length > 0) {
+          const bookingUpdate = await this.prisma.booking.updateMany({
+            where: {
+              flightId: flight.id,
+              status: {
+                in: ['CONFIRMED', 'PENDING']
+              }
+            },
+            data: {
+              status: 'CANCELLED'
+            }
+          });
+          cancelledBookings = bookingUpdate.count;
+        }
+
+        results.push({
+          flightId: flight.id,
+          flightNumber: flight.flightNumber,
+          departureTime: flight.departureTime,
+          cancelledBookings: cancelledBookings
+        });
+      }
+
+      return {
+        success: true,
+        message: `${results.length} past flights cancelled successfully`,
+        cancelledFlights: results
+      };
+    } catch (error) {
+      console.error('Error cancelling past flights:', error);
+      throw new BadRequestException('Failed to cancel past flights');
+    }
+  }
 
   async getStats() {
     const totalUsers = await this.prisma.user.count();
     const totalBookings = await this.prisma.booking.count();
+    
+    // Total Revenue from confirmed bookings
     const totalRevenue = await this.prisma.booking.aggregate({
       _sum: { totalPrice: true },
       where: { status: BookingStatus.CONFIRMED },
     });
-    const activeFlights = await this.prisma.flight.count({ where: { status: 'SCHEDULED' } });
+
+    // Calculate Net Profit from accounting system
+    let netProfit = 0;
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    
+    try {
+      console.log('🔍 Fetching financial data from database...');
+      
+      // Get all revenue transactions (Ticket Sales Revenue - Account 4011)
+      const revenueTransactions = await this.prisma.transaction.findMany({
+        where: {
+          accountId: '4011', // Ticket Sales Revenue
+        },
+        select: {
+          credit: true,
+          debit: true,
+        },
+      });
+
+      console.log(`📈 Found ${revenueTransactions.length} revenue transactions`);
+
+      // Calculate total income from revenue account
+      totalIncome = revenueTransactions.reduce((sum, transaction) => {
+        return sum + Number(transaction.credit || 0);
+      }, 0);
+
+      // Get all expense transactions (you can add more expense accounts as needed)
+      const expenseTransactions = await this.prisma.transaction.findMany({
+        where: {
+          account: {
+            type: 'EXPENSE',
+          },
+        },
+        select: {
+          debit: true,
+          credit: true,
+        },
+      });
+
+      console.log(`📉 Found ${expenseTransactions.length} expense transactions`);
+
+      // Calculate total expenses
+      totalExpenses = expenseTransactions.reduce((sum, transaction) => {
+        return sum + Number(transaction.debit || 0);
+      }, 0);
+
+      // Calculate net profit
+      netProfit = totalIncome - totalExpenses;
+
+      console.log(`📊 Financial Stats - Total Income: ${totalIncome}, Total Expenses: ${totalExpenses}, Net Profit: ${netProfit}`);
+    } catch (error) {
+      console.error('❌ Error calculating financial stats:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      // Fallback to booking revenue if accounting system fails
+      totalIncome = totalRevenue._sum.totalPrice ? Number(totalRevenue._sum.totalPrice) : 0;
+      netProfit = totalIncome; // Assume no expenses for now
+      console.log(`🔄 Fallback - Total Income: ${totalIncome}, Net Profit: ${netProfit}`);
+    }
+
+    // Fix: Count upcoming flights correctly (departure time > now)
+    const now = new Date();
+    const upcomingFlights = await this.prisma.flight.count({ 
+      where: { 
+        departureTime: { gt: now },
+        status: { in: ['ON_TIME', 'CLOSE', 'WAITING_FOR_COMMAND'] }
+      } 
+    });
+    
+    const activeFlights = await this.prisma.flight.count({ where: { status: 'ON_TIME' } });
     const pendingTickets = await this.prisma.ticket.count({ where: { status: TicketStatus.OPEN } });
 
     // Last 5 recent bookings
@@ -45,7 +194,6 @@ export class AdminService {
 
     // Revenue chart (last 4 months, mock data for now as date aggregation in Prisma is complex without raw queries)
     const revenueChart = [];
-    const now = new Date();
     for (let i = 3; i >= 0; i--) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -67,11 +215,14 @@ export class AdminService {
         });
     }
 
-
     return {
       totalUsers,
       totalBookings,
       totalRevenue: totalRevenue._sum.totalPrice ? Number(totalRevenue._sum.totalPrice) : 0,
+      totalIncome, // مجموع درآمد
+      netProfit, // سود خالص
+      totalExpenses, // مجموع هزینه‌ها
+      upcomingFlights, // Use correct upcoming flights count
       activeFlights,
       pendingTickets,
       recentBookings: recentBookings.map(b => ({
@@ -144,7 +295,13 @@ export class AdminService {
         tenantId: data.tenantId || defaultTenantId,
       },
     });
-    return newUser;
+    
+    return {
+      success: true,
+      data: {
+        user: newUser
+      }
+    };
   }
 
   async updateUser(userId: string, data: UpdateUserDto) {
@@ -181,13 +338,31 @@ export class AdminService {
             select: {
               id: true,
               flightNumber: true,
+              airline: true,
+              flightClass: true,
               departureTime: true,
               arrivalTime: true,
-              departureAirport: { select: { city: true } },
-              arrivalAirport: { select: { city: true } },
+              departureAirport: { 
+                select: { 
+                  city: true, 
+                  iata: true, 
+                  name: true 
+                } 
+              },
+              arrivalAirport: { 
+                select: { 
+                  city: true, 
+                  iata: true, 
+                  name: true 
+                } 
+              },
             },
           },
-          passengersInfo: true,
+          passengersInfo: {
+            where: {
+              bookingId: { not: null }
+            }
+          },
         },
         orderBy: { bookingDate: 'desc' },
       }),
@@ -203,9 +378,210 @@ export class AdminService {
     };
   }
 
+  async updateBooking(bookingId: string, bookingData: any) {
+    console.log('🔍 Updating booking:', bookingId, bookingData);
+    
+    // Check if booking exists
+    const existingBooking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        flight: {
+          select: {
+            id: true,
+            flightNumber: true,
+            airline: true,
+            flightClass: true,
+            departureTime: true,
+            arrivalTime: true,
+            departureAirport: { 
+              select: { 
+                city: true, 
+                iata: true, 
+                name: true 
+              } 
+            },
+            arrivalAirport: { 
+              select: { 
+                city: true, 
+                iata: true, 
+                name: true 
+              } 
+            },
+          },
+        },
+        passengersInfo: {
+          where: {
+            bookingId: { not: null }
+          }
+        },
+      },
+    });
+
+    if (!existingBooking) {
+      throw new Error('Booking not found');
+    }
+
+    // Update booking with provided data
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: bookingData.status || existingBooking.status,
+        notes: bookingData.notes || existingBooking.notes,
+        totalPrice: bookingData.totalPrice ? Number(bookingData.totalPrice) : existingBooking.totalPrice,
+        contactEmail: bookingData.contactEmail || existingBooking.contactEmail,
+        contactPhone: bookingData.contactPhone || existingBooking.contactPhone,
+        passengersData: bookingData.passengersData ? JSON.stringify(bookingData.passengersData) : existingBooking.passengersData,
+        source: bookingData.source || existingBooking.source,
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        flight: {
+          select: {
+            id: true,
+            flightNumber: true,
+            airline: true,
+            flightClass: true,
+            departureTime: true,
+            arrivalTime: true,
+            departureAirport: { 
+              select: { 
+                city: true, 
+                iata: true, 
+                name: true 
+              } 
+            },
+            arrivalAirport: { 
+              select: { 
+                city: true, 
+                iata: true, 
+                name: true 
+              } 
+            },
+          },
+        },
+        passengersInfo: {
+          where: {
+            bookingId: { not: null }
+          }
+        },
+      },
+    });
+
+    console.log('✅ Booking updated successfully:', updatedBooking.id);
+    return updatedBooking;
+  }
+
+  async fixBookingSources() {
+    console.log('🔍 Fixing booking sources...');
+    
+    try {
+      // Find bookings that should be Charter118 based on flight ID patterns
+      const charter118Bookings = await this.prisma.booking.findMany({
+        where: {
+          OR: [
+            { flightId: { startsWith: 'charter118-' } },
+            { flightId: { startsWith: 'C118-' } },
+            { notes: { contains: 'Charter118' } },
+            { notes: { contains: 'C118-' } }
+          ],
+          source: { not: 'charter118' }
+        }
+      });
+
+      console.log(`🔍 Found ${charter118Bookings.length} bookings to fix for Charter118`);
+
+      for (const booking of charter118Bookings) {
+        await this.prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            source: 'charter118',
+            notes: booking.notes || `Charter118 Booking ID: ${booking.id}, Confirmation Code: C118-${booking.id.slice(-8).toUpperCase()}`
+          }
+        });
+        console.log(`✅ Fixed booking ${booking.id} to Charter118`);
+      }
+
+      // Find bookings that should be Sepehr based on flight ID patterns
+      const sepehrBookings = await this.prisma.booking.findMany({
+        where: {
+          OR: [
+            { flightId: { startsWith: 'sepehr-' } },
+            { flightId: { startsWith: 'SP-' } },
+            { notes: { contains: 'Sepehr' } },
+            { notes: { contains: 'SPAES' } }
+          ],
+          source: { not: 'sepehr' }
+        }
+      });
+
+      console.log(`🔍 Found ${sepehrBookings.length} bookings to fix for Sepehr`);
+
+      for (const booking of sepehrBookings) {
+        await this.prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            source: 'sepehr',
+            notes: booking.notes || `Sepehr Booking ID: ${booking.id}, PNR: SPAES${booking.id.slice(-6).toUpperCase()}`
+          }
+        });
+        console.log(`✅ Fixed booking ${booking.id} to Sepehr`);
+      }
+
+      return {
+        success: true,
+        message: `Fixed ${charter118Bookings.length} Charter118 bookings and ${sepehrBookings.length} Sepehr bookings`,
+        charter118Fixed: charter118Bookings.length,
+        sepehrFixed: sepehrBookings.length
+      };
+    } catch (error: any) {
+      console.error('❌ Error fixing booking sources:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to fix booking sources'
+      };
+    }
+  }
+
+  async forceUpdateBookingSource(bookingId: string, source: string) {
+    console.log(`🔍 Force updating booking ${bookingId} source to ${source}`);
+    
+    try {
+      const updatedBooking = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          source: source,
+          notes: source === 'charter118' ? 
+            `Charter118 Booking ID: C118-BOOK-${bookingId.slice(-8)}, Confirmation Code: C118-${bookingId.slice(-8).toUpperCase()}` :
+            source === 'sepehr' ?
+            `Sepehr Booking ID: SP-BOOK-${bookingId.slice(-8)}, PNR: SPAES${bookingId.slice(-6).toUpperCase()}` :
+            'Updated by admin'
+        }
+      });
+
+      console.log(`✅ Booking ${bookingId} source updated to ${source}`);
+      return {
+        success: true,
+        message: `Booking ${bookingId} source updated to ${source}`,
+        booking: updatedBooking
+      };
+    } catch (error: any) {
+      console.error(`❌ Error updating booking ${bookingId}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to update booking ${bookingId}`
+      };
+    }
+  }
+
   async getFlights() {
     try {
       const flights = await this.prisma.flight.findMany({
+        where: {
+          source: 'manual' // Only show manually created flights
+        },
         include: {
           departureAirport: true,
           arrivalAirport: true,
@@ -215,8 +591,6 @@ export class AdminService {
             }
           },
           airlineInfo: true,
-          aircraftInfo: true,
-          flightClassInfo: true,
           commissionModel: true,
           refundPolicy: true,
           creator: { select: { id: true, name: true, email: true } },
@@ -224,24 +598,34 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
       });
 
-      // Transform to match frontend expectations
-      return flights.map(flight => ({
-        ...flight,
-        departure: {
-          airportCode: flight.departureAirport.iata,
-          airportName: typeof flight.departureAirport.name === 'string' ? JSON.parse(flight.departureAirport.name).fa : flight.departureAirport.name,
-          city: typeof flight.departureAirport.city === 'string' ? JSON.parse(flight.departureAirport.city).fa : flight.departureAirport.city,
-          dateTime: flight.departureTime.toISOString(),
-        },
-        arrival: {
-          airportCode: flight.arrivalAirport.iata,
-          airportName: typeof flight.arrivalAirport.name === 'string' ? JSON.parse(flight.arrivalAirport.name).fa : flight.arrivalAirport.name,
-          city: typeof flight.arrivalAirport.city === 'string' ? JSON.parse(flight.arrivalAirport.city).fa : flight.arrivalAirport.city,
-          dateTime: flight.arrivalTime.toISOString(),
-        },
-        duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
-        airlineLogoUrl: flight.airlineLogoUrl || flight.airlineInfo?.logoUrl || '',
-      }));
+      // Transform to match frontend expectations and update status based on time
+      const now = new Date();
+      return flights.map(flight => {
+        // Determine actual status based on departure time
+        let actualStatus = flight.status;
+        if (flight.departureTime < now && ['ON_TIME', 'CLOSE', 'WAITING_FOR_COMMAND'].includes(flight.status)) {
+          actualStatus = 'CANCELLED'; // Mark as cancelled for display
+        }
+
+        return {
+          ...flight,
+          status: actualStatus, // Use actual status
+          departure: {
+            airportCode: flight.departureAirport?.iata || '',
+            airportName: flight.departureAirport?.name ? (typeof flight.departureAirport.name === 'string' ? JSON.parse(flight.departureAirport.name).fa : flight.departureAirport.name) : '',
+            city: flight.departureAirport?.city ? (typeof flight.departureAirport.city === 'string' ? JSON.parse(flight.departureAirport.city).fa : flight.departureAirport.city) : '',
+            dateTime: flight.departureTime.toISOString(),
+          },
+          arrival: {
+            airportCode: flight.arrivalAirport?.iata || '',
+            airportName: flight.arrivalAirport?.name ? (typeof flight.arrivalAirport.name === 'string' ? JSON.parse(flight.arrivalAirport.name).fa : flight.arrivalAirport.name) : '',
+            city: flight.arrivalAirport?.city ? (typeof flight.arrivalAirport.city === 'string' ? JSON.parse(flight.arrivalAirport.city).fa : flight.arrivalAirport.city) : '',
+            dateTime: flight.arrivalTime.toISOString(),
+          },
+          duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
+          airlineLogoUrl: flight.airlineLogoUrl || flight.airlineInfo?.logoUrl || '',
+        };
+      });
     } catch (error) {
       console.error('Error fetching flights:', error);
       // Fallback: return basic flights
@@ -256,15 +640,15 @@ export class AdminService {
       return basicFlights.map(flight => ({
         ...flight,
         departure: {
-          airportCode: flight.departureAirport.iata,
-          airportName: typeof flight.departureAirport.name === 'string' ? JSON.parse(flight.departureAirport.name).fa : flight.departureAirport.name,
-          city: typeof flight.departureAirport.city === 'string' ? JSON.parse(flight.departureAirport.city).fa : flight.departureAirport.city,
+          airportCode: flight.departureAirport?.iata || '',
+          airportName: flight.departureAirport?.name ? (typeof flight.departureAirport.name === 'string' ? JSON.parse(flight.departureAirport.name).fa : flight.departureAirport.name) : '',
+          city: flight.departureAirport?.city ? (typeof flight.departureAirport.city === 'string' ? JSON.parse(flight.departureAirport.city).fa : flight.departureAirport.city) : '',
           dateTime: flight.departureTime.toISOString(),
         },
         arrival: {
-          airportCode: flight.arrivalAirport.iata,
-          airportName: typeof flight.arrivalAirport.name === 'string' ? JSON.parse(flight.arrivalAirport.name).fa : flight.arrivalAirport.name,
-          city: typeof flight.arrivalAirport.city === 'string' ? JSON.parse(flight.arrivalAirport.city).fa : flight.arrivalAirport.city,
+          airportCode: flight.arrivalAirport?.iata || '',
+          airportName: flight.arrivalAirport?.name ? (typeof flight.arrivalAirport.name === 'string' ? JSON.parse(flight.arrivalAirport.name).fa : flight.arrivalAirport.name) : '',
+          city: flight.arrivalAirport?.city ? (typeof flight.arrivalAirport.city === 'string' ? JSON.parse(flight.arrivalAirport.city).fa : flight.arrivalAirport.city) : '',
           dateTime: flight.arrivalTime.toISOString(),
         },
         duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
@@ -274,7 +658,7 @@ export class AdminService {
   }
 
   async createFlight(creatorId: string, createFlightDto: CreateFlightDto) {
-    return this.flightsService.createFlight({ ...createFlightDto, creatorId });
+    return this.flightsService.createFlight(createFlightDto);
   }
 
   async updateFlight(flightId: string, updateFlightDto: UpdateFlightDto) {
@@ -294,17 +678,33 @@ export class AdminService {
       throw new UnauthorizedException('پرواز یافت نشد');
     }
 
-    const newStatus = flight.status === 'SCHEDULED' ? 'CANCELLED' : 'SCHEDULED';
+    // Cycle through the 6 statuses
+    const statusCycle = ['ON_TIME', 'CLOSE', 'WAITING_FOR_COMMAND', 'NO_AVAILABILITY', 'CALL_US', 'CANCELLED'];
+    const currentIndex = statusCycle.indexOf(flight.status);
+    const nextIndex = (currentIndex + 1) % statusCycle.length;
+    const newStatus = statusCycle[nextIndex];
+
     return this.prisma.flight.update({
       where: { id: flightId },
-      data: { status: newStatus },
+      data: { status: newStatus as any },
     });
+  }
+
+  async getAllFlights() {
+    try {
+      const flights = await this.prisma.flight.findMany();
+      console.log('Flights found:', flights.length);
+      return flights;
+    } catch (error) {
+      console.error('Error in getAllFlights:', error);
+      throw error;
+    }
   }
 
   async getAllTickets(status?: string) {
     const where: any = status ? { status: status as TicketStatus } : {};
 
-    return this.prisma.ticket.findMany({
+    const tickets = await this.prisma.ticket.findMany({
       where,
       include: {
         user: { select: { id: true, name: true, email: true } },
@@ -314,10 +714,30 @@ export class AdminService {
             flight: { select: { flightNumber: true } },
           },
         },
-        messages: true,
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return tickets.map(ticket => ({
+      id: ticket.id,
+      subject: ticket.subject,
+      status: ticket.status,
+      priority: ticket.priority,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      bookingId: ticket.bookingId,
+      user: ticket.user,
+      messages: ticket.messages.map(msg => ({
+        id: msg.id,
+        author: msg.authorType as 'USER' | 'ADMIN',
+        authorName: msg.authorType === 'USER' ? ticket.user?.name || ticket.user?.email : 'پشتیبانی',
+        text: msg.text,
+        timestamp: msg.timestamp.toISOString()
+      }))
+    }));
   }
 
   async updateTicketStatus(ticketId: string, status: string) {
@@ -340,7 +760,7 @@ export class AdminService {
             text: message,
           },
         },
-        status: TicketStatus.IN_PROGRESS, // Auto-update status when admin replies
+        status: 'RESPONDED', // Admin replies, status becomes "responded"
       },
       include: {
         user: true,
@@ -354,11 +774,31 @@ export class AdminService {
     if (sendChannels.sms) notifications.push('پیامک');
     if (sendChannels.whatsapp) notifications.push('واتس‌آپ');
 
+    // Format the ticket data to match frontend expectations
+    const formattedTicket = {
+      id: ticket.id,
+      subject: ticket.subject,
+      status: ticket.status,
+      priority: ticket.priority,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      bookingId: ticket.bookingId,
+      user: ticket.user,
+      messages: ticket.messages.map(msg => ({
+        id: msg.id,
+        author: msg.authorType as 'USER' | 'ADMIN',
+        authorName: msg.authorType === 'USER' ? ticket.user?.name || ticket.user?.username : 'پشتیبانی',
+        text: msg.text,
+        timestamp: msg.timestamp.toISOString()
+      }))
+    };
+
     return {
       success: true,
+      data: formattedTicket, // Return the complete updated ticket
       message: ticket.messages[ticket.messages.length - 1], // Return the new message
       notifications: notifications.length > 0 ? `پیام از طریق ${notifications.join(', ')} ارسال شد` : 'پیام ثبت شد',
-      ticketStatus: TicketStatus.IN_PROGRESS,
+      ticketStatus: ticket.status,
     };
   }
 
@@ -388,7 +828,7 @@ export class AdminService {
         const countries = await this.prisma.country.findMany();
         return countries.map(country => ({
           ...country,
-          name: typeof country.name === 'string' ? JSON.parse(country.name) : country.name,
+          name: typeof country.name === 'string' && country.name.startsWith('{') ? JSON.parse(country.name) : country.name,
         }));
       case 'flightClass':
         const flightClasses = await this.prisma.flightClass.findMany();
@@ -489,7 +929,7 @@ export class AdminService {
       }
     } catch (error) {
       console.error(`Error creating ${type}:`, error);
-      throw new BadRequestException(`خطا در ایجاد ${type}: ${error.message}`);
+      throw new BadRequestException(`خطا در ایجاد ${type}: ${(error as any).message}`);
     }
   }
 
@@ -562,7 +1002,7 @@ export class AdminService {
       }
     } catch (error) {
       console.error(`Error updating ${type}:`, error);
-      throw new BadRequestException(`خطا در به‌روزرسانی ${type}: ${error.message}`);
+      throw new BadRequestException(`خطا در به‌روزرسانی ${type}: ${(error as any).message}`);
     }
   }
 
@@ -611,14 +1051,21 @@ export class AdminService {
       wallet = await this.prisma.wallet.create({
         data: {
           userId: user.id,
-          balance: 0,
+          balance: BigInt(0),
           currency,
         },
       });
     }
 
+    // SENIOR FIX: Ensure amount is a valid number and convert to BigInt safely
+    const numericAmount = Number(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      throw new Error('مبلغ نامعتبر');
+    }
+    
     const currentBalance = wallet.balance;
-    const newBalance = currentBalance + amount;
+    const newBalance = currentBalance + BigInt(numericAmount);
+    
     await this.prisma.wallet.update({
       where: { id: wallet.id },
       data: { balance: newBalance },
@@ -627,12 +1074,21 @@ export class AdminService {
     await this.prisma.walletTransaction.create({
       data: {
         userId: userId,
-        amount: amount,
+        amount: BigInt(numericAmount),
         type: TransactionType.CREDIT,
         description,
         currency,
       },
     });
+
+    // Create accounting entry for wallet charging
+    try {
+      await this.accountingService.createWalletChargeEntry(userId, numericAmount, description);
+      console.log(`✅ Accounting entry created for wallet charge: ${numericAmount} ${currency}`);
+    } catch (accountingError) {
+      console.error('❌ Failed to create accounting entry for wallet charge:', accountingError);
+      // Don't throw error - wallet charge succeeded, accounting is secondary
+    }
 
     return { success: true, message: `کیف پول کاربر شارژ شد: ${amount} ${currency}` };
   }
@@ -718,6 +1174,55 @@ export class AdminService {
     return this.prisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getCommissionStats(tenantId: string) {
+    const stats = await this.prisma.commissionTransaction.aggregate({
+      where: { tenantId },
+      _sum: {
+        agentAmount: true,
+        parentAmount: true,
+        totalAmount: true
+      },
+      _count: {
+        id: true
+      }
+    });
+
+    const pendingStats = await this.prisma.commissionTransaction.aggregate({
+      where: { 
+        tenantId,
+        status: 'PENDING'
+      },
+      _sum: {
+        agentAmount: true
+      },
+      _count: {
+        id: true
+      }
+    });
+
+    const paidStats = await this.prisma.commissionTransaction.aggregate({
+      where: { 
+        tenantId,
+        status: 'PAID'
+      },
+      _sum: {
+        agentAmount: true
+      },
+      _count: {
+        id: true
+      }
+    });
+
+    return {
+      totalCommission: Number(stats._sum.agentAmount || 0),
+      pendingCommission: Number(pendingStats._sum.agentAmount || 0),
+      paidCommission: Number(paidStats._sum.agentAmount || 0),
+      totalTransactions: stats._count.id,
+      pendingTransactions: pendingStats._count.id,
+      paidTransactions: paidStats._count.id
+    };
   }
 
   async createTenant(data: any) {
@@ -813,7 +1318,7 @@ export class AdminService {
   }
 
   async getContent() {
-    const content = await this.prisma.content.findFirst(); // Assuming a single content entry
+    const content = await this.prisma.siteContent.findFirst();
     if (!content) {
       return {
         home: { title: 'خانه', heroImageUrl: '/hero.jpg' },
@@ -821,19 +1326,19 @@ export class AdminService {
         contact: { title: 'تماس', phone: '+98 21 1234 5678' }
       };
     }
-    return content.data;
+    return JSON.parse(content.content);
   }
 
   async updateContent(data: any) {
-    const existingContent = await this.prisma.content.findFirst();
+    const existingContent = await this.prisma.siteContent.findFirst();
     if (existingContent) {
-      await this.prisma.content.update({
+      await this.prisma.siteContent.update({
         where: { id: existingContent.id },
-        data: { data },
+        data: { content: JSON.stringify(data) },
       });
     } else {
-      await this.prisma.content.create({
-        data: { data },
+      await this.prisma.siteContent.create({
+        data: { section: 'homepage', content: JSON.stringify(data) },
       });
     }
     return { success: true, message: 'محتوای سایت به‌روزرسانی شد' };
@@ -848,7 +1353,7 @@ export class AdminService {
         user: { connect: { id: userId } },
         flight: { connect: { id: flightId } },
         passengersInfo: {
-          create: passengers.map(p => ({ ...p, type: p.type || 'ADULT' })),
+          create: passengers.map((p: any) => ({ ...p, type: p.type || 'ADULT' })),
         },
         bookingDate: new Date(),
         status: BookingStatus.CONFIRMED,
@@ -955,7 +1460,7 @@ export class AdminService {
 
   async getRefundPolicies() {
     return this.prisma.refundPolicy.findMany({
-      include: { rules: true },
+      include: {},
     });
   }
 
@@ -968,7 +1473,7 @@ export class AdminService {
           create: rules,
         },
       },
-      include: { rules: true },
+      include: {},
     });
   }
 
@@ -985,7 +1490,7 @@ export class AdminService {
           },
         }),
       },
-      include: { rules: true },
+      include: {},
     });
   }
 

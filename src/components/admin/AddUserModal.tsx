@@ -19,13 +19,48 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ tenants, onClose, on
     const [role, setRole] = useState<UserRole>('USER');
     const [status, setStatus] = useState<UserStatus>('ACTIVE');
     const [tenantId, setTenantId] = useState<string>('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (name && username && email && password && tenantId) {
-            onCreate({ name, username, email, password, role, status, tenantId });
-        } else if (role === 'SUPER_ADMIN') {
-             onCreate({ name, username, email, password, role, status });
+        
+        // SENIOR FIX: Prevent multiple submissions
+        if (isSubmitting) {
+            console.log('🔍 DEBUG - Already submitting, ignoring request');
+            return;
+        }
+        
+        if (name && username && email && password) {
+            setIsSubmitting(true);
+            console.log('🔍 DEBUG - AddUserModal handleSubmit called');
+            
+            const userData: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'> = {
+                name, 
+                username, 
+                email, 
+                password, 
+                role, 
+                status,
+                phone: '', // Add required phone field
+                savedPassengers: [], // Add required savedPassengers field
+                displayCurrencies: [] // Add required displayCurrencies field
+            };
+            
+            // Only add tenantId if it's not SUPER_ADMIN and tenantId is provided
+            if (role !== 'SUPER_ADMIN' && tenantId) {
+                userData.tenantId = tenantId;
+            }
+            
+            try {
+                console.log('🔍 DEBUG - AddUserModal calling onCreate with:', userData);
+                await onCreate(userData);
+                console.log('🔍 DEBUG - AddUserModal onCreate completed successfully');
+            } catch (error) {
+                console.error('🔍 DEBUG - Error in AddUserModal handleSubmit:', error);
+                // Don't close modal on error
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
     
@@ -170,9 +205,10 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ tenants, onClose, on
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button 
                         type="submit" 
-                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-accent text-base font-medium text-white hover:bg-accent-hover sm:ml-3 sm:w-auto sm:text-sm"
+                        disabled={isSubmitting}
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-accent text-base font-medium text-white hover:bg-accent-hover sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {t('dashboard.users.addModal.saveUser')}
+                        {isSubmitting ? 'در حال ایجاد...' : t('dashboard.users.addModal.saveUser')}
                     </button>
                     <button 
                         type="button" 

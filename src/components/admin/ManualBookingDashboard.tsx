@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { User, AirlineInfo, AircraftInfo, FlightClassInfo, AirportInfo, Flight, PassengerDetails, Booking } from '@/types';
-import { Gender, Nationality, FlightSourcingType } from '@/types';
+import { Gender, Nationality, FlightSourcingType, FlightStatus } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { PlusIcon } from '@/components/icons/PlusIcon';
 import { TrashIcon } from '@/components/icons/TrashIcon';
@@ -52,9 +52,9 @@ const PassengerForm: React.FC<{ passenger: PassengerDetails, onChange: (field: k
                 <button type="button" onClick={() => onChange('nationality', Nationality.Foreign)} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${passenger.nationality === Nationality.Foreign ? 'bg-white shadow-sm text-primary' : 'text-slate-600'}`}>{t('passengerDetails.foreign')}</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input type="text" placeholder={t('passengerDetails.firstName')} value={passenger.firstName} onChange={e => onChange('firstName', e.target.value)} className="p-2 border rounded text-sm" required />
-                <input type="text" placeholder={t('passengerDetails.lastName')} value={passenger.lastName} onChange={e => onChange('lastName', e.target.value)} className="p-2 border rounded text-sm" required />
-                <select name="gender" value={passenger.gender} onChange={e => onChange('gender', e.target.value)} className="p-2 border rounded bg-white text-sm" required>
+                <input type="text" placeholder={t('passengerDetails.firstName')} value={passenger.firstName || ''} onChange={e => onChange('firstName', e.target.value)} className="p-2 border rounded text-sm" required />
+                <input type="text" placeholder={t('passengerDetails.lastName')} value={passenger.lastName || ''} onChange={e => onChange('lastName', e.target.value)} className="p-2 border rounded text-sm" required />
+                <select name="gender" value={passenger.gender || ''} onChange={e => onChange('gender', e.target.value)} className="p-2 border rounded bg-white text-sm" required>
                     <option value="" disabled>{t('passengerDetails.gender')}</option>
                     <option value={Gender.Male}>{t('passengerDetails.male')}</option>
                     <option value={Gender.Female}>{t('passengerDetails.female')}</option>
@@ -93,8 +93,8 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
         airline: '', airlineLogoUrl: '', flightNumber: '', aircraft: '', flightClass: '',
         departure: { airportCode: '', city: '', airportName: '', dateTime: '' },
         arrival: { airportCode: '', city: '', airportName: '', dateTime: '' },
-        duration: '', stops: 0, baggageAllowance: '', status: 'SCHEDULED', availableSeats: 1, bookingClosesBeforeDepartureHours: 3, sourcingType: FlightSourcingType.Manual,
-        price: 0, taxes: 0,
+        duration: 0, stops: 0, baggageAllowance: '', status: FlightStatus.ON_TIME, availableSeats: 1, bookingClosesBeforeDepartureHours: 3, sourcingType: FlightSourcingType.Manual,
+        price: 0, taxes: 0, allotments: [], tenantId: '',
     };
 
     const [flightData, setFlightData] = useState(initialFlightState);
@@ -117,8 +117,66 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
 
     const fromDateTimeLocal = (localString: string) => new Date(localString).toISOString();
 
+    const formatDurationForDisplay = (duration: number | string): string => {
+        // Handle both number and string inputs
+        let minutes: number;
+        if (typeof duration === 'string') {
+            // If it's a string like "0h 4m", convert it to minutes
+            const durationMatch = duration.match(/(\d+)\s*h\s*(\d+)?\s*m?/i);
+            if (durationMatch) {
+                const hours = parseInt(durationMatch[1]) || 0;
+                const mins = parseInt(durationMatch[2]) || 0;
+                minutes = hours * 60 + mins;
+            } else {
+                minutes = parseInt(duration) || 0;
+            }
+        } else {
+            minutes = duration || 0;
+        }
+        
+        if (minutes === 0) return '';
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        if (hours > 0 && mins > 0) {
+            return `${hours}h ${mins}m`;
+        } else if (hours > 0) {
+            return `${hours}h`;
+        } else {
+            return `${mins}m`;
+        }
+    };
+
     const handleFlightChange = (field: string, value: any) => {
-        setFlightData(prev => ({...prev, [field]: value}));
+        // Convert duration from "1h 2m" format to minutes
+        if (field === 'duration' && typeof value === 'string') {
+            // More robust regex pattern to match various duration formats
+            const durationMatch = value.match(/(\d+)\s*h\s*(\d+)?\s*m?/i);
+            if (durationMatch) {
+                const hours = parseInt(durationMatch[1]) || 0;
+                const minutes = parseInt(durationMatch[2]) || 0;
+                value = hours * 60 + minutes;
+            } else {
+                // If it's just a number, treat it as minutes
+                const numValue = parseInt(value);
+                value = isNaN(numValue) ? 0 : numValue;
+            }
+        }
+        
+        setFlightData(prev => {
+            const newData = {...prev, [field]: value};
+            // Ensure duration is always a number
+            if (field === 'duration' && typeof newData.duration === 'string') {
+                const durationMatch = newData.duration.match(/(\d+)\s*h\s*(\d+)?\s*m?/i);
+                if (durationMatch) {
+                    const hours = parseInt(durationMatch[1]) || 0;
+                    const minutes = parseInt(durationMatch[2]) || 0;
+                    newData.duration = hours * 60 + minutes;
+                } else {
+                    newData.duration = parseInt(newData.duration) || 0;
+                }
+            }
+            return newData;
+        });
     };
 
     const handleFlightNumberBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -140,7 +198,7 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
         if (selectedAirline) {
             setFlightData(prev => ({
                 ...prev,
-                airline: selectedAirline.name[language],
+                airline: airlineId, // Store the ID instead of name
                 airlineLogoUrl: selectedAirline.logoUrl,
             }));
         }
@@ -149,14 +207,20 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
     const handleAircraftChange = (aircraftId: string) => {
         const selectedAircraft = aircrafts.find(a => a.id === aircraftId);
         if(selectedAircraft) {
-            handleFlightChange('aircraft', selectedAircraft.name[language]);
+            setFlightData(prev => ({
+                ...prev,
+                aircraft: aircraftId, // Store the ID instead of name
+            }));
         }
     };
 
-    const handleFlightClassChange = (classId: string) => {
-        const selectedClass = flightClasses.find(fc => fc.id === classId);
-        if(selectedClass) {
-            handleFlightChange('flightClass', selectedClass.name[language]);
+    const handleFlightClassChange = (flightClassId: string) => {
+        const selectedFlightClass = flightClasses.find(fc => fc.id === flightClassId);
+        if(selectedFlightClass) {
+            setFlightData(prev => ({
+                ...prev,
+                flightClass: flightClassId, // Store the ID instead of name
+            }));
         }
     };
     
@@ -214,8 +278,48 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        
+        // Convert airline name to ID if needed
+        const processedFlightData = { ...flightData };
+        if (typeof flightData.airline === 'string' && !flightData.airline.startsWith('airline-')) {
+            const airlineRecord = airlines.find(a => a.name[language] === flightData.airline);
+            if (airlineRecord) {
+                processedFlightData.airline = airlineRecord.id;
+            }
+        }
+        
+        // Convert aircraft name to ID if needed
+        if (typeof flightData.aircraft === 'string' && !flightData.aircraft.startsWith('aircraft-')) {
+            const aircraftRecord = aircrafts.find(a => a.name[language] === flightData.aircraft);
+            if (aircraftRecord) {
+                processedFlightData.aircraft = aircraftRecord.id;
+            }
+        }
+        
+        // Convert flight class name to ID if needed
+        if (typeof flightData.flightClass === 'string' && !flightData.flightClass.startsWith('class-')) {
+            const flightClassRecord = flightClasses.find(fc => fc.name[language] === flightData.flightClass);
+            if (flightClassRecord) {
+                processedFlightData.flightClass = flightClassRecord.id;
+            }
+        }
+        
+        // Ensure duration is always a number (CRITICAL FIX)
+        if (typeof processedFlightData.duration === 'string') {
+            const durationMatch = processedFlightData.duration.match(/(\d+)\s*h\s*(\d+)?\s*m?/i);
+            if (durationMatch) {
+                const hours = parseInt(durationMatch[1]) || 0;
+                const minutes = parseInt(durationMatch[2]) || 0;
+                processedFlightData.duration = hours * 60 + minutes;
+            } else {
+                processedFlightData.duration = parseInt(processedFlightData.duration) || 120; // Default to 120 minutes (2 hours)
+            }
+        } else if (typeof processedFlightData.duration !== 'number' || processedFlightData.duration === 0) {
+            processedFlightData.duration = 120; // Default to 120 minutes (2 hours) if invalid
+        }
+        
         const bookingData = {
-            flightData,
+            flightData: processedFlightData,
             passengers,
             customerId,
             purchasePrice,
@@ -224,6 +328,7 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
             buyerReference,
             notes,
         };
+        
         const newBooking = await onManualBookingCreate(bookingData as any);
         if(newBooking) {
             setCreatedBooking(newBooking);
@@ -252,36 +357,36 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
                     <legend className="px-2 font-semibold text-primary">{t('dashboard.manualBooking.flightDetails')}</legend>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <SearchableSelect
-                            value={airlines.find(a => a.name[language] === flightData.airline)?.id || ''}
+                            value={flightData.airline || ''}
                             onChange={handleAirlineChange}
                             options={airlines.map(a => ({ value: a.id, label: a.name[language] }))}
                             placeholder={t('dashboard.flights.form.airline')}
                         />
-                        <input type="text" placeholder={t('dashboard.flights.flightNumber')} value={flightData.flightNumber} onBlur={handleFlightNumberBlur} onChange={e => handleFlightChange('flightNumber', e.target.value)} className="p-2 border rounded text-sm" required />
+                        <input type="text" placeholder={t('dashboard.flights.flightNumber')} value={flightData.flightNumber || ''} onBlur={handleFlightNumberBlur} onChange={e => handleFlightChange('flightNumber', e.target.value)} className="p-2 border rounded text-sm" required />
                         <SearchableSelect
-                            value={aircrafts.find(a => a.name[language] === flightData.aircraft)?.id || ''}
+                            value={flightData.aircraft || ''}
                             onChange={handleAircraftChange}
                             options={aircrafts.map(a => ({ value: a.id, label: a.name[language] }))}
                             placeholder={t('dashboard.flights.form.aircraft')}
                         />
                         <SearchableSelect
-                            value={flightClasses.find(fc => fc.name[language] === flightData.flightClass)?.id || ''}
+                            value={flightData.flightClass || ''}
                             onChange={handleFlightClassChange}
                             options={flightClasses.map(fc => ({ value: fc.id, label: fc.name[language] }))}
                             placeholder={t('dashboard.flights.form.flightClass')}
                         />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <input type="text" placeholder={t('dashboard.flights.form.durationHint')} value={flightData.duration} onChange={e => handleFlightChange('duration', e.target.value)} className="p-2 border rounded text-sm" required />
+                        <input type="text" placeholder={t('dashboard.flights.form.durationHint')} value={formatDurationForDisplay(flightData.duration)} onChange={e => handleFlightChange('duration', e.target.value)} className="p-2 border rounded text-sm" required />
                         <input type="number" placeholder={t('dashboard.flights.form.stops')} value={flightData.stops} onChange={e => handleFlightChange('stops', Number(e.target.value))} className="p-2 border rounded text-sm" required />
-                        <input type="text" placeholder={t('dashboard.flights.form.baggageHint')} value={flightData.baggageAllowance} onChange={e => handleFlightChange('baggageAllowance', e.target.value)} className="p-2 border rounded text-sm" required />
+                        <input type="text" placeholder={t('dashboard.flights.form.baggageHint')} value={flightData.baggageAllowance || ''} onChange={e => handleFlightChange('baggageAllowance', e.target.value)} className="p-2 border rounded text-sm" required />
                     </div>
                     {/* Departure & Arrival */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                            <label className="block text-sm font-medium text-slate-600 mb-1">{t('dashboard.flights.form.departure')}</label>
                            <SearchableSelect
-                                value={flightData.departure.airportCode}
+                                value={flightData.departure.airportCode || ''}
                                 onChange={(value) => handleAirportChange('departure', value)}
                                 options={airports.map(a => ({ value: a.iata, label: `${a.city[language]} (${a.iata})` }))}
                                 placeholder={t('dashboard.flights.form.select')}
@@ -291,7 +396,7 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
                         <div>
                            <label className="block text-sm font-medium text-slate-600 mb-1">{t('dashboard.flights.form.arrival')}</label>
                             <SearchableSelect
-                                value={flightData.arrival.airportCode}
+                                value={flightData.arrival.airportCode || ''}
                                 onChange={(value) => handleAirportChange('arrival', value)}
                                 options={airports.map(a => ({ value: a.iata, label: `${a.city[language]} (${a.iata})` }))}
                                 placeholder={t('dashboard.flights.form.select')}
@@ -355,19 +460,19 @@ export const ManualBookingDashboard: React.FC<ManualBookingDashboardProps> = ({ 
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">{t('passengerDetails.contactInfo')}</label>
-                            <input type="email" placeholder={t('signup.email')} value={contactEmail} onChange={e => setContactEmail(e.target.value)} className="p-2 border rounded text-sm w-full" required />
+                            <input type="email" placeholder={t('signup.email')} value={contactEmail || ''} onChange={e => setContactEmail(e.target.value)} className="p-2 border rounded text-sm w-full" required />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">{t('passengerDetails.phoneNumber')}</label>
-                            <input type="tel" placeholder="09123456789" value={contactPhone} onChange={e => setContactPhone(e.target.value)} className="p-2 border rounded text-sm w-full" required />
+                            <input type="tel" placeholder="09123456789" value={contactPhone || ''} onChange={e => setContactPhone(e.target.value)} className="p-2 border rounded text-sm w-full" required />
                         </div>
                          <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">{t('dashboard.manualBooking.buyerReference')}</label>
-                            <input type="text" value={buyerReference} onChange={e => setBuyerReference(e.target.value)} className="p-2 border rounded text-sm w-full" />
+                            <input type="text" value={buyerReference || ''} onChange={e => setBuyerReference(e.target.value)} className="p-2 border rounded text-sm w-full" />
                         </div>
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 mb-1">{t('dashboard.manualBooking.notes')}</label>
-                            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="p-2 border rounded text-sm w-full" rows={3}></textarea>
+                            <textarea value={notes || ''} onChange={e => setNotes(e.target.value)} className="p-2 border rounded text-sm w-full" rows={3}></textarea>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">

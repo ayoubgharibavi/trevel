@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, Post, Body, Put, Delete, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Put, Delete, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FlightsService } from './flights.service';
 import { CreateFlightDto, UpdateFlightDto, FlightSearchQueryDto } from '../common/dto';
@@ -31,6 +31,35 @@ export class FlightsController {
     return this.flightsService.getPopularRoutes();
   }
 
+  @Get('daily-prices')
+  @Public()
+  @ApiOperation({ summary: 'Get daily flight prices for a route' })
+  @ApiQuery({ name: 'from', type: String, required: true })
+  @ApiQuery({ name: 'to', type: String, required: true })
+  @ApiQuery({ name: 'month', type: String, required: false, description: 'YYYY-MM format, defaults to current month' })
+  @ApiOkResponse({ description: 'Daily prices for the specified month' })
+  async getDailyPrices(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('month') month?: string
+  ) {
+    return this.flightsService.getDailyPrices(from, to, month);
+  }
+
+  @Post('cancel-past-flights')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Manually cancel all past flights' })
+  @ApiOkResponse({ description: 'Past flights cancelled successfully' })
+  async cancelPastFlights(@Req() req: any) {
+    // Only allow admin users to cancel flights
+    if (!req.user || !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
+      throw new UnauthorizedException('Only admin users can cancel flights');
+    }
+    
+    return this.flightsService.cancelPastFlights();
+  }
+
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Get flight by ID' })
@@ -44,6 +73,14 @@ export class FlightsController {
   @ApiQuery({ name: 'language', required: false })
   async aiSearch(@Body() query: FlightSearchQueryDto, @Query('language') language = 'fa', @Req() req: any) {
     return this.flightsService.aiSearch(query, language, req.user); // Pass req.user to aiSearch as well
+  }
+
+  @Post('save-charter118')
+  @Public() // Allow unauthenticated access for booking flow
+  @ApiOperation({ summary: 'Save Charter118 flight to local database' })
+  @ApiOkResponse({ description: 'Charter118 flight saved successfully' })
+  async saveCharter118(@Body() data: { flight: any, charter118BookingId: string }) {
+    return this.flightsService.saveCharter118Flight(data.flight, data.charter118BookingId);
   }
 
   @Post()
@@ -78,3 +115,4 @@ export class FlightsController {
     return this.flightsService.searchAirports(searchTerm);
   }
 }
+

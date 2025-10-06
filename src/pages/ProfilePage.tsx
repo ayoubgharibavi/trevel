@@ -23,12 +23,15 @@ interface ProfilePageProps {
     onAddSavedPassenger: (passenger: Omit<SavedPassenger, 'id'>) => void;
     onUpdateSavedPassenger: (passenger: SavedPassenger) => void;
     onDeleteSavedPassenger: (passengerId: string) => void;
+    onRefreshBookings?: () => void;
+    onTestToken?: () => void;
+    onForceLogout?: () => void;
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ 
     user, bookings, tickets, currencies, refundPolicies, onLogout, onCancelBooking, 
     onUpdateProfile, onCreateTicket, onUserAddMessageToTicket,
-    onAddSavedPassenger, onUpdateSavedPassenger, onDeleteSavedPassenger
+    onAddSavedPassenger, onUpdateSavedPassenger, onDeleteSavedPassenger, onRefreshBookings, onTestToken, onForceLogout
 }) => {
     const [activeSection, setActiveSection] = useState('profile');
 
@@ -39,16 +42,44 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             case 'wallet':
                 return <WalletSection wallet={user.wallet} currencies={currencies} />;
             case 'bookings':
-                return <MyBookingsSection bookings={bookings} onCancelBooking={onCancelBooking} refundPolicies={refundPolicies} />;
+                return (
+                    <div>
+                        {onRefreshBookings && (
+                            <div className="mb-4">
+                                <button
+                                    onClick={onRefreshBookings}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                                >
+                                    🔄 بروزرسانی رزروها
+                                </button>
+                            </div>
+                        )}
+                        <MyBookingsSection bookings={bookings} onCancelBooking={onCancelBooking} refundPolicies={refundPolicies} />
+                    </div>
+                );
             case 'tickets':
                 return <MyTicketsSection tickets={tickets} userBookings={bookings} onCreateTicket={onCreateTicket} onAddMessage={onUserAddMessageToTicket} />;
             case 'savedPassengers':
-                return <SavedPassengersSection 
-                    passengers={user.savedPassengers || []}
-                    onAdd={onAddSavedPassenger}
-                    onUpdate={onUpdateSavedPassenger}
-                    onDelete={onDeleteSavedPassenger}
-                />;
+                return (
+                    <div>
+                        {onTestToken && (
+                            <div className="mb-4">
+                                <button
+                                    onClick={onTestToken}
+                                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
+                                >
+                                    🔍 تست توکن
+                                </button>
+                            </div>
+                        )}
+                        <SavedPassengersSection 
+                            passengers={user.savedPassengers || []}
+                            onAdd={onAddSavedPassenger}
+                            onUpdate={onUpdateSavedPassenger}
+                            onDelete={onDeleteSavedPassenger}
+                        />
+                    </div>
+                );
             default:
                 return <MyProfileSection user={user} onUpdateProfile={onUpdateProfile} />;
         }

@@ -11,11 +11,7 @@ export class UsersService {
       where: { id: userId },
       include: {
         savedPassengers: true,
-        wallet: {
-          include: {
-            walletTransactions: true,
-          },
-        },
+        wallets: true,
       },
     });
 
@@ -98,13 +94,13 @@ export class UsersService {
       const currencyTransactions = transactions.filter(tx => tx.currency === wallet.currency);
       
       walletData[wallet.currency] = {
-        balance: wallet.balance, // balance is already a number in Prisma schema
+        balance: Number(wallet.balance), // Convert BigInt to number for frontend
         currency: wallet.currency,
         transactions: currencyTransactions.map(tx => ({
           id: tx.id,
           date: tx.date.toISOString(),
           type: tx.type,
-          amount: tx.amount, // amount is already a number in Prisma schema
+          amount: Number(tx.amount), // Convert BigInt to number for frontend
           currency: tx.currency,
           description: tx.description,
           relatedBookingId: tx.relatedBookingId,
@@ -116,17 +112,34 @@ export class UsersService {
   }
 
   async getSavedPassengers(userId: string) {
-    return this.prisma.savedPassenger.findMany({ where: { userId } });
+    console.log('🔍 getSavedPassengers called for userId:', userId);
+    
+    try {
+      const passengers = await this.prisma.savedPassenger.findMany({ where: { userId } });
+      console.log('✅ Found saved passengers:', passengers.length);
+      return passengers;
+    } catch (error) {
+      console.error('❌ Error getting saved passengers:', error);
+      throw error;
+    }
   }
 
   async addSavedPassenger(userId: string, data: any) {
-    const newPassenger = await this.prisma.savedPassenger.create({
-      data: {
-        ...data,
-        userId,
-      },
-    });
-    return { success: true, passenger: newPassenger };
+    console.log('🔍 addSavedPassenger called with:', { userId, data });
+    
+    try {
+      const newPassenger = await this.prisma.savedPassenger.create({
+        data: {
+          ...data,
+          userId,
+        },
+      });
+      console.log('✅ Saved passenger created:', newPassenger);
+      return { success: true, passenger: newPassenger };
+    } catch (error) {
+      console.error('❌ Error creating saved passenger:', error);
+      throw error;
+    }
   }
 
   async updateSavedPassenger(userId: string, passengerId: string, data: any) {

@@ -18,6 +18,7 @@ interface PassengerDetailsFormProps {
     query: SearchQuery;
     user: User;
     currencies: CurrencyInfo[];
+    savedPassengers: SavedPassenger[];
     onBack: () => void;
     onSubmit: (data: PassengerData) => void;
 }
@@ -53,6 +54,9 @@ const PassengerInput: React.FC<{
     onSelectFromSaved: () => void;
 }> = ({ details, onChange, onSelectFromSaved }) => {
     const { t } = useLocalization();
+    
+    console.log('🔍 DEBUG - PassengerInput details:', details);
+    console.log('🔍 DEBUG - PassengerInput onChange function:', onChange);
     
     return (
         <div className="space-y-6">
@@ -101,7 +105,7 @@ const PassengerInput: React.FC<{
                     </label>
                     <input 
                         type="text" 
-                        value={details.firstName || ''} 
+                        value={details.firstName ?? ''} 
                         onChange={(e) => onChange('firstName', e.target.value)} 
                         className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg" 
                         placeholder={t('passengerDetails.firstNameEngHint')} 
@@ -117,7 +121,7 @@ const PassengerInput: React.FC<{
                     </label>
                     <input 
                         type="text" 
-                        value={details.lastName || ''} 
+                        value={details.lastName ?? ''} 
                         onChange={(e) => onChange('lastName', e.target.value)} 
                         className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg" 
                         placeholder={t('passengerDetails.lastNameEngHint')} 
@@ -138,7 +142,7 @@ const PassengerInput: React.FC<{
                             </label>
                             <input 
                                 type="text" 
-                                value={details.nationalId || ''} 
+                                value={details.nationalId ?? ''} 
                                 onChange={(e) => onChange('nationalId', e.target.value)} 
                                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg font-mono" 
                                 placeholder={t('passengerDetails.nationalIdHint')} 
@@ -156,7 +160,7 @@ const PassengerInput: React.FC<{
                                 {t('passengerDetails.gender')}
                             </label>
                             <select 
-                                value={details.gender || ''} 
+                                value={details.gender ?? ''} 
                                 onChange={(e) => onChange('gender', e.target.value as Gender)} 
                                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg bg-white" 
                                 required
@@ -178,7 +182,7 @@ const PassengerInput: React.FC<{
                             </label>
                             <input 
                                 type="text" 
-                                value={details.passportNumber || ''} 
+                                value={details.passportNumber ?? ''} 
                                 onChange={(e) => onChange('passportNumber', e.target.value)} 
                                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg font-mono" 
                                 placeholder={t('passengerDetails.passportHint')} 
@@ -195,7 +199,7 @@ const PassengerInput: React.FC<{
                                 {t('passengerDetails.issuingCountry')}
                             </label>
                             <select 
-                                value={details.passportIssuingCountry || ''} 
+                                value={details.passportIssuingCountry ?? ''} 
                                 onChange={(e) => onChange('passportIssuingCountry', e.target.value)} 
                                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-300 text-lg bg-white" 
                                 required
@@ -225,7 +229,7 @@ const PassengerInput: React.FC<{
         </div>
     );
 };
-export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flight, query, user, currencies, onBack, onSubmit }) => {
+export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flight, query, user, currencies, savedPassengers, onBack, onSubmit }) => {
     const { t } = useLocalization();
 
     const createInitialPassengers = (count: number): PassengerDetails[] =>
@@ -233,12 +237,27 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
             nationality: Nationality.Iranian,
             firstName: '',
             lastName: '',
-            gender: '',
+            gender: '' as Gender | '',
+            nationalId: '',
+            passportNumber: '',
+            passportIssuingCountry: '',
+            dateOfBirth: '',
+            passportExpiryDate: '',
+            saveForLater: false,
         }));
 
     const [adults, setAdults] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.adults));
     const [children, setChildren] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.children));
     const [infants, setInfants] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.infants));
+
+    console.log('🔍 DEBUG - Component initialized with:', {
+        adultsCount: query.passengers.adults,
+        childrenCount: query.passengers.children,
+        infantsCount: query.passengers.infants,
+        initialAdults: adults,
+        initialChildren: children,
+        initialInfants: infants
+    });
 
     const [contactEmail, setContactEmail] = useState(user.email);
     const [contactPhone, setContactPhone] = useState('');
@@ -259,10 +278,22 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
         field: keyof PassengerDetails,
         value: string | Gender | Nationality | boolean
     ) => {
+        console.log('🔍 DEBUG - handlePassengerChange called:', { type, index, field, value });
+        console.log('🔍 DEBUG - Current passengers before update:', { adults, children, infants });
+        
         const setters = { adults: setAdults, children: setChildren, infants: setInfants };
+        const currentPassengers = { adults, children, infants };
+        
         setters[type](prev => {
+            console.log('🔍 DEBUG - Previous state for', type, ':', prev);
             const newPassengers = [...prev];
+            console.log('🔍 DEBUG - newPassengers array before update:', newPassengers);
+            console.log('🔍 DEBUG - Passenger at index', index, ':', newPassengers[index]);
+            
             newPassengers[index] = { ...newPassengers[index], [field]: value };
+            console.log('🔍 DEBUG - Updated passenger at index', index, ':', newPassengers[index]);
+            console.log('🔍 DEBUG - Final newPassengers array:', newPassengers);
+            
             return newPassengers;
         });
     };
@@ -327,7 +358,7 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
                      <SavedPassengersModal
                         isOpen={isSavedModalOpen}
                         onClose={() => setIsSavedModalOpen(false)}
-                        passengers={user.savedPassengers || []}
+                        passengers={savedPassengers}
                         onSelect={handleSelectSavedPassenger}
                     />
                 )}

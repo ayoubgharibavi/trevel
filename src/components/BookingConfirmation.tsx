@@ -86,15 +86,15 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                                                         {passenger.firstName} {passenger.lastName}
                                                     </p>
                                                     <p className="text-sm text-slate-500">
-                                                        {passenger.nationality === 'IRANIAN' ? 'ایرانی' : 'خارجی'} • 
-                                                        {passenger.gender === 'MALE' ? ' آقا' : ' خانم'}
+                                                        {passenger.nationality === 'Iranian' ? 'ایرانی' : 'خارجی'} • 
+                                                        {passenger.gender === 'Male' ? ' آقا' : ' خانم'}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm font-semibold text-slate-600">بزرگسال</p>
                                                 <p className="text-xs text-slate-500">
-                                                    {passenger.nationality === 'IRANIAN' 
+                                                    {passenger.nationality === 'Iranian' 
                                                         ? `کد ملی: ${passenger.nationalId}` 
                                                         : `پاسپورت: ${passenger.passportNumber}`
                                                     }
@@ -117,15 +117,15 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                                                         {passenger.firstName} {passenger.lastName}
                                                     </p>
                                                     <p className="text-sm text-slate-500">
-                                                        {passenger.nationality === 'IRANIAN' ? 'ایرانی' : 'خارجی'} • 
-                                                        {passenger.gender === 'MALE' ? ' آقا' : ' خانم'}
+                                                        {passenger.nationality === 'Iranian' ? 'ایرانی' : 'خارجی'} • 
+                                                        {passenger.gender === 'Male' ? ' آقا' : ' خانم'}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm font-semibold text-slate-600">کودک</p>
                                                 <p className="text-xs text-slate-500">
-                                                    {passenger.nationality === 'IRANIAN' 
+                                                    {passenger.nationality === 'Iranian' 
                                                         ? `کد ملی: ${passenger.nationalId}` 
                                                         : `پاسپورت: ${passenger.passportNumber}`
                                                     }
@@ -148,15 +148,15 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                                                         {passenger.firstName} {passenger.lastName}
                                                     </p>
                                                     <p className="text-sm text-slate-500">
-                                                        {passenger.nationality === 'IRANIAN' ? 'ایرانی' : 'خارجی'} • 
-                                                        {passenger.gender === 'MALE' ? ' آقا' : ' خانم'}
+                                                        {passenger.nationality === 'Iranian' ? 'ایرانی' : 'خارجی'} • 
+                                                        {passenger.gender === 'Male' ? ' آقا' : ' خانم'}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm font-semibold text-slate-600">نوزاد</p>
                                                 <p className="text-xs text-slate-500">
-                                                    {passenger.nationality === 'IRANIAN' 
+                                                    {passenger.nationality === 'Iranian' 
                                                         ? `کد ملی: ${passenger.nationalId}` 
                                                         : `پاسپورت: ${passenger.passportNumber}`
                                                     }

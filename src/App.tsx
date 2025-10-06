@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { FlightSearchForm } from '@/components/FlightSearchForm';
+import FlightSearchForm from '@/components/FlightSearchForm';
 import { SearchResults } from '@/components/SearchResults';
+import SimpleFlightTest from '@/components/SimpleFlightTest';
 import { Header } from '@/components/Header';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingPopup from '@/components/LoadingPopup';
 import { PassengerDetailsForm } from '@/components/PassengerDetailsForm';
 import { BookingConfirmation } from '@/components/BookingConfirmation';
 import { BookingReview } from '@/components/BookingReview';
@@ -25,6 +26,9 @@ import { PopularDestinations } from '@/components/PopularDestinations';
 import { AboutPage } from '@/pages/AboutPage';
 import { ContactPage } from '@/pages/ContactPage';
 import { CurrencyConverter } from '@/components/CurrencyConverter';
+import HomePage from '@/components/HomePage';
+import { NotificationProvider } from '@/components/common/NotificationProvider';
+import { useNotifications } from '@/hooks/useNotifications';
 
 
 const createInitialWallet = (activeCurrencies: CurrencyInfo[]) => {
@@ -40,25 +44,52 @@ type BasicDataType = 'airline' | 'aircraft' | 'flightClass' | 'airport' | 'commi
 
 const App: React.FC = () => {
     const { t, language, formatNumber, formatDate, formatTime } = useLocalization();
+    const { showSuccess, showError, showWarning, showInfo } = useNotifications();
     const [view, setView] = useState<View>('SEARCH');
     const [isLoading, setIsLoading] = useState(false);
-    const [flights, setFlights] = useState<Flight[]>([]); // Search results
     
-    // Debug flights state changes
+    // Loading Settings
+    const [loadingSettings, setLoadingSettings] = useState({
+        title: 'در حال جستجوی پرواز...',
+        subtitle: 'لطفاً صبر کنید',
+        imageUrl: '/images/loading-airplane.png',
+        backgroundColor: '#003366',
+        textColor: '#ffffff',
+        animationType: 'spinner' as 'spinner' | 'pulse' | 'wave' | 'dots',
+        isActive: false
+    });
+    
+    const [flights, setFlights] = useState<Flight[]>([]); // Search results
+    const [sepehrResults, setSepehrResults] = useState<Flight[]>([]); // Sepehr API search results
+    const [charter118Results, setCharter118Results] = useState<Flight[]>([]); // Charter118 API search results
+    const [useSepehrApi, setUseSepehrApi] = useState(false); // Toggle between local and Sepehr API
+    const [sepehrBookingData, setSepehrBookingData] = useState<any>(null); // Sepehr booking data
+    
+    // Debug flights state changes (reduced logging)
     useEffect(() => {
-        console.log('🔍 flights state changed:', flights);
-        console.log('🔍 flights state length:', flights.length);
+        if (flights.length > 0) {
+            console.log('🔍 flights state changed:', flights.length, 'flights');
+        }
     }, [flights]);
     
     const [allFlights, setAllFlights] = useState<Flight[]>([]); // All manageable flights
 
-    // Debug useEffect to monitor flights state changes
+    // Debug useEffect to monitor flights state changes (reduced logging)
     useEffect(() => {
-        console.log('🔍 flights state changed:', flights);
-        console.log('🔍 flights state length:', flights.length);
+        if (flights.length > 0) {
+            console.log('🔍 flights state updated:', flights.length, 'flights');
+        }
     }, [flights]);
     
     const [searchQuery, setSearchQuery] = useState<SearchQuery | null>(null);
+    
+    // SENIOR FIX: Debug searchQuery state changes
+    useEffect(() => {
+        console.log('🚀 SENIOR FIX - searchQuery state changed:', searchQuery);
+        console.log('🚀 SENIOR FIX - searchQuery is null:', searchQuery === null);
+        console.log('🚀 SENIOR FIX - searchQuery exists:', !!searchQuery);
+    }, [searchQuery]);
+    
     const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
     const [passengersData, setPassengersData] = useState<PassengerData | null>(null);
     const [loginError, setLoginError] = useState<string | null>(null);
@@ -70,6 +101,9 @@ const App: React.FC = () => {
             const storedUser = localStorage.getItem('currentUser');
             const accessToken = localStorage.getItem('accessToken');
             
+            console.log('🔍 Initial state - storedUser:', storedUser);
+            console.log('🔍 Initial state - accessToken:', accessToken);
+            
             // If user exists but no valid token, clear user
             if (storedUser && !accessToken) {
                 console.log('🔄 User exists but no token, clearing user');
@@ -77,13 +111,41 @@ const App: React.FC = () => {
                 return null;
             }
             
-            return storedUser ? JSON.parse(storedUser) : null;
+            const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+            console.log('🔍 Initial state - parsedUser:', parsedUser);
+            return parsedUser;
         } catch (error) {
             console.error('Error parsing currentUser from localStorage:', error);
             localStorage.removeItem('currentUser');
             return null;
         }
     });
+
+    // SENIOR FIX: Debug currentUser state changes
+    useEffect(() => {
+        console.log('🚀 SENIOR FIX - currentUser changed:', currentUser);
+        console.log('🚀 SENIOR FIX - currentUser exists:', !!currentUser);
+        console.log('🚀 SENIOR FIX - localStorage currentUser:', localStorage.getItem('currentUser'));
+    }, [currentUser]);
+    
+    // SENIOR FIX: Sync currentUser with localStorage
+    useEffect(() => {
+        const syncUserWithStorage = () => {
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser && !currentUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    console.log('🔍 DEBUG - Restoring currentUser from localStorage:', parsedUser);
+                    setCurrentUser(parsedUser);
+                } catch (error) {
+                    console.error('Error parsing stored user:', error);
+                    localStorage.removeItem('currentUser');
+                }
+            }
+        };
+        
+        syncUserWithStorage();
+    }, [currentUser]);
 
     // Admin Data
     const [airlines, setAirlines] = useState<AirlineInfo[]>([]);
@@ -102,6 +164,8 @@ const App: React.FC = () => {
     const [chartOfAccounts, setChartOfAccounts] = useState<Account[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]); // Moved here
     const [rateLimits, setRateLimits] = useState<RateLimit[]>([]); // Moved here
+    const [savedPassengers, setSavedPassengers] = useState<SavedPassenger[]>([]);
+    const [isDataLoaded, setIsDataLoaded] = useState(false);
 
 
     const [rolePermissions, setRolePermissions] = useState<RolePermissions>(() => {
@@ -180,37 +244,62 @@ const App: React.FC = () => {
         to: string;
     }[]>([]);
 
-    // Check for existing tokens and restore user session
+    // Professional token validation and session restoration
     useEffect(() => {
-        const restoreUserSession = async () => {
+        const validateAndRestoreSession = async () => {
             const accessToken = localStorage.getItem('accessToken');
             const refreshToken = localStorage.getItem('refreshToken');
             
             if (accessToken && refreshToken && !currentUser) {
                 try {
-                    // Try to get current user info using the stored token
+                    console.log('🔍 Validating stored tokens...');
+                    
+                    // First, test token with a simple API call (content endpoints don't need auth)
+                            const testResponse = await fetch(`${(import.meta as any).env.VITE_API_URL || 'http://localhost:3000'}/api/v1/content/home?lang=fa`, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (testResponse.ok) {
+                        // Backend is working, now test user token
                     const userResponse = await apiService.getCurrentUser();
                     if (userResponse.success && userResponse.data) {
                         setCurrentUser(userResponse.data);
-                        console.log('User session restored from tokens');
+                            console.log('✅ User session restored successfully');
                     } else {
-                        // If token is invalid, clear tokens
-                        localStorage.removeItem('accessToken');
-                        localStorage.removeItem('refreshToken');
-                        console.log('Invalid tokens, cleared from storage');
+                            // Token is invalid, try to refresh
+                            console.log('🔄 Token expired, attempting refresh...');
+                                    const refreshed = await apiService.refreshTokenPublic();
+                            if (refreshed) {
+                                const userResponse = await apiService.getCurrentUser();
+                                if (userResponse.success && userResponse.data) {
+                                    setCurrentUser(userResponse.data);
+                                    console.log('✅ User session restored after token refresh');
+                                } else {
+                                    throw new Error('Failed to get user data after refresh');
+                                }
+                            } else {
+                                throw new Error('Token refresh failed');
+                            }
+                        }
+                    } else {
+                        throw new Error(`Backend not responding: ${testResponse.status}`);
                     }
                 } catch (error) {
-                    console.error('Error restoring user session:', error);
+                    console.error('❌ Session restoration failed:', error);
+                    // Clear invalid tokens
                     localStorage.removeItem('accessToken');
                     localStorage.removeItem('refreshToken');
+                    localStorage.removeItem('currentUser');
+                    console.log('🧹 Cleared invalid tokens from storage');
                 }
             } else if (!accessToken && !refreshToken) {
-                // No tokens available, user needs to login
-                console.log('No tokens available, user needs to login');
+                console.log('ℹ️ No tokens available, user needs to login');
             }
         };
 
-        restoreUserSession();
+        validateAndRestoreSession();
     }, []);
 
     // Save currentUser to localStorage when it changes
@@ -227,122 +316,292 @@ const App: React.FC = () => {
         const loadInitialData = async () => {
             setIsLoading(true);
             console.log('🔍 loadInitialData started');
+            console.log('🔍 currentUser:', currentUser);
+            console.log('🔍 accessToken:', localStorage.getItem('accessToken'));
+            
+            // Refresh apiService tokens before making requests
+            apiService.refreshTokens();
+            
+            console.log('🔍 apiService.accessToken:', apiService.getAccessToken());
+            console.log('🔍 apiService has token:', !!apiService.getAccessToken());
+            
+            // SENIOR FIX: Only load admin data if user is logged in
+            const hasValidAuth = currentUser && localStorage.getItem('accessToken');
+            console.log('🔍 hasValidAuth:', hasValidAuth);
+            
             try {
-                // Load general content and popular routes
-                const [homeResponse, aboutResponse, contactResponse, popularDestinationsResponse, popularRoutesResponse] = await Promise.all([
-                    apiService.getHomeContent(language),
-                    apiService.getAboutContent(language),
-                    apiService.getContactContent(language),
-                    apiService.getPopularDestinations(language),
-                    apiService.getPopularRoutes()
-                ]);
+                // Load general content and popular routes with individual error handling
+                const contentPromises = [
+                    { key: 'home', promise: apiService.getHomeContent(language) },
+                    { key: 'about', promise: apiService.getAboutContent(language) },
+                    { key: 'contact', promise: apiService.getContactContent(language) },
+                    { key: 'popularDestinations', promise: apiService.getPopularDestinations(language) },
+                    { key: 'popularRoutes', promise: apiService.getPopularRoutes() }
+                ];
 
-                if (homeResponse.success && aboutResponse.success && contactResponse.success && popularDestinationsResponse.success && popularRoutesResponse.success) {
+                const contentResults = await Promise.allSettled(contentPromises.map(item => item.promise));
+                
+                let homeResponse, aboutResponse, contactResponse, popularDestinationsResponse, popularRoutesResponse;
+                
+                contentResults.forEach((result, index) => {
+                    const { key } = contentPromises[index];
+                    if (result.status === 'fulfilled' && result.value.success) {
+                        console.log(`✅ ${key} content loaded successfully`);
+                        switch (key) {
+                            case 'home': homeResponse = result.value; break;
+                            case 'about': aboutResponse = result.value; break;
+                            case 'contact': contactResponse = result.value; break;
+                            case 'popularDestinations': popularDestinationsResponse = result.value; break;
+                            case 'popularRoutes': popularRoutesResponse = result.value; break;
+                        }
+                    } else {
+                        console.warn(`⚠️ Failed to load ${key} content:`, result.status === 'rejected' ? result.reason : result.value.error);
+                        // Set default values for failed requests
+                        switch (key) {
+                            case 'home': homeResponse = { success: false, data: null }; break;
+                            case 'about': aboutResponse = { success: false, data: null }; break;
+                            case 'contact': contactResponse = { success: false, data: null }; break;
+                            case 'popularDestinations': popularDestinationsResponse = { success: false, data: null }; break;
+                            case 'popularRoutes': popularRoutesResponse = { success: false, data: null }; break;
+                        }
+                    }
+                });
+
+                // Set content with fallback values for failed requests
                     setSiteContent(prev => ({
                         ...prev,
                         home: {
-                            heroImageUrl: homeResponse.data?.heroImageUrl || '/src/assets/placeholder_hero.png',
-                            popularDestinations: popularDestinationsResponse.data || { title: { fa: '', ar: '', en: '' }, subtitle: { fa: '', ar: '', en: '' }, destinations: [] }
+                        heroImageUrl: homeResponse?.success ? homeResponse.data?.heroImageUrl : '/src/assets/placeholder_hero.png',
+                        popularDestinations: popularDestinationsResponse?.success ? popularDestinationsResponse.data : { title: { fa: '', ar: '', en: '' }, subtitle: { fa: '', ar: '', en: '' }, destinations: [] }
                         },
-                        about: aboutResponse.data || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, imageUrl: '/src/assets/placeholder_about.png' },
-                        contact: contactResponse.data || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, address: { fa: '', ar: '', en: '' }, phone: '', email: '', mapImageUrl: '/src/assets/placeholder_map.png' },
+                    about: aboutResponse?.success ? aboutResponse.data : { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, imageUrl: '/src/assets/placeholder_about.png' },
+                    contact: contactResponse?.success ? contactResponse.data : { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, address: { fa: '', ar: '', en: '' }, phone: '', email: '', mapImageUrl: '/src/assets/placeholder_map.png' },
                     }));
+                
+                if (popularRoutesResponse?.success) {
                     setPopularRoutes(popularRoutesResponse.data || []);
                 }
 
-                // Load admin data if current user is admin
-                if (currentUser && currentUser.role !== UserRole.USER) {
+                // Load user bookings and saved passengers if current user is regular user
+                if (hasValidAuth && currentUser && currentUser.role === UserRole.USER) {
                     try {
-                        const [
-                            statsResponse, usersResponse, bookingsResponse, flightsResponse, airlinesResponse,
-                            aircraftsResponse, flightClassesResponse, airportsResponse, commissionModelsResponse, currenciesResponse,
-                            refundPoliciesResponse, tenantsResponse, countriesResponse, rolePermissionsResponse, advertisementsResponse,
-                            chartOfAccountsResponse, telegramConfigResponse, whatsAppBotConfigResponse, activityLogsResponse, rateLimitsResponse,
-                            refundsResponse, ticketsResponse, expensesResponse
-                        ] = await Promise.all([
-                            apiService.getAdminStats(),
-                            apiService.getAdminUsers(),
-                            apiService.getAdminBookings(),
-                            apiService.getAdminFlights(),
-                            apiService.getBasicData('airline'),
-                            apiService.getBasicData('aircraft'),
-                            apiService.getBasicData('flightClass'),
-                            apiService.getBasicData('airport'),
-                            apiService.getCommissionModels(),
-                            apiService.getCurrencies(),
-                            apiService.getRefundPolicies(),
-                            apiService.getTenants(),
-                            apiService.getCountries(),
-                            apiService.getPermissions(),
-                            apiService.getAdvertisements(),
-                            apiService.getChartOfAccounts(),
-                            apiService.getTelegramConfig(),
-                            apiService.getWhatsAppConfig(),
-                            apiService.getActivityLogs(),
-                            apiService.getRateLimits(),
-                            apiService.getRefunds(),
-                            apiService.getAllTickets(),
-                            apiService.getExpenses()
-                        ]);
+                        console.log('🔧 Loading user bookings...');
+                        console.log('🔧 currentUser.id:', currentUser.id);
+                        console.log('🔧 apiService accessToken:', apiService.getAccessToken() ? 'exists' : 'missing');
+                        const userBookingsResponse = await apiService.getUserBookings();
+                        console.log('🔧 userBookingsResponse:', userBookingsResponse);
+                        if (userBookingsResponse.success) {
+                            setBookings(userBookingsResponse.data || []);
+                            console.log('✅ User bookings loaded successfully:', userBookingsResponse.data?.length || 0);
+                            console.log('✅ Bookings data:', userBookingsResponse.data);
+                        } else {
+                            console.warn('⚠️ Failed to load user bookings:', userBookingsResponse.error);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Failed to load user bookings:', error);
+                    }
 
-                    if (statsResponse.success && statsResponse.data) {
+                    // Load saved passengers
+                    try {
+                        console.log('🔧 Loading saved passengers...');
+                        const savedPassengersResponse = await apiService.getSavedPassengers();
+                        console.log('🔧 savedPassengersResponse:', savedPassengersResponse);
+                        if (savedPassengersResponse.success) {
+                            // Update currentUser with saved passengers
+                            setCurrentUser(prevUser => {
+                                if (!prevUser) return null;
+                                return {
+                                    ...prevUser,
+                                    savedPassengers: savedPassengersResponse.data || []
+                                };
+                            });
+                            setSavedPassengers(savedPassengersResponse.data || []);
+                            console.log('✅ Saved passengers loaded successfully:', savedPassengersResponse.data?.length || 0);
+                        } else {
+                            console.warn('⚠️ Failed to load saved passengers:', savedPassengersResponse.error);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Failed to load saved passengers:', error);
+                    }
+                } else {
+                    console.log('🔧 Skipping user data load - conditions not met:');
+                    console.log('🔧 - hasValidAuth:', hasValidAuth);
+                    console.log('🔧 - currentUser exists:', !!currentUser);
+                    console.log('🔧 - currentUser role:', currentUser?.role);
+                    console.log('🔧 - is USER role:', currentUser?.role === UserRole.USER);
+                }
+
+                // Load user-specific data for all authenticated users
+                if (hasValidAuth && currentUser) {
+                    // Load tickets for all users
+                    try {
+                        console.log('🔧 Loading user tickets...');
+                        const ticketsResponse = await apiService.getAllTickets();
+                        console.log('🔧 ticketsResponse:', ticketsResponse);
+                        if (ticketsResponse.success && ticketsResponse.data) {
+                            setTickets(ticketsResponse.data);
+                            console.log('✅ Tickets loaded successfully:', ticketsResponse.data.length);
+                        } else {
+                            console.warn('⚠️ Failed to load tickets:', ticketsResponse.error);
+                        }
+                    } catch (error) {
+                        console.error('❌ Error loading tickets:', error);
+                    }
+                }
+
+                // Load admin data if current user is admin
+                if (hasValidAuth && currentUser && currentUser.role !== UserRole.USER) {
+                    try {
+                        console.log('🔧 Loading admin data with professional error handling...');
+                        
+                        const adminPromises = [
+                            { key: 'stats', promise: apiService.getAdminStats() },
+                            { key: 'users', promise: apiService.getAdminUsers() },
+                            { key: 'bookings', promise: apiService.getAdminBookings() },
+                            { key: 'flights', promise: apiService.getAdminFlights() },
+                            { key: 'airlines', promise: apiService.getBasicData('airline') },
+                            { key: 'aircrafts', promise: apiService.getBasicData('aircraft') },
+                            { key: 'flightClasses', promise: apiService.getBasicData('flightClass') },
+                            { key: 'airports', promise: apiService.getBasicData('airport') },
+                            { key: 'commissionModels', promise: apiService.getCommissionModels() },
+                            { key: 'currencies', promise: apiService.getCurrencies() },
+                            { key: 'refundPolicies', promise: apiService.getRefundPolicies() },
+                            { key: 'tenants', promise: apiService.getTenants() },
+                            { key: 'countries', promise: apiService.getCountries() },
+                            { key: 'rolePermissions', promise: apiService.getPermissions() },
+                            { key: 'advertisements', promise: apiService.getAdvertisements() },
+                            { key: 'chartOfAccounts', promise: apiService.getChartOfAccounts() },
+                            { key: 'telegramConfig', promise: apiService.getTelegramConfig() },
+                            { key: 'whatsAppBotConfig', promise: apiService.getWhatsAppConfig() },
+                            { key: 'activityLogs', promise: apiService.getActivityLogs() },
+                            { key: 'rateLimits', promise: apiService.getRateLimits() },
+                            { key: 'refunds', promise: apiService.getRefunds() },
+                            { key: 'tickets', promise: apiService.getAllTickets() },
+                            { key: 'expenses', promise: apiService.getExpenses() }
+                        ];
+
+                        const adminResults = await Promise.allSettled(adminPromises.map(item => item.promise));
+                        
+                        let statsResponse, usersResponse, bookingsResponse, flightsResponse, airlinesResponse,
+                        aircraftsResponse, flightClassesResponse, airportsResponse, commissionModelsResponse, currenciesResponse,
+                        refundPoliciesResponse, tenantsResponse, countriesResponse, rolePermissionsResponse, advertisementsResponse,
+                        chartOfAccountsResponse, telegramConfigResponse, whatsAppBotConfigResponse, activityLogsResponse, rateLimitsResponse,
+                            refundsResponse, ticketsResponse, expensesResponse;
+                        
+                        adminResults.forEach((result, index) => {
+                            const { key } = adminPromises[index];
+                            if (result.status === 'fulfilled' && result.value.success) {
+                                console.log(`✅ Admin ${key} loaded successfully`);
+                                switch (key) {
+                                    case 'stats': statsResponse = result.value; break;
+                                    case 'users': usersResponse = result.value; break;
+                                    case 'bookings': bookingsResponse = result.value; break;
+                                    case 'flights': flightsResponse = result.value; break;
+                                    case 'airlines': airlinesResponse = result.value; break;
+                                    case 'aircrafts': aircraftsResponse = result.value; break;
+                                    case 'flightClasses': flightClassesResponse = result.value; break;
+                                    case 'airports': airportsResponse = result.value; break;
+                                    case 'commissionModels': commissionModelsResponse = result.value; break;
+                                    case 'currencies': currenciesResponse = result.value; break;
+                                    case 'refundPolicies': refundPoliciesResponse = result.value; break;
+                                    case 'tenants': tenantsResponse = result.value; break;
+                                    case 'countries': countriesResponse = result.value; break;
+                                    case 'rolePermissions': rolePermissionsResponse = result.value; break;
+                                    case 'advertisements': advertisementsResponse = result.value; break;
+                                    case 'chartOfAccounts': chartOfAccountsResponse = result.value; break;
+                                    case 'telegramConfig': telegramConfigResponse = result.value; break;
+                                    case 'whatsAppBotConfig': whatsAppBotConfigResponse = result.value; break;
+                                    case 'activityLogs': activityLogsResponse = result.value; break;
+                                    case 'rateLimits': rateLimitsResponse = result.value; break;
+                                    case 'refunds': refundsResponse = result.value; break;
+                                    case 'tickets': ticketsResponse = result.value; break;
+                                    case 'expenses': expensesResponse = result.value; break;
+                                }
+                            } else {
+                                console.warn(`⚠️ Failed to load admin ${key}:`, result.status === 'rejected' ? result.reason : result.value.error);
+                                // Set default values for failed requests
+                                switch (key) {
+                                    case 'stats': statsResponse = { success: false, data: null }; break;
+                                    case 'users': usersResponse = { success: false, data: null }; break;
+                                    case 'bookings': bookingsResponse = { success: false, data: null }; break;
+                                    case 'flights': flightsResponse = { success: false, data: null }; break;
+                                    case 'airlines': airlinesResponse = { success: false, data: null }; break;
+                                    case 'aircrafts': aircraftsResponse = { success: false, data: null }; break;
+                                    case 'flightClasses': flightClassesResponse = { success: false, data: null }; break;
+                                    case 'airports': airportsResponse = { success: false, data: null }; break;
+                                    case 'commissionModels': commissionModelsResponse = { success: false, data: null }; break;
+                                    case 'currencies': currenciesResponse = { success: false, data: null }; break;
+                                    case 'refundPolicies': refundPoliciesResponse = { success: false, data: null }; break;
+                                    case 'tenants': tenantsResponse = { success: false, data: null }; break;
+                                    case 'countries': countriesResponse = { success: false, data: null }; break;
+                                    case 'rolePermissions': rolePermissionsResponse = { success: false, data: null }; break;
+                                    case 'advertisements': advertisementsResponse = { success: false, data: null }; break;
+                                    case 'chartOfAccounts': chartOfAccountsResponse = { success: false, data: null }; break;
+                                    case 'telegramConfig': telegramConfigResponse = { success: false, data: null }; break;
+                                    case 'whatsAppBotConfig': whatsAppBotConfigResponse = { success: false, data: null }; break;
+                                    case 'activityLogs': activityLogsResponse = { success: false, data: null }; break;
+                                    case 'rateLimits': rateLimitsResponse = { success: false, data: null }; break;
+                                    case 'refunds': refundsResponse = { success: false, data: null }; break;
+                                    case 'tickets': ticketsResponse = { success: false, data: null }; break;
+                                    case 'expenses': expensesResponse = { success: false, data: null }; break;
+                                }
+                            }
+                        });
+
+                        // Set admin data with professional error handling
+                        if (statsResponse?.success && statsResponse.data) {
                         // Update stats data if needed
                     }
                     
-                    if (usersResponse.success && usersResponse.data) {
+                        if (usersResponse?.success && usersResponse.data) {
                         setUsers(usersResponse.data.users || usersResponse.data);
                     }
                     
-                    if (bookingsResponse.success && bookingsResponse.data) {
-                        console.log('🔍 Setting bookings:', bookingsResponse.data);
-                        console.log('🔍 Bookings data type:', typeof bookingsResponse.data);
-                        console.log('🔍 Bookings data is array:', Array.isArray(bookingsResponse.data));
+                        if (bookingsResponse?.success && bookingsResponse.data) {
+                            console.log('🔍 Setting bookings:', bookingsResponse.data);
                         setBookings(bookingsResponse.data.bookings || bookingsResponse.data);
                     }
                     
-                    if (flightsResponse.success && flightsResponse.data) {
-                        console.log('🔍 Setting allFlights:', flightsResponse.data);
-                        console.log('🔍 Flights data type:', typeof flightsResponse.data);
-                        console.log('🔍 Flights data is array:', Array.isArray(flightsResponse.data));
-                        console.log('🔍 Flights data length:', flightsResponse.data.length);
+                        if (flightsResponse?.success && flightsResponse.data) {
+                            console.log('🔍 Setting allFlights:', flightsResponse.data);
                         setAllFlights(flightsResponse.data);
-                    } else {
-                        console.error('🔍 Flights response failed:', flightsResponse);
+                        } else {
+                            console.warn('⚠️ Flights response failed:', flightsResponse?.error || 'Unknown error');
                     }
-                    if (airlinesResponse.success && airlinesResponse.data) {
+                        if (airlinesResponse?.success && airlinesResponse.data) {
                         setAirlines(airlinesResponse.data as AirlineInfo[]);
                     }
-                    if (aircraftsResponse.success && aircraftsResponse.data) {
+                        if (aircraftsResponse?.success && aircraftsResponse.data) {
                         setAircrafts(aircraftsResponse.data as AircraftInfo[]);
                     }
-                    if (flightClassesResponse.success && flightClassesResponse.data) {
+                        if (flightClassesResponse?.success && flightClassesResponse.data) {
                         setFlightClasses(flightClassesResponse.data as FlightClassInfo[]);
                     }
-                    if (airportsResponse.success && airportsResponse.data) {
+                        if (airportsResponse?.success && airportsResponse.data) {
                         setAirports(airportsResponse.data as AirportInfo[]);
                     }
-                    if (commissionModelsResponse.success && commissionModelsResponse.data) {
+                        if (commissionModelsResponse?.success && commissionModelsResponse.data) {
                         setCommissionModels(commissionModelsResponse.data);
                     }
-                    if (currenciesResponse.success && currenciesResponse.data) {
+                        if (currenciesResponse?.success && currenciesResponse.data) {
                         setCurrencies(currenciesResponse.data);
                     }
-                    if (refundPoliciesResponse.success && refundPoliciesResponse.data) {
+                        if (refundPoliciesResponse?.success && refundPoliciesResponse.data) {
                         setRefundPolicies(refundPoliciesResponse.data);
                     }
-                    if (tenantsResponse.success && tenantsResponse.data) {
+                        if (tenantsResponse?.success && tenantsResponse.data) {
                         setTenants(tenantsResponse.data);
                     }
-                    if (countriesResponse.success && countriesResponse.data) {
+                        if (countriesResponse?.success && countriesResponse.data) {
                         setCountries(countriesResponse.data);
                     }
-                    if (rolePermissionsResponse.success && rolePermissionsResponse.data) {
+                        if (rolePermissionsResponse?.success && rolePermissionsResponse.data) {
                         console.log('✅ Role permissions loaded:', rolePermissionsResponse.data);
                         setRolePermissions(rolePermissionsResponse.data);
                     } else {
-                        console.error('❌ Failed to load role permissions:', rolePermissionsResponse);
+                            console.warn('⚠️ Failed to load role permissions:', rolePermissionsResponse?.error || 'Unknown error');
                         // If permissions fail to load due to auth issues, clear user and force re-login
-                        if (rolePermissionsResponse.error === 'Unauthorized') {
+                            if (rolePermissionsResponse?.error === 'Unauthorized') {
                             console.log('🔄 Clearing user due to auth failure');
                             setCurrentUser(null);
                             localStorage.removeItem('currentUser');
@@ -351,35 +610,37 @@ const App: React.FC = () => {
                             setView('ADMIN_LOGIN');
                         }
                     }
-                    if (advertisementsResponse.success && advertisementsResponse.data) {
+                        if (advertisementsResponse?.success && advertisementsResponse.data) {
                         setAdvertisements(advertisementsResponse.data);
                     }
-                    if (chartOfAccountsResponse.success && chartOfAccountsResponse.data) {
+                        if (chartOfAccountsResponse?.success && chartOfAccountsResponse.data) {
                         setChartOfAccounts(chartOfAccountsResponse.data);
                     }
-                    if (telegramConfigResponse.success && telegramConfigResponse.data) {
+                        if (telegramConfigResponse?.success && telegramConfigResponse.data) {
                         setTelegramConfig(telegramConfigResponse.data);
                     }
-                    if (whatsAppBotConfigResponse.success && whatsAppBotConfigResponse.data) {
+                        if (whatsAppBotConfigResponse?.success && whatsAppBotConfigResponse.data) {
                         setWhatsAppBotConfig(whatsAppBotConfigResponse.data);
                     }
-                    if (activityLogsResponse.success && activityLogsResponse.data) {
+                        if (activityLogsResponse?.success && activityLogsResponse.data) {
                         setActivityLogs(activityLogsResponse.data);
                     }
-                    if (rateLimitsResponse.success && rateLimitsResponse.data) {
+                        if (rateLimitsResponse?.success && rateLimitsResponse.data) {
                         setRateLimits(rateLimitsResponse.data);
                     }
-                    if (refundsResponse.success && refundsResponse.data) {
+                        if (refundsResponse?.success && refundsResponse.data) {
                         setRefunds(refundsResponse.data);
                     }
-                    if (ticketsResponse.success && ticketsResponse.data) {
+                        if (ticketsResponse?.success && ticketsResponse.data) {
                         setTickets(ticketsResponse.data);
                     }
-                    if (expensesResponse.success && expensesResponse.data) {
+                        if (expensesResponse?.success && expensesResponse.data) {
                         setExpenses(expensesResponse.data);
-                    }
+                        }
+                        
+                        console.log('✅ Admin data loading completed');
                     } catch (error) {
-                        console.error('Error loading admin data:', error);
+                        console.error('❌ Error loading admin data:', error);
                         // If admin data fails to load due to auth issues, clear user and force re-login
                         if (error instanceof Error && error.message === 'Unauthorized') {
                             console.log('🔄 Clearing user due to auth failure in admin data');
@@ -393,16 +654,79 @@ const App: React.FC = () => {
                 }
 
             } catch (error) {
-                console.error('🔍 Error loading initial data:', error);
-                console.error('🔍 Error details:', error);
+                console.error('❌ Critical error loading initial data:', error);
+                console.error('❌ Error details:', error);
             } finally {
                 setIsLoading(false);
-                console.log('🔍 loadInitialData finished');
+                setLoadingSettings(prev => ({ ...prev, isActive: false }));
+                setIsDataLoaded(true); // Mark data as loaded
+                console.log('✅ Initial data loading completed');
             }
         };
 
+        console.log('🚀 useEffect triggered - loadInitialData will be called');
+        console.log('🚀 currentUser:', currentUser);
+        console.log('🚀 language:', language);
         loadInitialData();
-    }, [currentUser, language, setSiteContent, setPopularRoutes, setUsers, setBookings, setAllFlights, setAirlines, setAircrafts, setFlightClasses, setAirports, setCommissionModels, setCurrencies, setRefundPolicies, setTenants, setCountries, setRolePermissions, setAdvertisements, setChartOfAccounts, setTelegramConfig, setWhatsAppBotConfig, setRateLimits, setRefunds, setTickets, setExpenses]);
+    }, [currentUser?.id, currentUser?.role]);
+
+    // Separate useEffect for language changes - only reload content
+    useEffect(() => {
+        if (!isDataLoaded) return; // Skip if initial data not loaded yet
+        
+        const loadLanguageContent = async () => {
+            console.log('🌐 Language changed, reloading content...');
+            
+            try {
+                const contentPromises = [
+                    { key: 'home', promise: apiService.getHomeContent(language) },
+                    { key: 'about', promise: apiService.getAboutContent(language) },
+                    { key: 'contact', promise: apiService.getContactContent(language) },
+                    { key: 'popularDestinations', promise: apiService.getPopularDestinations(language) }
+                ];
+
+                const contentResults = await Promise.allSettled(contentPromises.map(item => item.promise));
+                
+                let homeResponse, aboutResponse, contactResponse, popularDestinationsResponse;
+                
+                contentResults.forEach((result, index) => {
+                    const { key } = contentPromises[index];
+                    if (result.status === 'fulfilled' && result.value.success) {
+                        console.log(`✅ ${key} content reloaded for language ${language}`);
+                        switch (key) {
+                            case 'home': homeResponse = result.value; break;
+                            case 'about': aboutResponse = result.value; break;
+                            case 'contact': contactResponse = result.value; break;
+                            case 'popularDestinations': popularDestinationsResponse = result.value; break;
+                        }
+                    }
+                });
+
+                // Update only content, not user data
+                setSiteContent(prev => ({
+                    ...prev,
+                    home: {
+                        heroImageUrl: homeResponse?.success ? homeResponse.data?.heroImageUrl : prev.home?.heroImageUrl || '/src/assets/placeholder_hero.png',
+                        popularDestinations: popularDestinationsResponse?.success ? popularDestinationsResponse.data : prev.home?.popularDestinations || { title: { fa: '', ar: '', en: '' }, subtitle: { fa: '', ar: '', en: '' }, destinations: [] }
+                    },
+                    about: aboutResponse?.success ? aboutResponse.data : prev.about || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, imageUrl: '/src/assets/placeholder_about.png' },
+                    contact: contactResponse?.success ? contactResponse.data : prev.contact || { title: { fa: '', ar: '', en: '' }, body: { fa: '', ar: '', en: '' }, address: { fa: '', ar: '', en: '' }, phone: '', email: '', mapImageUrl: '/src/assets/placeholder_map.png' }
+                }));
+                
+            } catch (error) {
+                console.error('❌ Error reloading content for language:', error);
+            }
+        };
+
+        loadLanguageContent();
+    }, [language, isDataLoaded]);
+
+    // Reset data loaded flag when user logs out
+    useEffect(() => {
+        if (!currentUser) {
+            setIsDataLoaded(false);
+        }
+    }, [currentUser]);
 
     const logActivity = useCallback((user: User | null, action: string) => {
         if (!user) return;
@@ -473,7 +797,7 @@ const App: React.FC = () => {
             date: new Date().toISOString(),
             description,
             transactions,
-            userId: booking.user.id,
+            userId: booking.user?.id,
             bookingId: booking.id,
         };
         setJournalEntries(prev => {
@@ -534,7 +858,7 @@ const App: React.FC = () => {
 
                     // 1. Update user's wallet
                     const updatedUsers = users.map(u => {
-                        if (u.id === booking.user.id) {
+                        if (u.id === booking.user?.id) {
                             const newTransaction: WalletTransaction = {
                                 id: `WT-REFUND-${Date.now()}`,
                                 date: now,
@@ -556,7 +880,7 @@ const App: React.FC = () => {
                         return u;
                     });
                     setUsers(updatedUsers);
-                    if (currentUser && currentUser.id === booking.user.id) {
+                    if (currentUser && currentUser.id === booking.user?.id) {
                         setCurrentUser(updatedUsers.find(u => u.id === currentUser.id) || null);
                     }
                     
@@ -587,168 +911,407 @@ const App: React.FC = () => {
 
         if (telegramConfig.isEnabled && telegramConfig.notifyOn.refundUpdate && oldStatus !== refund.status) {
             const booking = bookings.find(b => b.id === refund.bookingId);
-            const message = `🔄 *Refund Status Update*\n\nRef ID: \`${refund.bookingId}\`\nUser: ${booking?.user.name}\nFrom: _${t(`dashboard.refunds.statusValues.${oldStatus}` as any)}_\nTo: *${t(`dashboard.refunds.statusValues.${refund.status}` as any)}*`;
+            const message = `🔄 *Refund Status Update*\n\nRef ID: \`${refund.bookingId}\`\nUser: ${booking?.user?.name || 'Unknown'}\nFrom: _${t(`dashboard.refunds.statusValues.${oldStatus}` as any)}_\nTo: *${t(`dashboard.refunds.statusValues.${refund.status}` as any)}*`;
             sendTelegramMessage(telegramConfig, message);
         }
 
     }, [currentUser, refunds, bookings, users, logActivity, t, createBookingJournalEntry, telegramConfig, setRefunds, setUsers, setCurrentUser, setBookings]);
 
     const handleSearch = useCallback(async (query: SearchQuery) => {
+        console.log('🚀 ULTIMATE - handleSearch called with query:', query);
+        console.log('🚀 ULTIMATE - query.from:', query.from);
+        console.log('🚀 ULTIMATE - query.to:', query.to);
+        console.log('🚀 ULTIMATE - query.departureDate:', query.departureDate);
+        
         setIsLoading(true);
+        setLoadingSettings(prev => ({ ...prev, isActive: true, title: 'در حال جستجوی پرواز...', subtitle: 'لطفاً صبر کنید' }));
         setSearchQuery(query);
-        console.log('🔍 Starting search with query:', query);
+        setView('SEARCH_RESULTS'); // Change view to show results
+        console.log('🚀 ULTIMATE - searchQuery set to:', query);
+        console.log('🚀 ULTIMATE - Starting search with query:', query);
         
         try {
-            // First, search local flights (including newly created ones)
-            const fromCityFa = airports.find(a => a.city[language] === query.from)?.city.fa.toLowerCase();
-            const toCityFa = airports.find(a => a.city[language] === query.to)?.city.fa.toLowerCase();
+            // Convert city names to airport codes for API calls
+            const cityToAirportMap: { [key: string]: string } = {
+                'تهران': 'IKA',
+                'مشهد': 'MHD', 
+                'دبی': 'DXB',
+                'استانبول': 'IST',
+                'اصفهان': 'IFN',
+                'شیراز': 'SYZ',
+                'تبریز': 'TBZ',
+                'اهواز': 'AWZ',
+                'کرمان': 'KER',
+                'یزد': 'AZD'
+            };
             
-            console.log('🔍 Searching local flights for:', { fromCityFa, toCityFa, departureDate: query.departureDate });
+            const fromAirportCode = cityToAirportMap[query.from] || query.from;
+            const toAirportCode = cityToAirportMap[query.to] || query.to;
             
-            const localResults = allFlights.filter(flight => {
-                if (!flight || !flight.departure || !flight.arrival) return false;
-                
-                const departureDateTime = new Date(flight.departure.dateTime);
-                const departureDate = departureDateTime.toISOString().split('T')[0];
-                
-                const fromCityMatch = flight.departure.city.toLowerCase().includes(fromCityFa || '');
-                const toCityMatch = flight.arrival.city.toLowerCase().includes(toCityFa || '');
-                const dateMatch = departureDate === query.departureDate;
-                const isScheduled = flight.status === 'SCHEDULED';
-                
-                const now = new Date().getTime();
-                const departureTime = departureDateTime.getTime();
-                const closeHours = flight.bookingClosesBeforeDepartureHours || 0;
-                const bookingCloseTime = departureTime - (closeHours * 60 * 60 * 1000);
-                const isBookingOpen = now < bookingCloseTime;
-
-                return fromCityMatch && toCityMatch && dateMatch && isScheduled && isBookingOpen;
+            console.log('🔍 Converted city names to airport codes:', { 
+                from: query.from, 
+                fromAirportCode, 
+                to: query.to, 
+                toAirportCode 
             });
             
-            console.log('🔍 Local search results:', localResults.length, 'flights found');
+            // First, search local flights using airport codes
+            const fromCityFa = query.from?.toLowerCase() || '';
+            const toCityFa = query.to?.toLowerCase() || '';
+                
+            console.log('🔍 Searching local flights for:', { fromCityFa, toCityFa, departureDate: query.departureDate, query });
+
+            // Skip local flight filtering - we'll get them via API to avoid duplicates
+            console.log('🔍 Skipping local flight filtering - using API instead');
             
-            // Then try backend API search for additional flights
-            const searchParams = {
-                from: query.from,
-                to: query.to,
+            // Start with empty results array
+            const allResults: Flight[] = [];
+            
+            // Add Charter118 results directly from API response FIRST
+            let charter118Flights: Flight[] = [];
+            console.log('🔍 ===== CHARTER118 SECTION STARTED =====');
+            console.log('🔍 Current user status:', currentUser ? 'logged in' : 'not logged in');
+            console.log('🔍 Access token status:', localStorage.getItem('accessToken') ? 'exists' : 'missing');
+            
+            try {
+                console.log('🔍 ===== STARTING CHARTER118 API CALL =====');
+                console.log('🔍 Calling Charter118 API with params:', {
+                    origin: fromAirportCode,
+                    destination: toAirportCode,
+                    departureDate: query.departureDate,
+                    adults: query.passengers?.adults || 1,
+                    children: query.passengers?.children || 0,
+                    infants: query.passengers?.infants || 0
+                });
+                
+                console.log('🔍 About to call apiService.post for Charter118...');
+                console.log('🔍 API Service instance:', apiService);
+                console.log('🔍 API Service post method:', typeof apiService.post);
+                
+                const charter118Response = await apiService.post('/api/v1/charter118/search', {
+                    origin: fromAirportCode,
+                    destination: toAirportCode,
                 departureDate: query.departureDate,
                 adults: query.passengers?.adults || 1,
                 children: query.passengers?.children || 0,
-                infants: query.passengers?.infants || 0,
-            };
-            console.log('🔍 Backend search params:', searchParams);
-            
-            let backendResults: Flight[] = [];
-            try {
-                const response = await apiService.searchFlights(searchParams);
-                console.log('🔍 Backend search response:', response);
-                console.log('🔍 Backend search response success:', response.success);
-                console.log('🔍 Backend search response data:', response.data);
-                console.log('🔍 Backend search response data length:', response.data?.length);
+                    infants: query.passengers?.infants || 0
+                });
+                console.log('🔍 Charter118 API call completed successfully!');
+                console.log('🔍 Charter118 response received:', !!charter118Response);
                 
-                if (response.success && response.data) {
-                    backendResults = response.data;
-                    console.log('🔍 Backend search results:', backendResults.length, 'flights found');
-                    console.log('🔍 Backend search results data:', backendResults);
+                console.log('🔍 Charter118 API response:', charter118Response);
+                console.log('🔍 Charter118 API response success:', charter118Response.success);
+                console.log('🔍 Charter118 API response data:', (charter118Response.data as any));
+                console.log('🔍 Charter118 API response data is array:', Array.isArray((charter118Response.data as any)));
+                console.log('🔍 Charter118 API response data type:', typeof charter118Response.data);
+                console.log('🔍 Charter118 API response data keys:', charter118Response.data ? Object.keys(charter118Response.data) : 'no data');
+                console.log('🔍 Charter118 API response data.data:', (charter118Response.data as any)?.data);
+                console.log('🔍 Charter118 API response data.data is array:', Array.isArray((charter118Response.data as any)?.data));
+                
+                console.log('🔍 Checking Charter118 response conditions:');
+                console.log('🔍 - success:', charter118Response.success);
+                console.log('🔍 - data exists:', !!charter118Response.data);
+                console.log('🔍 - data.data exists:', !!(charter118Response.data as any)?.data);
+                console.log('🔍 - data.data is array:', Array.isArray((charter118Response.data as any)?.data));
+                console.log('🔍 - all conditions met:', charter118Response.success && (charter118Response.data as any)?.data && Array.isArray((charter118Response.data as any).data));
+                
+                if (charter118Response.success && (charter118Response.data as any)?.data && Array.isArray((charter118Response.data as any).data)) {
+                    console.log('🔍 ===== PROCESSING CHARTER118 FLIGHTS =====');
+                    charter118Flights = (charter118Response.data as any).data.map((flight: any) => ({
+                        id: flight.id,
+                        airline: flight.airline || 'Charter118',
+                        flightNumber: flight.flightNumber,
+                        departure: {
+                            airportCode: flight.departure?.airport || 'IKA',
+                            airportName: flight.departure?.airport || 'فرودگاه امام خمینی',
+                            city: flight.departure?.city || query.from,
+                            dateTime: flight.departure?.dateTime
+                        },
+                        arrival: {
+                            airportCode: flight.arrival?.airport || 'DXB',
+                            airportName: flight.arrival?.airport || 'فرودگاه دبی',
+                            city: flight.arrival?.city || query.to,
+                            dateTime: flight.arrival?.dateTime
+                        },
+                        aircraft: flight.aircraft || 'Boeing 737',
+                        flightClass: flight.flightClass || 'اقتصادی',
+                        duration: flight.duration || '3h 30m',
+                        stops: flight.stops || 0,
+                        price: flight.price || 1800000,
+                        taxes: flight.taxes || 180000,
+                        availableSeats: flight.availableSeats || 80,
+                        totalCapacity: flight.totalCapacity || 150,
+                        baggageAllowance: flight.baggageAllowance || '25 KG',
+                        status: 'SCHEDULED' as FlightStatus,
+                        source: 'charter118',
+                        airlineLogoUrl: '',
+                        bookingClosesBeforeDepartureHours: 24,
+                        sourcingType: 'charter118' as any,
+                        allotments: [],
+                        tenantId: null
+                    }));
+                    console.log('🔍 Charter118 API direct results:', charter118Flights.length, 'flights found');
+                    console.log('🔍 Charter118 flights processed:', charter118Flights.map(f => ({ id: f.id, flightNumber: f.flightNumber, airline: f.airline })));
                 } else {
-                    console.log('🔍 Backend search response failed:', response.error);
+                    console.log('🔍 ===== CHARTER118 CONDITIONS NOT MET =====');
+                    console.log('🔍 Charter118 response failed validation');
                 }
-            } catch (backendError) {
-                console.log('🔍 Backend search failed, using local results only:', backendError);
+            } catch (charter118Error) {
+                console.log('🔍 ===== CHARTER118 API CALL FAILED =====');
+                console.log('🔍 Charter118 API direct call failed:', charter118Error);
+                console.error('🔍 Charter118 API error details:', charter118Error);
+                console.error('🔍 Charter118 API error stack:', charter118Error.stack);
+                console.log('🔍 Charter118 error type:', typeof charter118Error);
+                console.log('🔍 Charter118 error message:', charter118Error.message);
             }
             
-            // Combine local and backend results, removing duplicates
-            const allResults = [...localResults];
-            backendResults.forEach(backendFlight => {
-                const exists = allResults.some(localFlight => localFlight.id === backendFlight.id);
+            console.log('🔍 ===== CHARTER118 SECTION COMPLETED =====');
+            console.log('🔍 Charter118 flights found:', charter118Flights.length);
+            console.log('🔍 Charter118 flights details:', charter118Flights.map(f => ({
+                id: f.id,
+                flightNumber: f.flightNumber,
+                airline: f.airline,
+                departure: f.departure,
+                arrival: f.arrival
+            })));
+            
+            // Add Charter118 results to allResults FIRST
+            console.log('🔍 Adding Charter118 flights to allResults:', charter118Flights.length, 'flights');
+            charter118Flights.forEach((charter118Flight, index) => {
+                console.log(`🔍 Charter118 flight ${index + 1}:`, charter118Flight.id, charter118Flight.flightNumber);
+                const exists = allResults.some(existingFlight => existingFlight.id === charter118Flight.id);
                 if (!exists) {
-                    allResults.push(backendFlight);
+                    allResults.push(charter118Flight);
+                    console.log('🔍 Added Charter118 flight to allResults:', charter118Flight.id);
+                } else {
+                    console.log('🔍 Charter118 flight already exists in allResults:', charter118Flight.id);
                 }
             });
             
-            // Add mock flight for demonstration if no results found
-            if (allResults.length === 0) {
-                const mockFlight = {
-                    id: 'demo-1',
-                    airline: { name: 'ایران ایر' },
-                    flightNumber: 'IR123',
-                    departureAirport: { 
-                        city: { fa: query.from || 'تهران' }, 
-                        iataCode: 'IKA' 
-                    },
-                    arrivalAirport: { 
-                        city: { fa: query.to || 'مشهد' }, 
-                        iataCode: 'MHD' 
-                    },
-                    departureTime: query.departureDate ? `${query.departureDate}T08:00:00.000Z` : '2025-09-17T08:00:00.000Z',
-                    arrivalTime: query.departureDate ? `${query.departureDate}T09:30:00.000Z` : '2025-09-17T09:30:00.000Z',
-                    price: 2500000,
-                    currency: 'IRR',
-                    duration: '1h 30m',
-                    stops: 0,
-                    flightClass: 'اقتصادی',
-                    availableSeats: 150,
-                    totalCapacity: 150,
-                    taxes: 0
-                };
-                allResults.push(mockFlight);
+            // Add Sepehr results directly from API response
+            let sepehrFlights: Flight[] = [];
+            try {
+                const sepehrResponse = await apiService.post('/api/v1/sepehr/search', {
+                    departureCity: fromAirportCode,
+                    arrivalCity: toAirportCode,
+                    departureDate: query.departureDate,
+                    adults: query.passengers?.adults || 1,
+                    children: query.passengers?.children || 0,
+                    infants: query.passengers?.infants || 0
+                });
+                
+                if (sepehrResponse.success && (sepehrResponse.data as any)?.data?.flights) {
+                    sepehrFlights = (sepehrResponse.data as any).data.flights.map((flight: any) => ({
+                        id: flight.id,
+                        airline: flight.airline?.name?.fa || flight.airline?.name || 'سپهر',
+                        flightNumber: flight.flightNumber,
+                        departure: {
+                            airportCode: flight.departure?.airport?.code || 'IKA',
+                            airportName: flight.departure?.airport?.name?.fa || 'فرودگاه امام خمینی',
+                            city: flight.departure?.airport?.city?.fa || query.from,
+                            dateTime: flight.departure?.dateTime
+                        },
+                        arrival: {
+                            airportCode: flight.arrival?.airport?.code || 'DXB',
+                            airportName: flight.arrival?.airport?.name?.fa || 'فرودگاه دبی',
+                            city: flight.arrival?.airport?.city?.fa || query.to,
+                            dateTime: flight.arrival?.dateTime
+                        },
+                        aircraft: flight.aircraft?.name?.fa || flight.aircraft?.code || 'Boeing 737',
+                        flightClass: flight.flightClass?.name?.fa || 'اقتصادی',
+                        duration: flight.duration || '2h 30m',
+                        stops: flight.stops || 0,
+                        price: flight.price?.adult || 1500000,
+                        taxes: 0,
+                        availableSeats: flight.availableSeats || 120,
+                        totalCapacity: 150,
+                        baggageAllowance: flight.baggage?.weight ? `${flight.baggage.weight} ${flight.baggage.unit}` : '20 KG',
+                        status: 'SCHEDULED' as FlightStatus,
+                        source: 'sepehr',
+                        airlineLogoUrl: flight.airline?.logo || '',
+                        bookingClosesBeforeDepartureHours: 24,
+                        sourcingType: 'sepehr' as any,
+                        allotments: [],
+                        tenantId: null
+                    }));
+                    console.log('🔍 Sepehr API direct results:', sepehrFlights.length, 'flights found');
+                }
+            } catch (sepehrError) {
+                console.log('🔍 Sepehr API direct call failed:', sepehrError);
             }
             
-            console.log('🔍 Final search results:', allResults.length, 'flights');
-            console.log('🔍 Final search results data:', allResults);
-            setFlights(allResults);
-            console.log('🔍 setFlights called with:', allResults.length, 'flights');
+            // Add Sepehr results to allResults
+            sepehrFlights.forEach(sepehrFlight => {
+                const exists = allResults.some(existingFlight => existingFlight.id === sepehrFlight.id);
+                if (!exists) {
+                    allResults.push(sepehrFlight);
+                }
+            });
             
-            // If no local results and backend failed, try Gemini fallback
-            if (localResults.length === 0 && backendResults.length === 0) {
+            // Also search local flights using airport codes directly
+            let localApiResults: Flight[] = [];
+            try {
+                console.log('🔍 Searching local flights via API with airport codes:', { fromAirportCode, toAirportCode });
+                const localApiResponse = await apiService.get(`/api/v1/flights/search?from=${fromAirportCode}&to=${toAirportCode}&departureDate=${query.departureDate}&adults=${query.passengers?.adults || 1}&children=${query.passengers?.children || 0}&infants=${query.passengers?.infants || 0}`);
+                
+                if (localApiResponse.success && Array.isArray(localApiResponse.data)) {
+                    localApiResults = localApiResponse.data;
+                    console.log('🔍 Local API results:', localApiResults.length, 'flights found');
+                }
+            } catch (localApiError) {
+                console.log('🔍 Local API call failed:', localApiError);
+            }
+            
+            // Add local API results to allResults
+            localApiResults.forEach(localApiFlight => {
+                const exists = allResults.some(existingFlight => existingFlight.id === localApiFlight.id);
+                if (!exists) {
+                    allResults.push(localApiFlight);
+                }
+            });
+            
+            console.log('🔍 ===== FINAL RESULTS SUMMARY =====');
+            console.log('🔍 Local API results:', localApiResults.length, 'flights');
+            console.log('🔍 Sepehr results:', sepehrFlights.length, 'flights');
+            console.log('🔍 Charter118 results:', charter118Flights.length, 'flights');
+            console.log('🔍 Total combined results:', allResults.length, 'flights');
+            console.log('🔍 All results IDs:', allResults.map(f => f.id));
+            console.log('🔍 Charter118 flight IDs:', charter118Flights.map(f => f.id));
+            
+            // If no results found from any source, try AI search as fallback
+            if (allResults.length === 0) {
                 try {
-                    const geminiFlights = await generateFlights(query, language);
-                    const geminiResults = geminiFlights.map(f => ({
-                        ...f,
-                        sourcingType: FlightSourcingType.WebService,
-                        status: FlightStatus.SCHEDULED,
-                        bookingClosesBeforeDepartureHours: 3,
-                        commissionModelId: 'CM-2',
-                        refundPolicyId: 'RP-1',
-                    }));
-                    setFlights([...allResults, ...geminiResults]);
-                } catch (e) {
-                    console.error(e);
-                    alert(t('flightSearch.geminiError'));
+                    console.log('🔍 No results found, trying AI search as fallback...');
+                    const aiResponse = await apiService.post('/api/v1/flights/ai-search', {
+                        from: query.from,
+                        to: query.to,
+                        departureDate: query.departureDate
+                    });
+                    
+                    if (aiResponse.success && aiResponse.data && Array.isArray(aiResponse.data)) {
+                        const aiFlights = aiResponse.data.map((flight: any) => ({
+                            id: flight.id,
+                            airline: flight.airline || 'ایران ایر',
+                            flightNumber: flight.flightNumber,
+                            departure: {
+                                airportCode: flight.departure?.airportCode || 'IKA',
+                                airportName: flight.departure?.airportName || 'فرودگاه امام خمینی',
+                                city: flight.departure?.city || query.from,
+                                dateTime: flight.departure?.dateTime
+                            },
+                            arrival: {
+                                airportCode: flight.arrival?.airportCode || 'DXB',
+                                airportName: flight.arrival?.airportName || 'فرودگاه دبی',
+                                city: flight.arrival?.city || query.to,
+                                dateTime: flight.arrival?.dateTime
+                            },
+                            aircraft: flight.aircraft || 'Boeing 737',
+                            flightClass: flight.flightClass || 'اقتصادی',
+                            duration: flight.duration || '3h 30m',
+                            stops: flight.stops || 0,
+                            price: flight.price || 1500000,
+                            taxes: flight.taxes || 150000,
+                            availableSeats: flight.availableSeats || 25,
+                    totalCapacity: 150,
+                            baggageAllowance: flight.baggageAllowance || '20 کیلوگرم',
+                            status: 'SCHEDULED' as FlightStatus,
+                            source: 'ai',
+                            airlineLogoUrl: flight.airlineLogoUrl || '',
+                            bookingClosesBeforeDepartureHours: 3,
+                            sourcingType: 'WebService' as any,
+                            allotments: [],
+                            tenantId: null
+                        }));
+                        
+                        console.log('🔍 AI search fallback results:', aiFlights.length, 'flights found');
+                        allResults.push(...aiFlights);
+                    }
+                } catch (aiError) {
+                    console.log('🔍 AI search fallback failed:', aiError);
                 }
             }
+            
+            // Set final results after all API calls are complete
+            console.log('🚀 SENIOR FIX - Final search results:', allResults.length, 'flights');
+            console.log('🚀 SENIOR FIX - Final search results data:', allResults);
+            setFlights(allResults as any);
+            console.log('🚀 SENIOR FIX - setFlights called with:', allResults.length, 'flights');
+            
         } catch (error) {
-            console.error('Search error:', error);
+            console.error('🚀 SENIOR FIX - Search error:', error);
             alert('خطا در جستجوی پروازها');
         } finally {
+            console.log('🚀 SENIOR FIX - Search completed, setting isLoading to false');
             setIsLoading(false);
+            setLoadingSettings(prev => ({ ...prev, isActive: false }));
         }
-    }, [currentUser, setAllFlights, setFlights, setSearchQuery, setIsLoading, airports, language, t, allFlights]);
+    }, [setAllFlights, setFlights, setSearchQuery, setIsLoading, airports, language, t, allFlights]);
 
     const handleSelectFlight = (flight: Flight) => {
+        console.log('🚀 PROFESSIONAL - handleSelectFlight called with flight:', flight.id);
         setSelectedFlight(flight);
         if (currentUser) {
+            console.log('🚀 PROFESSIONAL - User logged in, going to PASSENGER_DETAILS');
             setView('PASSENGER_DETAILS');
         } else {
+            console.log('🚀 PROFESSIONAL - User not logged in, going to LOGIN');
             setView('LOGIN');
         }
     };
 
     const handleBackToSearch = () => {
+        console.log('🚀 PROFESSIONAL - handleBackToSearch called');
         setSelectedFlight(null);
-        setView('SEARCH');
+        setView('SEARCH_RESULTS');
+    };
+
+    // Sepehr API handlers
+    const handleSepehrSearch = useCallback(async (query: SearchQuery) => {
+        console.log('🔍 Sepehr search called with query:', query);
+        setSearchQuery(query);
+        setUseSepehrApi(true);
+        setView('SEPEHR_SEARCH_RESULTS');
+    }, []);
+
+    const handleSepehrFlightSelect = (flight: any) => {
+        console.log('🔍 Sepehr flight selected:', flight);
+        setSelectedFlight(flight);
+        setView('SEPEHR_BOOKING');
+    };
+
+    const handleSepehrBookingSuccess = (bookingData: any) => {
+        console.log('🔍 Sepehr booking successful:', bookingData);
+        setSepehrBookingData(bookingData);
+        setView('SEPEHR_BOOKING_CONFIRMATION');
+    };
+
+    const handleSepehrBookingCancel = () => {
+        console.log('🔍 Sepehr booking cancelled');
+        setSelectedFlight(null);
+        setView('SEPEHR_SEARCH_RESULTS');
+    };
+
+    const handleBackToSepehrSearch = () => {
+        console.log('🔍 Back to Sepehr search');
+        setView('SEPEHR_SEARCH_RESULTS');
     };
 
     const handlePassengerDetailsSubmit = useCallback((data: PassengerData) => {
-        if (!currentUser) return;
+        console.log('🔍 DEBUG - handlePassengerDetailsSubmit called');
+        console.log('🔍 DEBUG - currentUser:', currentUser);
+        console.log('🔍 DEBUG - selectedFlight:', selectedFlight);
+        console.log('🔍 DEBUG - searchQuery:', searchQuery);
+        console.log('🔍 DEBUG - passengersData:', data);
+        
+        if (!currentUser) {
+            console.log('🔍 DEBUG - No current user, returning');
+            return;
+        }
         
         const allNewPassengers = [...data.adults, ...data.children, ...data.infants];
         const passengersToSave = allNewPassengers.filter(p => p.saveForLater && p.firstName && p.lastName && p.gender);
 
         if (passengersToSave.length > 0) {
-            const updatedUsers = users.map(u => {
-                if (u.id === currentUser.id) {
-                    const existingPassengers = u.savedPassengers || [];
                     const newSavedPassengers = passengersToSave.map(p => {
                         // Create a clean SavedPassenger object
                         const newPassenger: SavedPassenger = {
@@ -766,25 +1329,68 @@ const App: React.FC = () => {
                         return newPassenger;
                     });
                     
-                    return { ...u, savedPassengers: [...existingPassengers, ...newSavedPassengers] };
-                }
-                return u;
-            });
-            setUsers(updatedUsers);
-            const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id)!;
-            setCurrentUser(updatedCurrentUser);
+            // Update savedPassengers state instead of currentUser
+            setSavedPassengers(prev => [...prev, ...newSavedPassengers]);
             logActivity(currentUser, t('activityLog.savedPassengersAdded', passengersToSave.length));
+        }
+
+        console.log('🔍 DEBUG - Setting passengersData and view to CONFIRMATION');
+        console.log('🔍 DEBUG - Current state before setting:', {
+            selectedFlight: !!selectedFlight,
+            searchQuery: !!searchQuery,
+            currentUser: !!currentUser,
+            currentUserData: currentUser
+        });
+        
+        // SENIOR FIX: Ensure currentUser is still valid before proceeding
+        if (!currentUser) {
+            console.log('🔍 DEBUG - currentUser is null, trying to restore from localStorage');
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    console.log('🔍 DEBUG - Restoring currentUser from localStorage:', parsedUser);
+                    setCurrentUser(parsedUser);
+                    // Wait for state update before proceeding
+                    setTimeout(() => {
+        setPassengersData(data);
+        setView('CONFIRMATION');
+                    }, 100);
+                    return;
+                } catch (error) {
+                    console.error('Error parsing stored user:', error);
+                    localStorage.removeItem('currentUser');
+                }
+            }
+            console.log('🔍 DEBUG - No valid currentUser found, redirecting to login');
+            setView('LOGIN');
+            return;
         }
 
         setPassengersData(data);
         setView('CONFIRMATION');
-    }, [currentUser, users, setUsers, setCurrentUser, logActivity, t, setPassengersData, setView]);
+    }, [currentUser, users, setUsers, setCurrentUser, logActivity, t, setPassengersData, setView, selectedFlight, searchQuery]);
 
     const handleBackToPassengerDetails = () => {
         setView('PASSENGER_DETAILS');
     };
     
     const handleConfirmBooking = useCallback(async () => {
+        console.log('🔍 DEBUG - handleConfirmBooking called');
+        console.log('🔍 DEBUG - selectedFlight:', selectedFlight);
+        console.log('🔍 DEBUG - selectedFlight.id:', selectedFlight?.id);
+        console.log('🔍 DEBUG - passengersData:', passengersData);
+        console.log('🔍 DEBUG - searchQuery:', searchQuery);
+        console.log('🔍 DEBUG - currentUser:', currentUser);
+
+        // Refresh apiService tokens before making API calls
+        const tokenValid = await apiService.refreshTokens();
+        if (!tokenValid) {
+            alert(t('bookingReview.tokenExpired'));
+            return;
+        }
+        console.log('🔧 Refreshed apiService tokens for booking');
+
         if (!selectedFlight || !passengersData || !searchQuery || !currentUser) {
             alert(t('bookingReview.error'));
             return;
@@ -800,22 +1406,346 @@ const App: React.FC = () => {
         }
 
         try {
-            const bookingData = {
+            // Check flight source type and route to appropriate booking API
+            const flightSource = selectedFlight.source || selectedFlight.sourcingType;
+            
+            if (flightSource === 'sepehr' || flightSource === 'SEPEHR_API') {
+                console.log('🔍 DEBUG - This is a Sepehr flight, using Sepehr booking API');
+                
+                // Convert passengers to Sepehr format
+                const sepehrPassengers = [
+                    ...passengersData.adults.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        gender: p.gender === 'MALE' ? 'male' : 'female',
+                        birthDate: p.dateOfBirth,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
+                    })),
+                    ...passengersData.children.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        gender: p.gender === 'MALE' ? 'male' : 'female',
+                        birthDate: p.dateOfBirth,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
+                    })),
+                    ...passengersData.infants.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        gender: p.gender === 'MALE' ? 'male' : 'female',
+                        birthDate: p.dateOfBirth,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
+                    }))
+                ];
+
+                const sepehrBookingData = {
                 flightId: selectedFlight.id,
-                passengers: {
-                    adults: passengersData.adults,
-                    children: passengersData.children,
-                    infants: passengersData.infants,
-                },
+                    passengers: sepehrPassengers,
+                    contactInfo: {
+                        email: passengersData.contactEmail,
+                        phone: passengersData.contactPhone
+                    },
+                    paymentInfo: {
+                        method: 'wallet',
+                        cardNumber: '',
+                        expiryDate: '',
+                        cvv: ''
+                    }
+                };
+
+                console.log('🔍 DEBUG - sepehrBookingData:', sepehrBookingData);
+                const response = await apiService.post('/api/v1/sepehr/booking', sepehrBookingData);
+                
+                if (response.success && response.data) {
+                    const sepehrBooking = response.data as any;
+                    console.log('🔍 DEBUG - Sepehr booking successful:', sepehrBooking);
+                    
+                    // Create local booking record for tracking
+                    const localBookingData = {
+                        flightId: selectedFlight.id,
+                        passengers: sepehrPassengers.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
+                        totalPrice: totalPrice,
                 contactEmail: passengersData.contactEmail,
                 contactPhone: passengersData.contactPhone,
-            };
+                        sepehrBookingId: sepehrBooking.data.bookingId,
+                        sepehrPnr: sepehrBooking.data.pnr
+                    };
+                    
+                    const localResponse = await apiService.createBooking(localBookingData);
+                    if (localResponse.success && localResponse.data) {
+                        const newBooking = localResponse.data.booking;
+                        setBookings(prev => [newBooking, ...prev]);
+                        
+                        // Save passengers to saved passengers list if requested
+                        const allNewPassengers = [...passengersData.adults, ...passengersData.children, ...passengersData.infants];
+                        const passengersToSave = allNewPassengers.filter(p => p.saveForLater && p.firstName && p.lastName && p.gender);
+                        console.log('🔍 All passengers:', allNewPassengers);
+                        console.log('🔍 Passengers to save:', passengersToSave);
+                        
+                        if (passengersToSave.length > 0) {
+                            console.log('🔍 Saving passengers to saved passengers list via API:', passengersToSave.length);
+                            
+                            // Save each passenger via API
+                            for (const passenger of passengersToSave) {
+                                try {
+                                    const passengerData = {
+                                        firstName: passenger.firstName,
+                                        lastName: passenger.lastName,
+                                        gender: passenger.gender,
+                                        nationality: passenger.nationality,
+                                        nationalId: passenger.nationalId,
+                                        passportNumber: passenger.passportNumber,
+                                        passportIssuingCountry: passenger.passportIssuingCountry,
+                                        dateOfBirth: passenger.dateOfBirth,
+                                        passportExpiryDate: passenger.passportExpiryDate,
+                                    };
+                                    
+                                    console.log('🔍 Sending passenger data to API:', passengerData);
+                                    const response = await apiService.addSavedPassenger(passengerData);
+                                    console.log('🔍 API response:', response);
+                                    if (response.success && response.data) {
+                                        console.log('✅ Passenger saved to database:', response.data.passenger.id);
+                                        // Update currentUser with the new passenger
+                                        setCurrentUser(prevUser => {
+                                            if (!prevUser) return null;
+                                            return {
+                                                ...prevUser,
+                                                savedPassengers: [...(prevUser.savedPassengers || []), response.data.passenger]
+                                            };
+                                        });
+                                    } else {
+                                        console.error('❌ Failed to save passenger:', response.error);
+                                    }
+                                } catch (error) {
+                                    console.error('❌ Error saving passenger:', error);
+                                }
+                            }
+                            
+                            logActivity(currentUser, t('activityLog.savedPassengersAdded', passengersToSave.length));
+                        }
+                        
+                        // Generate PDF ticket
+                        try {
+                            console.log('🔍 Generating PDF ticket for Sepehr booking:', newBooking.id);
+                            const pdfResponse = await apiService.generateTicketPDF(newBooking.id);
+                            if (pdfResponse.success && pdfResponse.data) {
+                                // Create download link for HTML content
+                                const blob = new Blob([pdfResponse.data as unknown as string], { type: 'text/html' });
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `ticket-${newBooking.id}.html`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(url);
+                                console.log('✅ Ticket HTML generated and downloaded');
+                                
+                                // Also open in new tab for viewing
+                                const newWindow = window.open();
+                                if (newWindow) {
+                                    newWindow.document.write(pdfResponse.data as unknown as string);
+                                    newWindow.document.close();
+                                }
+                            }
+                        } catch (pdfError) {
+                            console.log('⚠️ Could not generate PDF ticket:', pdfError);
+                        }
+                        
+                        showSuccess('رزرو موفق', `رزرو سپهر با موفقیت انجام شد! PNR: ${sepehrBooking.data.pnr}`);
+                        
+                        setSelectedFlight(null);
+                        setPassengersData(null);
+                        setView('SEARCH');
+                        return;
+                    }
+                } else {
+                    showError('خطا در رزرو', response.error || 'خطا در رزرو پرواز');
+                    return;
+                }
+            } else if (flightSource === 'charter118' || flightSource === 'Charter') {
+                console.log('🔍 DEBUG - This is a Charter118 flight, using Charter118 booking API');
+                
+                // Convert passengers to Charter118 format
+                const charter118Passengers = {
+                    adults: passengersData.adults.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                        passportNumber: p.passportNumber || '',
+                        birthDate: p.dateOfBirth
+                    })),
+                    children: passengersData.children.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                        passportNumber: p.passportNumber || '',
+                        birthDate: p.dateOfBirth
+                    })),
+                    infants: passengersData.infants.map(p => ({
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                        passportNumber: p.passportNumber || '',
+                        birthDate: p.dateOfBirth
+                    }))
+                };
+
+                const charter118BookingData = {
+                    flightId: selectedFlight.id,
+                    passengers: charter118Passengers,
+                    contactInfo: {
+                        email: passengersData.contactEmail,
+                        phone: passengersData.contactPhone,
+                        address: ''
+                    }
+                };
+
+                console.log('🔍 DEBUG - charter118BookingData:', charter118BookingData);
+                const response = await apiService.post('/api/v1/charter118/book', charter118BookingData);
+                
+                if (response.success && response.data) {
+                    const charter118Booking = response.data as any;
+                    console.log('🔍 DEBUG - Charter118 booking successful:', charter118Booking);
+                    
+                    // First, save the Charter118 flight to local database if it doesn't exist
+                    try {
+                        console.log('🔍 Saving Charter118 flight to local database...');
+                        const flightSaveResponse = await apiService.post('/api/v1/flights/save-charter118', {
+                            flight: selectedFlight,
+                            charter118BookingId: charter118Booking.bookingId
+                        });
+                        
+                        if (flightSaveResponse.success) {
+                            console.log('✅ Charter118 flight saved to local database');
+                        }
+                    } catch (saveError) {
+                        console.log('⚠️ Could not save Charter118 flight to local database:', saveError);
+                    }
+                    
+                    // Create local booking record for tracking
+                    const localBookingData = {
+                        flightId: selectedFlight.id,
+                        passengers: [
+                            ...passengersData.adults.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
+                            ...passengersData.children.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
+                            ...passengersData.infants.map(p => ({ name: `${p.firstName} ${p.lastName}` }))
+                        ],
+                        totalPrice: totalPrice,
+                        contactEmail: passengersData.contactEmail,
+                        contactPhone: passengersData.contactPhone,
+                        charter118BookingId: charter118Booking.bookingId,
+                        charter118ConfirmationCode: charter118Booking.confirmationCode
+                    };
+                    
+                    const localResponse = await apiService.createBooking(localBookingData);
+                    if (localResponse.success && localResponse.data) {
+                        const newBooking = localResponse.data.booking;
+                        setBookings(prev => [newBooking, ...prev]);
+                        
+                        // Generate PDF ticket
+                        try {
+                            console.log('🔍 Generating PDF ticket for Charter118 booking:', newBooking.id);
+                            const pdfResponse = await apiService.generateTicketPDF(newBooking.id);
+                            if (pdfResponse.success && pdfResponse.data) {
+                                // Create download link for HTML content
+                                const blob = new Blob([pdfResponse.data as unknown as string], { type: 'text/html' });
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `ticket-${newBooking.id}.html`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(url);
+                                console.log('✅ Ticket HTML generated and downloaded');
+                                
+                                // Also open in new tab for viewing
+                                const newWindow = window.open();
+                                if (newWindow) {
+                                    newWindow.document.write(pdfResponse.data as unknown as string);
+                                    newWindow.document.close();
+                                }
+                            }
+                        } catch (pdfError) {
+                            console.log('⚠️ Could not generate PDF ticket:', pdfError);
+                        }
+                        
+                        showSuccess('رزرو موفق', `رزرو چارتر 118 با موفقیت انجام شد! کد تایید: ${charter118Booking.confirmationCode}`);
+                        
+                        setSelectedFlight(null);
+                        setPassengersData(null);
+                        setView('SEARCH');
+                        return;
+                    }
+                } else {
+                    showError('خطا در رزرو', response.error || 'خطا در رزرو پرواز چارتر 118');
+                    return;
+                }
+            } else {
+                console.log('🔍 DEBUG - This is a local/manual flight, using local booking API');
+                
+                // Convert passengers to array format expected by backend
+                const allPassengers = [
+                    ...passengersData.adults.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
+                    ...passengersData.children.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
+                    ...passengersData.infants.map(p => ({ name: `${p.firstName} ${p.lastName}` }))
+                ];
+
+                const bookingData = {
+                    flightId: selectedFlight.id,
+                    passengers: allPassengers,
+                    totalPrice: totalPrice,
+                    contactEmail: passengersData.contactEmail,
+                    contactPhone: passengersData.contactPhone,
+                };
+
+                console.log('🔍 DEBUG - selectedFlight:', selectedFlight);
+                console.log('🔍 DEBUG - selectedFlight.id:', selectedFlight?.id);
+                console.log('🔍 DEBUG - passengersData:', passengersData);
+                console.log('🔍 DEBUG - totalPrice:', totalPrice);
+                console.log('🔍 DEBUG - currentUser:', currentUser);
+
+                // Validate required data
+                if (!selectedFlight || !selectedFlight.id) {
+                    console.error('❌ ERROR - selectedFlight is missing or invalid');
+                    throw new Error('Selected flight is missing or invalid');
+                }
+
+                if (!passengersData || !passengersData.adults || passengersData.adults.length === 0) {
+                    console.error('❌ ERROR - passengersData is missing or invalid');
+                    throw new Error('Passenger data is missing or invalid');
+                }
+
+                if (!totalPrice || totalPrice <= 0) {
+                    console.error('❌ ERROR - totalPrice is missing or invalid');
+                    throw new Error('Total price is missing or invalid');
+                }
+
+                if (!currentUser || !currentUser.id) {
+                    console.error('❌ ERROR - currentUser is missing or invalid');
+                    throw new Error('User is not logged in');
+                }
 
             const response = await apiService.createBooking(bookingData);
             
+            console.log('🔍 DEBUG - API Response:', response);
+            
             if (response.success && response.data) {
                 const newBooking = response.data.booking;
+                    console.log('🔍 DEBUG - New booking created:', newBooking);
+                    console.log('🔍 DEBUG - New booking user:', newBooking.user);
+                    console.log('🔍 DEBUG - Current user:', currentUser);
                 setBookings(prev => [newBooking, ...prev]);
+                
+                // Update user wallet balance
+                if (currentUser.walletBalance !== undefined) {
+                    const newBalance = currentUser.walletBalance - totalPrice;
+                    setCurrentUser(prev => ({
+                        ...prev,
+                        walletBalance: newBalance
+                    }));
+                    console.log('✅ DEBUG - Wallet balance updated:', newBalance);
+                }
 
                 if (telegramConfig.isEnabled && telegramConfig.notifyOn.newBooking) {
                     const message = `✅ *New Booking!*\n\nRef ID: \`${newBooking.id}\`\n✈️ Flight: ${selectedFlight.flightNumber} (${selectedFlight.departure.city} to ${selectedFlight.arrival.city})\n👤 Customer: ${currentUser.name}\n💰 Total: ${formatNumber(totalPrice)} IRR`;
@@ -831,26 +1761,112 @@ const App: React.FC = () => {
 
                 logActivity(currentUser, t('activityLog.bookingSuccess', newBooking.id));
                 createBookingJournalEntry(newBooking, 'create');
+                    
+                    // Save passengers to saved passengers list if requested
+                    const allNewPassengers = [...passengersData.adults, ...passengersData.children, ...passengersData.infants];
+                    const passengersToSave = allNewPassengers.filter(p => p.saveForLater && p.firstName && p.lastName && p.gender);
+                    console.log('🔍 All passengers (Charter118):', allNewPassengers);
+                    console.log('🔍 Passengers to save (Charter118):', passengersToSave);
+                    
+                    if (passengersToSave.length > 0) {
+                        console.log('🔍 Saving passengers to saved passengers list via API:', passengersToSave.length);
+                        
+                        // Save each passenger via API
+                        for (const passenger of passengersToSave) {
+                            try {
+                                const passengerData = {
+                                    firstName: passenger.firstName,
+                                    lastName: passenger.lastName,
+                                    gender: passenger.gender,
+                                    nationality: passenger.nationality,
+                                    nationalId: passenger.nationalId,
+                                    passportNumber: passenger.passportNumber,
+                                    passportIssuingCountry: passenger.passportIssuingCountry,
+                                    dateOfBirth: passenger.dateOfBirth,
+                                    passportExpiryDate: passenger.passportExpiryDate,
+                                };
+                                
+                                console.log('🔍 Sending passenger data to API (Charter118):', passengerData);
+                                const response = await apiService.addSavedPassenger(passengerData);
+                                console.log('🔍 API response (Charter118):', response);
+                                if (response.success && response.data) {
+                                    console.log('✅ Passenger saved to database:', response.data.passenger.id);
+                                    // Update currentUser with the new passenger
+                                    setCurrentUser(prevUser => {
+                                        if (!prevUser) return null;
+                                        return {
+                                            ...prevUser,
+                                            savedPassengers: [...(prevUser.savedPassengers || []), response.data.passenger]
+                                        };
+                                    });
+                                } else {
+                                    console.error('❌ Failed to save passenger:', response.error);
+                                }
+                            } catch (error) {
+                                console.error('❌ Error saving passenger:', error);
+                            }
+                        }
+                        
+                        logActivity(currentUser, t('activityLog.savedPassengersAdded', passengersToSave.length));
+                    }
+                    
+                    // Generate PDF ticket
+                    try {
+                        console.log('🔍 Generating PDF ticket for booking:', newBooking.id);
+                        const pdfResponse = await apiService.generateTicketPDF(newBooking.id);
+                        if (pdfResponse.success && pdfResponse.data) {
+                            // Create download link for HTML content
+                            const blob = new Blob([pdfResponse.data], { type: 'text/html' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `ticket-${newBooking.id}.html`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            console.log('✅ Ticket HTML generated and downloaded');
+                            
+                            // Also open in new tab for viewing
+                            const newWindow = window.open();
+                            if (newWindow) {
+                                newWindow.document.write(pdfResponse.data as unknown as string);
+                                newWindow.document.close();
+                            }
+                        }
+                    } catch (pdfError) {
+                        console.log('⚠️ Could not generate PDF ticket:', pdfError);
+                    }
                 
-                setSelectedFlight(null);
-                setPassengersData(null);
-                
-                alert(t('bookingReview.bookingSuccess', newBooking.id));
-                setView('SEARCH');
-            } else {
-                alert(response.error || t('bookingReview.error'));
+                    setSelectedFlight(null);
+                    setPassengersData(null);
+                    
+                    showSuccess('رزرو موفق', t('bookingReview.bookingSuccess', newBooking.id));
+                    setView('SEARCH');
+                } else {
+                    console.error('❌ ERROR - Booking failed:', response.error);
+                    showError('خطا در رزرو', response.error || 'خطا در رزرو پرواز');
+                }
             }
-        } catch (error) {
-            console.error('Booking error:', error);
-            alert(t('bookingReview.error'));
-        }
-    }, [selectedFlight, passengersData, searchQuery, currentUser, telegramConfig, whatsAppBotConfig, logActivity, createBookingJournalEntry, t, formatNumber, setBookings, setSelectedFlight, setPassengersData, setView, sendTelegramMessage, sendWhatsAppMessage]);
+            } catch (error) {
+                console.error('❌ ERROR - Booking process failed:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                showError('خطا در رزرو', errorMessage);
+            }
+    }, [selectedFlight, passengersData, searchQuery, currentUser, telegramConfig, whatsAppBotConfig, logActivity, createBookingJournalEntry, t, formatNumber, setBookings, setSelectedFlight, setPassengersData, setView, sendTelegramMessage, sendWhatsAppMessage, showSuccess, showError]);
 
     const handleLogin = async (username: string, pass: string): Promise<boolean> => {
         try {
+            console.log('🔍 handleLogin called with:', { username, pass });
             const response = await apiService.login(username, pass);
+            console.log('🔍 Login response:', response);
+            console.log('🔍 Login response success:', response.success);
+            console.log('🔍 Login response data:', response.data);
+            
             if (response.success && response.data) {
                 const userData = response.data.user;
+                console.log('🔍 Login response accessToken:', response.data.accessToken);
+                console.log('🔍 Login response refreshToken:', response.data.refreshToken);
                 
                 // Load user wallet if user is regular user
                 if (userData.role === UserRole.USER) {
@@ -865,8 +1881,39 @@ const App: React.FC = () => {
                     }
                 }
                 
+                console.log('🔍 DEBUG - Setting currentUser after login:', userData);
                 setCurrentUser(userData);
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                console.log('🔍 DEBUG - currentUser saved to localStorage');
+                console.log('🔍 DEBUG - apiService token after login:', apiService.getAccessToken() ? 'exists' : 'missing');
+                console.log('🔍 DEBUG - localStorage token after login:', localStorage.getItem('accessToken') ? 'exists' : 'missing');
+                
+                // Check if tokens were properly set by apiService.login
+                console.log('🔍 DEBUG - Checking token storage:');
+                console.log('🔍 - localStorage accessToken:', localStorage.getItem('accessToken'));
+                console.log('🔍 - localStorage refreshToken:', localStorage.getItem('refreshToken'));
+                console.log('🔍 - apiService accessToken:', apiService.getAccessToken());
+                
+                // Always manually set tokens to ensure they are stored
+                if (response.data.accessToken && response.data.refreshToken) {
+                    console.log('🔧 Manually setting tokens in localStorage');
+                    console.log('🔧 accessToken:', response.data.accessToken);
+                    console.log('🔧 refreshToken:', response.data.refreshToken);
+                    localStorage.setItem('accessToken', response.data.accessToken);
+                    localStorage.setItem('refreshToken', response.data.refreshToken);
+                    console.log('🔧 Tokens set in localStorage');
+                    console.log('🔧 localStorage accessToken after set:', localStorage.getItem('accessToken'));
+                    console.log('🔧 localStorage refreshToken after set:', localStorage.getItem('refreshToken'));
+                    apiService.refreshTokens();
+                } else {
+                    console.error('❌ No tokens received from login response');
+                }
+                
+                // Force refresh apiService tokens from localStorage
+                console.log('🔧 Refreshing apiService tokens from localStorage');
+                apiService.refreshTokens();
                 logActivity(userData, t('activityLog.loggedIn'));
+                showSuccess('ورود موفق', `خوش آمدید ${userData.name || userData.username}!`);
                 if (selectedFlight) {
                     setView('PASSENGER_DETAILS');
                 }
@@ -877,22 +1924,28 @@ const App: React.FC = () => {
                 return true;
             }
             else {
-                setLoginError(response.error || t('login.errors.invalid'));
+                const errorMessage = response.error || t('login.errors.invalid');
+                setLoginError(errorMessage);
+                showError('خطا در ورود', errorMessage);
                 return false;
             }
         }
         catch (error) {
-            setLoginError(t('login.errors.invalid'));
+            const errorMessage = t('login.errors.invalid');
+            setLoginError(errorMessage);
+            showError('خطا در ورود', errorMessage);
             return false;
         }
     };
     
-    const handleAdminLogin = async (email: string, pass: string): Promise<boolean> => {
+    const handleAdminLogin = async (username: string, pass: string): Promise<boolean> => {
         try {
-            console.log('Admin login attempt with:', email);
-            const response = await apiService.login(email, pass);
+            console.log('Admin login attempt with:', username);
+            const response = await apiService.login(username, pass);
             console.log('Admin login response:', response);
-            if (response.success && response.data) {
+            
+            // Check if response has data (successful login)
+            if (response.data && response.data.user) {
                 const userData = response.data.user;
                 console.log('User data:', userData);
                 console.log('User role:', userData.role);
@@ -900,6 +1953,7 @@ const App: React.FC = () => {
                     console.log('User is admin, setting current user and view');
                     setCurrentUser(userData);
                     logActivity(userData, t('activityLog.adminLoggedIn'));
+                    showSuccess('ورود ادمین موفق', `خوش آمدید ${userData.name || userData.username}!`);
                     console.log('Setting view to PROFILE for admin');
                     setView('PROFILE'); // Will show dashboard
                     setLoginError(null);
@@ -908,7 +1962,9 @@ const App: React.FC = () => {
                 }
                 else {
                     console.log('User is not admin, showing error');
-                    setLoginError('شما مجوز دسترسی به پنل ادمین را ندارید');
+                    const errorMessage = 'شما مجوز دسترسی به پنل ادمین را ندارید';
+                    setLoginError(errorMessage);
+                    showError('خطا در دسترسی', errorMessage);
                     return false;
                 }
             }
@@ -956,15 +2012,20 @@ const App: React.FC = () => {
     
     const handleLogout = async () => {
         try {
+            const userToLog = currentUser; // Store current user before clearing
             await apiService.logout();
-            logActivity(currentUser, t('activityLog.loggedOut'));
+            if (userToLog) {
+                logActivity(userToLog, t('activityLog.loggedOut'));
+            }
             setCurrentUser(null);
+            localStorage.removeItem('currentUser'); // Clear user from localStorage
             setView('SEARCH');
         }
         catch (error) {
             console.error('Logout error:', error);
             // Force logout even if API call fails
             setCurrentUser(null);
+            localStorage.removeItem('currentUser'); // Clear user from localStorage
             setView('SEARCH');
         }
     };
@@ -1138,15 +2199,15 @@ const App: React.FC = () => {
             if (response.success) {
                 // Don't update password in state for security
                 logActivity(currentUser, `رمز عبور کاربر ${userId} تغییر یافت`);
-                alert('رمز عبور با موفقیت تغییر یافت');
+                showSuccess('تغییر رمز عبور', 'رمز عبور با موفقیت تغییر یافت');
             }
             else {
-                alert(response.error || 'خطا در تغییر رمز عبور');
+                showError('خطا در تغییر رمز عبور', response.error || 'خطا در تغییر رمز عبور');
             }
         }
         catch (error) {
             console.error('Reset password error:', error);
-            alert('خطا در تغییر رمز عبور');
+            showError('خطا در تغییر رمز عبور', 'خطا در تغییر رمز عبور');
         }
     }, [currentUser, logActivity]);
     const handleChargeUserWallet = useCallback(async (userId: string, amount: number, currency: Currency, description: string) => {
@@ -1170,34 +2231,63 @@ const App: React.FC = () => {
                     return u;
                 }));
                 logActivity(currentUser, `کیف پول کاربر ${userId} شارژ شد: ${amount} ${currency}`);
-                alert(`کیف پول با موفقیت شارژ شد: ${amount} ${currency}`);
+                showSuccess('شارژ کیف پول', `کیف پول با موفقیت شارژ شد: ${amount} ${currency}`);
             }
             else {
-                alert(response.error || 'خطا در شارژ کیف پول');
+                showError('خطا در شارژ کیف پول', response.error || 'خطا در شارژ کیف پول');
             }
         }
         catch (error) {
             console.error('Charge wallet error:', error);
-            alert('خطا در شارژ کیف پول');
+            showError('خطا در شارژ کیف پول', 'خطا در شارژ کیف پول');
         }
     }, [currentUser, setUsers, logActivity]);
     const handleCreateUser = useCallback(async (newUser: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>) => {
         try {
+            console.log('🔍 DEBUG - App.tsx handleCreateUser called with:', newUser);
+            console.log('🔍 DEBUG - Current user:', currentUser);
+            
+            // SENIOR FIX: Check if currentUser exists before proceeding
+            if (!currentUser) {
+                console.error('🔍 DEBUG - No current user, cannot create user');
+                throw new Error('کاربر فعلی موجود نیست');
+            }
+            
             const response = await apiService.createUser(newUser);
-            if (response.success) {
+            console.log('🔍 DEBUG - Create user response:', response);
+            
+            if (response.success && response.data?.user) {
                 const createdUser = response.data.user;
-                setUsers(prev => [...prev, createdUser]);
-                logActivity(currentUser, `کاربر جدید ${createdUser.name} ایجاد شد`);
+                console.log('🔍 DEBUG - Created user:', createdUser);
+                
+                // SENIOR FIX: Ensure users array is properly updated
+                setUsers(prev => {
+                    console.log('🔍 DEBUG - Previous users:', prev);
+                    const newUsers = [...prev, createdUser];
+                    console.log('🔍 DEBUG - New users array:', newUsers);
+                    return newUsers;
+                });
+                
+                // SENIOR FIX: Only log activity if currentUser exists
+                if (currentUser) {
+                    logActivity(currentUser, `کاربر جدید ${createdUser?.name || 'نامشخص'} ایجاد شد`);
+                }
+                
+                showSuccess('ایجاد کاربر', 'کاربر با موفقیت ایجاد شد');
+                console.log('🔍 DEBUG - User creation completed successfully');
             }
             else {
-                alert(response.error || 'خطا در ایجاد کاربر');
+                console.error('🔍 DEBUG - Create user failed:', response.error);
+                showError('خطا در ایجاد کاربر', response.error || 'خطا در ایجاد کاربر');
+                throw new Error(response.error || 'خطا در ایجاد کاربر');
             }
         }
         catch (error) {
-            console.error('Create user error:', error);
-            alert('خطا در ایجاد کاربر');
+            console.error('🔍 DEBUG - Create user error:', error);
+            showError('خطا در ایجاد کاربر', 'خطا در ایجاد کاربر');
+            throw error; // Re-throw to prevent modal from closing
         }
-    }, [currentUser, setUsers, logActivity]);
+    }, [currentUser, setUsers, logActivity, showSuccess, showError]);
     const handleUpdateTicket = useCallback(async (ticket: Ticket) => {
         try {
             const response = await apiService.updateTicketStatus(ticket.id, ticket.status);
@@ -1214,37 +2304,43 @@ const App: React.FC = () => {
             alert('خطا در به‌روزرسانی تیکت');
         }
     }, [currentUser, setTickets, logActivity]);
-    const handleAddMessageToTicket = useCallback(async (ticketId: string, message: TicketMessage) => {
+    const handleAddMessageToTicket = useCallback(async (ticketId: string, message: TicketMessage): Promise<void> => {
         try {
             const response = await apiService.adminReplyToTicket(ticketId, message.text, {});
-            if (response.success) {
-                setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, message], updatedAt: new Date().toISOString() } : t));
+            
+            if (response.success && response.data) {
+                // Use the complete ticket returned from the API
+                setTickets(prev => prev.map(t => 
+                    t.id === ticketId 
+                        ? { ...response.data, user: t.user } // Preserve the user field
+                        : t
+                ));
                 logActivity(currentUser, `پیام ادمین به تیکت ${ticketId} اضافه شد`);
             }
             else {
                 alert(response.error || 'خطا در ارسال پیام');
+                throw new Error(response.error || 'خطا در ارسال پیام');
             }
         }
         catch (error) {
             console.error('Add message error:', error);
             alert('خطا در ارسال پیام');
+            throw error;
         }
     }, [currentUser, setTickets, logActivity]);
     const handleUserAddMessageToTicket = useCallback(async (ticketId: string, messageText: string) => {
         if (!currentUser) return;
-        const newMessage: TicketMessage = {
-            id: `msg-${Date.now()}`,
-            author: 'USER',
-            authorName: currentUser.name,
-            text: messageText,
-            timestamp: new Date().toISOString(),
-        };
 
         try {
             const response = await apiService.addMessageToTicket(ticketId, messageText);
             if (response.success && response.data) {
-                // Re-opens the ticket if user replies
-                setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, messages: [...t.messages, newMessage], status: response.data.ticketStatus || 'OPEN', updatedAt: new Date().toISOString() } : t));
+                // Update the entire ticket with the new data from the API
+                setTickets(prev => prev.map(t => 
+                    t.id === ticketId 
+                        ? { ...response.data.ticket, user: t.user } // Preserve the user field
+                        : t
+                ));
+                logActivity(currentUser, `پیام کاربر به تیکت ${ticketId} اضافه شد`);
             }
             else {
                 alert(response.error || t('ticket.addMessageError'));
@@ -1263,6 +2359,72 @@ const App: React.FC = () => {
             sendTelegramMessage(telegramConfig, message);
         }
     }, [currentUser, telegramConfig, tickets, t, setTickets, sendTelegramMessage]);
+
+    const handleRefreshBookings = useCallback(async () => {
+        if (!currentUser || currentUser.role !== UserRole.USER) return;
+        
+        try {
+            console.log('🔄 Manual refresh of user bookings...');
+            console.log('🔄 currentUser.id:', currentUser.id);
+            
+            // Refresh apiService tokens
+            apiService.refreshTokens();
+            console.log('🔄 apiService token:', apiService.getAccessToken() ? 'exists' : 'missing');
+            
+            const userBookingsResponse = await apiService.getUserBookings();
+            console.log('🔄 userBookingsResponse:', userBookingsResponse);
+            
+            if (userBookingsResponse.success) {
+                setBookings(userBookingsResponse.data || []);
+                console.log('✅ User bookings refreshed successfully:', userBookingsResponse.data?.length || 0);
+                console.log('✅ Bookings data:', userBookingsResponse.data);
+                showSuccess('بروزرسانی رزروها', `رزروها با موفقیت بروزرسانی شد (${userBookingsResponse.data?.length || 0} رزرو)`);
+            } else {
+                console.warn('⚠️ Failed to refresh user bookings:', userBookingsResponse.error);
+                showError('خطا در بروزرسانی رزروها', 'خطا در بروزرسانی رزروها');
+            }
+        } catch (error) {
+            console.error('❌ Error refreshing user bookings:', error);
+            showError('خطا در بروزرسانی رزروها', 'خطا در بروزرسانی رزروها');
+        }
+    }, [currentUser, showSuccess, showError]);
+
+    const handleTestToken = useCallback(() => {
+        console.log('🔍 Testing token status...');
+        console.log('🔍 localStorage accessToken:', localStorage.getItem('accessToken'));
+        console.log('🔍 localStorage refreshToken:', localStorage.getItem('refreshToken'));
+        console.log('🔍 apiService accessToken:', apiService.getAccessToken());
+        console.log('🔍 currentUser:', currentUser);
+        
+        // Check all localStorage keys
+        console.log('🔍 All localStorage keys:', Object.keys(localStorage));
+        console.log('🔍 localStorage length:', localStorage.length);
+        
+        // Force refresh tokens
+        apiService.refreshTokens();
+        console.log('🔍 After refresh - apiService accessToken:', apiService.getAccessToken());
+        
+        // Try to manually set a test token
+        console.log('🔧 Setting test token...');
+        localStorage.setItem('testToken', 'test-value');
+        console.log('🔧 Test token set:', localStorage.getItem('testToken'));
+        
+        alert(`Token Status:
+localStorage: ${localStorage.getItem('accessToken') ? '✅' : '❌'}
+apiService: ${apiService.getAccessToken() ? '✅' : '❌'}
+User: ${currentUser ? '✅' : '❌'}
+Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
+    }, [currentUser]);
+
+    const handleForceLogout = useCallback(() => {
+        console.log('🔧 Force logout - clearing all data');
+        localStorage.clear();
+        setCurrentUser(null);
+        setView('SEARCH');
+        console.log('🔧 Force logout completed');
+        alert('خروج اجباری انجام شد. لطفاً دوباره لاگین کنید.');
+    }, []);
+
     const handleCreateBasicData = useCallback(async (type: BasicDataType, data: any) => {
         try {
             const response = await apiService.createBasicData(type, data);
@@ -1527,7 +2689,7 @@ const App: React.FC = () => {
             if (changeMessage) {
                 const flightBookings = bookings.filter(b => b.flight.id === updatedFlight.id && b.status === 'CONFIRMED');
                 flightBookings.forEach(booking => {
-                    const message = t('whatsapp.flightChange.baseMessage', booking.user.name, updatedFlight.flightNumber, updatedFlight.departure.city, updatedFlight.arrival.city) + ' ' + changeMessage;
+                    const message = t('whatsapp.flightChange.baseMessage', booking.user?.name || 'Unknown', updatedFlight.flightNumber, updatedFlight.departure.city, updatedFlight.arrival.city) + ' ' + changeMessage;
                     sendWhatsAppMessage(whatsAppBotConfig, booking.contactPhone, message);
                 });
             }
@@ -1553,7 +2715,83 @@ const App: React.FC = () => {
             alert('خطا در حذف پرواز');
         }
     }, [allFlights, currentUser, setAllFlights, logActivity]);
-    const onManualBookingCreate = useCallback(async () => { return null; }, []);
+    const onManualBookingCreate = useCallback(async (data: { flightData: Omit<Flight, 'id' | 'creatorId'>, passengers: { adults: PassengerDetails[], children: PassengerDetails[], infants: PassengerDetails[] }, customerId: string, purchasePrice: number, contactEmail: string, contactPhone: string, buyerReference?: string, notes?: string }) => {
+        try {
+            // First create the flight
+            const flightResponse = await apiService.createFlight({
+                ...data.flightData,
+                commissionModelId: null,
+                refundPolicyId: null,
+                creatorId: currentUser.id,
+            } as Flight);
+
+            if (!flightResponse.success) {
+                alert(flightResponse.error || 'خطا در ایجاد پرواز');
+                return null;
+            }
+
+            const createdFlight = flightResponse.data;
+
+            // Then create the booking
+            const bookingResponse = await apiService.createBooking({
+                flightId: createdFlight.id,
+                passengers: {
+                    adults: data.passengers.adults,
+                    children: data.passengers.children,
+                    infants: data.passengers.infants
+                },
+                contactEmail: data.contactEmail,
+                contactPhone: data.contactPhone,
+                buyerReference: data.buyerReference,
+                notes: data.notes,
+                purchasePrice: data.purchasePrice,
+                customerId: data.customerId,
+                searchQuery: JSON.stringify({
+                    type: 'manual_booking',
+                    flightId: createdFlight.id,
+                    airline: data.flightData.airline,
+                    departure: data.flightData.departure,
+                    arrival: data.flightData.arrival,
+                    date: data.flightData.departure.dateTime
+                })
+            });
+
+            if (!bookingResponse.success) {
+                alert(bookingResponse.error || 'خطا در ایجاد رزرو');
+                return null;
+            }
+
+            const createdBooking = bookingResponse.data.booking;
+
+            // Transform the booking data to match the expected structure
+            const transformedBooking: Booking = {
+                ...createdBooking,
+                passengers: createdBooking.passengersData 
+                    ? JSON.parse(createdBooking.passengersData)
+                    : {
+                        adults: createdBooking.passengersInfo || [],
+                        children: [],
+                        infants: []
+                    }
+            };
+
+            // Update local state
+            setAllFlights(prev => [...prev, createdFlight]);
+            setBookings(prev => [...prev, transformedBooking]);
+
+            // Log activity
+            logActivity(currentUser, `رزرو تلفنی جدید ایجاد شد - شماره مرجع: ${transformedBooking.id}`);
+
+            // Show success message
+            alert(`رزرو تلفنی با موفقیت ایجاد شد!\nشماره مرجع: ${transformedBooking.id}`);
+
+            return transformedBooking;
+        } catch (error) {
+            console.error('Manual booking creation error:', error);
+            alert('خطا در ایجاد رزرو تلفنی');
+            return null;
+        }
+    }, [currentUser, setAllFlights, setBookings, logActivity]);
     const onCreateExpense = useCallback(async (expenseData: any) => {
         try {
             const response = await apiService.createExpense(expenseData);
@@ -1640,7 +2878,7 @@ const App: React.FC = () => {
                 // Only update name in local state for security reasons (passwords are not stored client-side)
                 setCurrentUser(prevUser => {
                     if (!prevUser) return null;
-                    return { ...prevUser, name: response.data.user.name || prevUser.name };
+                    return { ...prevUser, name: response.data.user?.name || prevUser.name };
                 });
                 logActivity(currentUser, t('activityLog.profileUpdated'));
                 return { success: true, message: t('profile.update.success') };
@@ -1654,7 +2892,7 @@ const App: React.FC = () => {
             return { success: false, message: t('profile.update.error') };
         }
     }, [currentUser, t, logActivity, setCurrentUser]);
-    const onCreateTicket = useCallback(async (ticketData: any) => {
+    const onCreateTicket = useCallback(async (subject: string, message: string, bookingId?: string) => {
         if (!currentUser) {
             alert('خطا: کاربر وارد نشده است');
             return { success: false };
@@ -1663,9 +2901,9 @@ const App: React.FC = () => {
         try {
             // Ensure ticketData has the correct format
             const formattedTicketData = {
-                subject: ticketData.subject || '',
-                message: ticketData.message || '',
-                bookingId: ticketData.bookingId || null,
+                subject: subject || '',
+                message: message || '',
+                bookingId: bookingId || null,
                 userId: currentUser.id
             };
             
@@ -1770,13 +3008,32 @@ const App: React.FC = () => {
     }, [currentUser, t, logActivity, setCurrentUser]);
 
     const handleGoToProfile = useCallback(() => setView('PROFILE'), [setView]);
-    const handleGoToSearch = useCallback(() => setView('SEARCH'), [setView]);
+    const handleGoToSearch = useCallback(() => {
+        console.log('🚀 PROFESSIONAL - handleGoToSearch called');
+        console.log('🚀 PROFESSIONAL - Current view:', view);
+        console.log('🚀 PROFESSIONAL - Current searchQuery:', searchQuery);
+        
+        // Clear search results when going back to search
+        setSearchQuery(null);
+        setFlights([]);
+        setView('SEARCH');
+    }, [setView]);
 
     const currentTenant = useMemo(() => tenants.find(t => t.id === currentUser?.tenantId) || tenants[0], [currentUser, tenants]);
 
     const renderContent = () => {
-        console.log('Current view:', view, 'Current user:', currentUser);
-        const step = view === 'SEARCH' ? 0 : view === 'PASSENGER_DETAILS' ? 1 : view === 'REVIEW' ? 2 : view === 'CONFIRMATION' ? 3 : -1;
+        console.log('🚀 SENIOR FIX - renderContent called');
+        console.log('🚀 SENIOR FIX - Current view:', view);
+        console.log('🚀 SENIOR FIX - Current user:', currentUser);
+        console.log('🚀 SENIOR FIX - localStorage currentUser:', localStorage.getItem('currentUser'));
+        console.log('🚀 SENIOR FIX - searchQuery:', searchQuery);
+        console.log('🚀 SENIOR FIX - flights.length:', flights.length);
+        const step = view === 'SEARCH_RESULTS' ? 0 : view === 'PASSENGER_DETAILS' ? 1 : view === 'REVIEW' ? 2 : view === 'CONFIRMATION' ? 3 : -1;
+        
+        console.log('🚀 SENIOR FIX - step:', step);
+        console.log('🚀 SENIOR FIX - step !== -1:', step !== -1);
+        console.log('🚀 SENIOR FIX - searchQuery exists:', !!searchQuery);
+        console.log('🚀 SENIOR FIX - step !== -1 && searchQuery:', step !== -1 && searchQuery);
         
         if (step !== -1 && searchQuery) {
              return (
@@ -1784,36 +3041,127 @@ const App: React.FC = () => {
                     <div className="mb-8">
                         <BookingStepper steps={[t('stepper.selectFlight'), t('stepper.passengerDetails'), t('stepper.review'), t('stepper.confirmAndPay')]} activeStep={step} />
                     </div>
-                    {view === 'PASSENGER_DETAILS' && selectedFlight && searchQuery && currentUser && <PassengerDetailsForm flight={selectedFlight} query={searchQuery} user={currentUser} currencies={currencies} onBack={handleBackToSearch} onSubmit={handlePassengerDetailsSubmit} />}
+                    {view === 'SEARCH_RESULTS' && searchQuery && <SearchResults flights={flights} searchQuery={searchQuery} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} />}
+                    {view === 'PASSENGER_DETAILS' && selectedFlight && searchQuery && currentUser && <PassengerDetailsForm flight={selectedFlight} query={searchQuery} user={currentUser} currencies={currencies} savedPassengers={savedPassengers} onBack={handleBackToSearch} onSubmit={handlePassengerDetailsSubmit} />}
                     {view === 'REVIEW' && selectedFlight && searchQuery && passengersData && currentUser && <BookingReview flight={selectedFlight} query={searchQuery} passengers={passengersData} user={currentUser} onBack={handleBackToPassengerDetails} onConfirmBooking={handleConfirmBooking} currencies={currencies} />}
-                    {view === 'CONFIRMATION' && selectedFlight && searchQuery && passengersData && currentUser && <BookingConfirmation flight={selectedFlight} query={searchQuery} passengerData={passengersData} user={currentUser} currencies={currencies} onBack={handleBackToPassengerDetails} onConfirm={handleConfirmBooking} />}
+                    {view === 'CONFIRMATION' && (() => {
+                        console.log('🔍 DEBUG - CONFIRMATION view conditions:', {
+                            selectedFlight: !!selectedFlight,
+                            searchQuery: !!searchQuery,
+                            passengersData: !!passengersData,
+                            currentUser: !!currentUser,
+                            selectedFlightData: selectedFlight,
+                            searchQueryData: searchQuery,
+                            passengersDataData: passengersData,
+                            currentUserData: currentUser
+                        });
+                        
+                        return selectedFlight && searchQuery && passengersData && currentUser ? 
+                            <BookingConfirmation 
+                                flight={selectedFlight} 
+                                query={searchQuery} 
+                                passengerData={passengersData} 
+                                user={currentUser} 
+                                currencies={currencies} 
+                                onBack={handleBackToPassengerDetails} 
+                                onConfirm={handleConfirmBooking} 
+                            /> :
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                                <h3 className="font-bold">خطا در نمایش صفحه تایید</h3>
+                                <p>داده‌های مورد نیاز موجود نیست:</p>
+                                <ul className="list-disc list-inside mt-2">
+                                    <li>پرواز انتخاب شده: {selectedFlight ? '✅' : '❌'}</li>
+                                    <li>جستجو: {searchQuery ? '✅' : '❌'}</li>
+                                    <li>اطلاعات مسافرین: {passengersData ? '✅' : '❌'}</li>
+                                    <li>کاربر: {currentUser ? '✅' : '❌'}</li>
+                                </ul>
+                            </div>;
+                    })()}
                 </div>
             );
         }
 
         switch (view) {
             case 'SEARCH':
+                return <HomePage onSearch={handleSearch} onSepehrSearch={handleSepehrSearch} isLoading={isLoading} airports={airports} />;
+            case 'SEARCH_RESULTS':
+                console.log('🚀 PROFESSIONAL - Case SEARCH_RESULTS');
+                console.log('🚀 PROFESSIONAL - searchQuery in SEARCH_RESULTS case:', searchQuery);
+                console.log('🚀 PROFESSIONAL - flights in SEARCH_RESULTS case:', flights);
+                console.log('🚀 PROFESSIONAL - flights.length in SEARCH_RESULTS case:', flights.length);
+                
+                // PROFESSIONAL APPROACH: Show SearchResults for search results
                 return (
-                    <>
-                        <div className="relative bg-cover bg-center" style={{ backgroundImage: `url(${siteContent.home.heroImageUrl})` }}>
-                            <div className="absolute inset-0 bg-black/50"></div>
-                            <div className="relative container mx-auto px-4 py-16 md:py-24">
-                                <FlightSearchForm onSearch={handleSearch} isLoading={isLoading} airports={airports} />
+                    <SearchResults 
+                        key={`search-results-${searchQuery?.from || 'unknown'}-${searchQuery?.to || 'unknown'}-${searchQuery?.departureDate || 'unknown'}`}
+                        flights={flights} 
+                        searchQuery={searchQuery}
+                        onSelectFlight={handleSelectFlight} 
+                        refundPolicies={refundPolicies} 
+                        advertisements={advertisements} 
+                        currentUser={currentUser} 
+                        currencies={currencies} 
+                        popularRoutes={popularRoutes} 
+                        onSearch={handleSearch} 
+                    />
+                );
+            case 'SEPEHR_SEARCH_RESULTS':
+                return (
+                    <SearchResults
+                        flights={sepehrResults}
+                        searchQuery={searchQuery}
+                        onSelectFlight={handleSepehrFlightSelect}
+                        refundPolicies={refundPolicies}
+                        advertisements={advertisements}
+                        currentUser={currentUser}
+                        currencies={currencies}
+                        popularRoutes={[]}
+                        onSearch={handleSearch}
+                    />
+                );
+            case 'SEPEHR_BOOKING':
+                return (
+                    <BookingStepper
+                        flight={selectedFlight}
+                        onBookingSuccess={handleSepehrBookingSuccess}
+                        onCancel={handleSepehrBookingCancel}
+                        currentUser={currentUser}
+                        currencies={currencies}
+                        refundPolicies={refundPolicies}
+                    />
+                );
+            case 'SEPEHR_BOOKING_CONFIRMATION':
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="bg-white rounded-xl shadow-lg p-8 max-w-2xl w-full mx-4">
+                            <div className="text-center">
+                                <div className="text-green-500 text-6xl mb-4">✅</div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                                    رزرو با موفقیت انجام شد!
+                                </h2>
+                                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold mb-2">جزئیات رزرو:</h3>
+                                    <p><strong>شماره رزرو:</strong> {sepehrBookingData?.bookingId}</p>
+                                    <p><strong>وضعیت:</strong> {sepehrBookingData?.status}</p>
+                                    <p><strong>قیمت کل:</strong> {sepehrBookingData?.totalPrice?.toLocaleString('fa-IR')} تومان</p>
+                            </div>
+                                <div className="flex gap-4 justify-center">
+                                    <button
+                                        onClick={() => setView('SEARCH')}
+                                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        جستجوی جدید
+                                    </button>
+                                    <button
+                                        onClick={() => setView('PROFILE')}
+                                        className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                                    >
+                                        مشاهده پروفایل
+                                    </button>
+                        </div>
                             </div>
                         </div>
-                        
-    
-                        
-                        
-                        {searchQuery ? (
-                            <SearchResults flights={flights} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} />
-                        ) : (
-                            <>
-                                <WhyChooseUs />
-                                <PopularDestinations content={siteContent.home.popularDestinations} />
-                            </>
-                        )}
-                    </>
+                    </div>
                 );
             case 'LOGIN':
                 return <LoginPage onLogin={handleLogin} onGoToSignup={() => setView('SIGNUP')} error={loginError} />;
@@ -1822,7 +3170,21 @@ const App: React.FC = () => {
             case 'PROFILE':
                 if (!currentUser) return <LoginPage onLogin={handleLogin} onGoToSignup={() => setView('SIGNUP')} error={loginError} />;
                 if (currentUser.role === UserRole.USER) {
-                    return <ProfilePage user={currentUser} bookings={bookings.filter(b => b.user?.id === currentUser.id)} tickets={tickets.filter(t => t.user?.id === currentUser.id)} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} />;
+                    const userBookings = bookings.filter(b => b && b.user && b.user.id === currentUser.id);
+                    const userTickets = tickets.filter(t => t && t.user && t.user.id === currentUser.id);
+                    
+                    console.log('🔍 DEBUG - ProfilePage bookings filter:');
+                    console.log('🔍 - Total bookings:', bookings.length);
+                    console.log('🔍 - Current user ID:', currentUser.id);
+                    console.log('🔍 - Bookings with user data:', bookings.filter(b => b && b.user).length);
+                    console.log('🔍 - Bookings structure sample:', bookings[0]);
+                    console.log('🔍 - Bookings userId field:', bookings.map(b => ({ id: b?.id, userId: b?.userId, user: b?.user })));
+                    console.log('🔍 - User bookings after filter:', userBookings.length);
+                    console.log('🔍 - User bookings details:', userBookings.map(b => ({ id: b?.id, userId: b?.user?.id, status: b?.status })));
+                    console.log('🔍 - Current user savedPassengers:', currentUser.savedPassengers?.length || 0);
+                    console.log('🔍 - Current user savedPassengers details:', currentUser.savedPassengers);
+                    
+                    return <ProfilePage user={currentUser} bookings={userBookings} tickets={userTickets} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} onRefreshBookings={handleRefreshBookings} onTestToken={handleTestToken} />;
                 }
                 return <DashboardPage 
                     user={currentUser}
@@ -1889,6 +3251,8 @@ const App: React.FC = () => {
                 return <ContactPage siteContent={siteContent.contact} />;
             case 'CURRENCY_CONVERTER':
                 return <CurrencyConverter currencies={currencies} />;
+            case 'SIMPLE_TEST':
+                return <SimpleFlightTest />;
             default:
                 return null;
         }
@@ -1898,12 +3262,30 @@ const App: React.FC = () => {
         <div className={`App font-sans`} data-lang={language}>
             <Header user={currentUser} tenant={currentTenant} onLoginClick={() => setView('LOGIN')} onLogout={handleLogout} onProfileClick={handleGoToProfile} onLogoClick={handleGoToSearch} onCurrencyConverterClick={() => setView('CURRENCY_CONVERTER')} />
             <main className="bg-secondary min-h-[calc(100vh-128px)]">
-                {isLoading ? <LoadingSpinner /> : renderContent()}
+                {renderContent()}
             </main>
             <Footer user={currentUser} siteContent={siteContent} onAdminLoginClick={() => setView('ADMIN_LOGIN')} onGoToAbout={() => setView('ABOUT')} onGoToContact={() => setView('CONTACT')} />
+            
+            {/* Loading Popup */}
+            <LoadingPopup
+                isVisible={isLoading && loadingSettings.isActive}
+                title={loadingSettings.title}
+                subtitle={loadingSettings.subtitle}
+                imageUrl={loadingSettings.imageUrl}
+                backgroundColor={loadingSettings.backgroundColor}
+                textColor={loadingSettings.textColor}
+                animationType={loadingSettings.animationType}
+            />
         </div>
     );
 };
 
-export default App;
+const AppWithNotifications: React.FC = () => {
+    return (
+        <NotificationProvider>
+            <App />
+        </NotificationProvider>
+    );
+};
 
+export default AppWithNotifications;

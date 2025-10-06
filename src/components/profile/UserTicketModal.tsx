@@ -14,15 +14,17 @@ interface UserTicketModalProps {
 const MessageBubble: React.FC<{ message: TicketMessage; formatDate: (date: string, options?: any) => string }> = ({ message, formatDate }) => {
     const isAdmin = message.author === 'ADMIN';
     return (
-        <div className={`flex items-start gap-3 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdmin ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
-                {isAdmin ? <CogIcon className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
-            </div>
-            <div className={`p-3 rounded-lg max-w-lg ${isAdmin ? 'bg-primary text-white' : 'bg-slate-100'}`}>
-                <p className="text-sm">{message.text}</p>
-                <p className={`text-xs mt-2 opacity-70 ${isAdmin ? 'text-right' : 'text-left'}`}>
-                    {message.authorName} - {formatDate(message.timestamp, { dateStyle: 'short', timeStyle: 'short' })}
-                </p>
+        <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex items-start gap-3 max-w-[80%] ${isAdmin ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdmin ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-600'}`}>
+                    {isAdmin ? <CogIcon className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
+                </div>
+                <div className={`p-3 rounded-lg ${isAdmin ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-gray-200 text-gray-800 rounded-bl-sm'}`}>
+                    <p className="text-sm">{message.text}</p>
+                    <p className={`text-xs mt-2 opacity-70 ${isAdmin ? 'text-right' : 'text-left'}`}>
+                        {message.authorName} - {formatDate(message.timestamp, { dateStyle: 'short', timeStyle: 'short' })}
+                    </p>
+                </div>
             </div>
         </div>
     );
@@ -62,7 +64,7 @@ export const UserTicketModal: React.FC<UserTicketModalProps> = ({ ticket, onClos
                     <div ref={messagesEndRef} />
                 </div>
 
-                {ticket.status !== 'CLOSED' && (
+                {ticket.status !== 'CLOSED' && ticket.status !== 'COMPLETED' && (
                     <form onSubmit={handleReply} className="p-4 border-t bg-white flex items-center gap-3">
                         <textarea
                             value={replyText}
@@ -75,6 +77,16 @@ export const UserTicketModal: React.FC<UserTicketModalProps> = ({ ticket, onClos
                             {t('profile.myTickets.userTicketModal.sendReply')}
                         </button>
                     </form>
+                )}
+
+                {/* Completed ticket message */}
+                {ticket.status === 'COMPLETED' && (
+                    <div className="p-4 border-t bg-gray-50">
+                        <div className="text-center text-gray-600">
+                            <p className="text-sm">این تیکت تکمیل شده و امکان ارسال پیام جدید وجود ندارد.</p>
+                            <p className="text-xs mt-1">شما می‌توانید تیکت جدیدی ایجاد کنید.</p>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

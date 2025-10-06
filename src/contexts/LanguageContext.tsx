@@ -58,16 +58,17 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const formatDate = useCallback((dateString: string, options?: Intl.DateTimeFormatOptions) => {
         const defaultOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
         
-        if (typeof dateString !== 'string' || !dateString) {
+        // Handle empty objects, null, undefined, or invalid inputs
+        if (!dateString || typeof dateString !== 'string' || dateString === '{}' || dateString === 'null' || dateString === 'undefined') {
             console.error("formatDate received invalid input:", dateString);
-            return "Invalid Date";
+            return "نامشخص";
         }
 
         const date = new Date(dateString);
 
         if (isNaN(date.getTime())) {
             console.error("Could not parse date string:", dateString);
-            return 'Invalid Date';
+            return 'نامشخص';
         }
 
         try {

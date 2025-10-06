@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,10 +7,545 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                 String              @id @default(cuid())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  email              String              @unique
+  username           String              @unique
+  name               String
+  phone              String?
+  passwordHash       String
+  role               UserRole            @default(USER)
+  status             UserStatus          @default(ACTIVE)
+  canBypassRateLimit Boolean             @default(false)
+  tenantId           String?
+  displayCurrencies  String              @default("[]")
+  activityLogs       ActivityLog[]
+  bookings           Booking[]
+  expenses           Expense[]
+  createdFlights     Flight[]            @relation("FlightCreator")
+  journalEntries     JournalEntry[]
+  refreshTokens      RefreshToken[]
+  refunds            Refund[]
+  savedPassengers    SavedPassenger[]
+  agentAllotments    SeatAllotment[]     @relation("AgentAllotments")
+  tickets            Ticket[]
+  tenant             Tenant?             @relation(fields: [tenantId], references: [id])
+  walletTransactions WalletTransaction[]
+  wallets            Wallet[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model SavedPassenger {
+  id                     String   @id @default(cuid())
+  userId                 String
+  firstName              String
+  lastName               String
+  nationality            String
+  gender                 String
+  nationalId             String?
+  passportNumber         String?
+  passportIssuingCountry String?
+  dateOfBirth            String?
+  passportExpiryDate     String?
+  createdAt              DateTime @default(now())
+  bookingId              String?
+  booking                Booking? @relation("BookingPassengers", fields: [bookingId], references: [id])
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_passengers")
+}
+
+model Tenant {
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String                  @unique
+  contactEmail           String
+  contactPhone           String
+  isActive               Boolean                 @default(true)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  logoUrl                String?
+  primaryColor           String?
+  theme                  String                  @default("default")
+  homepageContentId      String                  @default("home-1")
+  supportedLanguages     String                  @default("[\"fa\", \"en\", \"ar\"]")
+  supportedCurrencies    String                  @default("[\"IRR\", \"USD\"]")
+  domain                 String?                 @unique
+  subdomain              String?                 @unique
+  customDomain           String?                 @unique
+  parentTenantId         String?
+  commissionRate         Float                   @default(5.0)
+  commissionAmount       BigInt?
+  commissionType         String                  @default("PERCENTAGE")
+  parentCommissionRate   Float                   @default(2.0)
+  parentCommissionAmount BigInt?
+  parentCommissionType   String                  @default("PERCENTAGE")
+  isWhiteLabel           Boolean                 @default(false)
+  pricingType            String                  @default("GROSS")
+  customBranding         String?
+  footerText             String?
+  supportEmail           String?
+  supportPhone           String?
+  bookings               Booking[]
+  commissionTransactions CommissionTransaction[]
+  parentTenant           Tenant?                 @relation("TenantHierarchy", fields: [parentTenantId], references: [id])
+  subTenants             Tenant[]                @relation("TenantHierarchy")
+  users                  User[]
+
+  @@map("tenants")
+}
+
+model Flight {
+  id                                String           @id @default(cuid())
+  airline                           String
+  airlineLogoUrl                    String?
+  flightNumber                      String
+  aircraft                          String
+  flightClass                       String
+  duration                          Int
+  stops                             Int              @default(0)
+  price                             BigInt
+  taxes                             BigInt
+  availableSeats                    Int
+  totalCapacity                     Int
+  baggageAllowance                  String?
+  status                            FlightStatus       @default(ON_TIME)
+  bookingClosesBeforeDepartureHours Int              @default(3)
+  sourcingType                      String           @default("Manual")
+  source                            String           @default("manual")
+  commissionModelId                 String?
+  refundPolicyId                    String?
+  creatorId                         String?
+  tenantId                          String?
+  createdAt                         DateTime         @default(now())
+  updatedAt                         DateTime         @updatedAt
+  departureAirportId                String?
+  departureTerminal                 String?
+  departureGate                     String?
+  departureTime                     DateTime
+  arrivalAirportId                  String?
+  arrivalTerminal                   String?
+  arrivalGate                       String?
+  arrivalTime                       DateTime
+  airlineId                         String?
+  aircraftId                        String?
+  flightClassId                     String?
+  bookings                          Booking[]
+  flightClassInfo                   FlightClass?     @relation(fields: [flightClassId], references: [id])
+  aircraftInfo                      Aircraft?        @relation(fields: [aircraftId], references: [id])
+  airlineInfo                       Airline?         @relation(fields: [airlineId], references: [id])
+  arrivalAirport                    Airport?         @relation("ArrivalFlight", fields: [arrivalAirportId], references: [id])
+  departureAirport                  Airport?         @relation("DepartureFlight", fields: [departureAirportId], references: [id])
+  creator                           User?            @relation("FlightCreator", fields: [creatorId], references: [id])
+  refundPolicy                      RefundPolicy?    @relation(fields: [refundPolicyId], references: [id])
+  commissionModel                   CommissionModel? @relation(fields: [commissionModelId], references: [id])
+  allotments                        SeatAllotment[]
+
+  @@map("flights")
+}
+
+model SeatAllotment {
+  id        String   @id @default(cuid())
+  flightId  String
+  agentId   String
+  seats     Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  agent     User     @relation("AgentAllotments", fields: [agentId], references: [id])
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+
+  @@map("seat_allotments")
+}
+
+model Booking {
+  id                     String                  @id @default(cuid())
+  userId                 String
+  flightId               String
+  contactEmail           String
+  contactPhone           String
+  bookingDate            DateTime                @default(now())
+  status                 BookingStatus           @default(CONFIRMED)
+  cancellationDate       DateTime?
+  purchasePrice          Int?
+  totalPrice             Int?
+  buyerReference         String?
+  notes                  String?
+  tenantId               String
+  passengersData         String
+  searchQuery            String
+  source                 String                  @default("manual")
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id])
+  flight                 Flight                  @relation(fields: [flightId], references: [id])
+  user                   User                    @relation(fields: [userId], references: [id])
+  commissionTransactions CommissionTransaction[]
+  refunds                Refund[]
+  passengersInfo         SavedPassenger[]        @relation("BookingPassengers")
+  tickets                Ticket[]
+
+  @@map("bookings")
+}
+
+model Ticket {
+  id        String          @id @default(cuid())
+  userId    String
+  bookingId String?
+  subject   String
+  status    TicketStatus    @default(OPEN)
+  priority  String          @default("MEDIUM")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  TicketMessage[]
+  booking   Booking?        @relation(fields: [bookingId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  authorType String
+  text       String
+  timestamp  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+
+model Refund {
+  id                    String    @id @default(cuid())
+  bookingId             String
+  userId                String
+  requestDate           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  status                String    @default("PENDING_EXPERT_REVIEW")
+  originalAmount        Int
+  penaltyAmount         Int
+  refundAmount          Int
+  reason                String?
+  adminNotes            String?
+  processedAt           DateTime?
+  expertReviewerName    String?
+  expertReviewDate      DateTime?
+  financialReviewerName String?
+  financialReviewDate   DateTime?
+  paymentProcessorName  String?
+  paymentDate           DateTime?
+  rejecterName          String?
+  rejectionDate         DateTime?
+  rejectionReason       String?
+  user                  User      @relation(fields: [userId], references: [id])
+  booking               Booking   @relation(fields: [bookingId], references: [id])
+
+  @@map("refunds")
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  balance   BigInt   @default(0)
+  currency  String   @default("IRR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, currency])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id               String          @id @default(cuid())
+  userId           String
+  date             DateTime        @default(now())
+  type             TransactionType
+  amount           BigInt
+  currency         String
+  description      String
+  relatedBookingId String?
+  relatedUserId    String?
+  user             User            @relation(fields: [userId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+model Account {
+  id           String        @id
+  name         String
+  code         String?
+  type         AccountType
+  parentId     String?
+  isParent     Boolean       @default(false)
+  balance      Int           @default(0)
+  currency     String        @default("IRR")
+  parent       Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountHierarchy")
+  expenses     Expense[]
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id           String        @id @default(cuid())
+  date         DateTime      @default(now())
+  description  String
+  userId       String?
+  bookingId    String?
+  user         User?         @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+
+  @@map("journal_entries")
+}
+
+model Transaction {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Int          @default(0)
+  credit         Int          @default(0)
+  account        Account      @relation(fields: [accountId], references: [id])
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Expense {
+  id               String   @id @default(cuid())
+  date             DateTime @default(now())
+  description      String
+  amount           Int
+  currency         String   @default("IRR")
+  accountId        String
+  recordedByUserId String
+  recordedBy       User     @relation(fields: [recordedByUserId], references: [id])
+  account          Account  @relation(fields: [accountId], references: [id])
+
+  @@map("expenses")
+}
+
+model Airline {
+  id      String   @id @default(cuid())
+  name    String
+  logoUrl String
+  flights Flight[]
+
+  @@map("airlines")
+}
+
+model Aircraft {
+  id       String   @id @default(cuid())
+  name     String
+  capacity Int
+  flights  Flight[]
+
+  @@map("aircrafts")
+}
+
+model FlightClass {
+  id      String   @id @default(cuid())
+  name    String
+  flights Flight[]
+
+  @@map("flight_classes")
+}
+
+model Airport {
+  id               String   @id @default(cuid())
+  iata             String   @unique
+  icao             String?
+  name             String
+  city             String
+  country          String
+  code             String?  @unique
+  arrivalFlights   Flight[] @relation("ArrivalFlight")
+  departureFlights Flight[] @relation("DepartureFlight")
+
+  @@map("airports")
+}
+
+model CommissionModel {
+  id                   String   @id @default(cuid())
+  name                 String
+  calculationType      String
+  charterCommission    Float
+  creatorCommission    Float
+  webServiceCommission Float
+  flights              Flight[]
+
+  @@map("commission_models")
+}
+
+model RateLimit {
+  id       String @id @default(cuid())
+  fromCity String
+  toCity   String
+  maxPrice Int
+
+  @@map("rate_limits")
+}
+
+model RefundPolicy {
+  id         String   @id @default(cuid())
+  name       String
+  policyType String?
+  airlineId  String?
+  rules      String
+  flights    Flight[]
+
+  @@map("refund_policies")
+}
+
+model CommissionTransaction {
+  id               String    @id @default(cuid())
+  tenantId         String
+  bookingId        String
+  agentCommission  Float
+  parentCommission Float
+  totalAmount      BigInt
+  agentAmount      BigInt
+  parentAmount     BigInt
+  status           String    @default("PENDING")
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  booking          Booking   @relation(fields: [bookingId], references: [id])
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@map("commission_transactions")
+}
+
+model Currency {
+  id                String         @id @default(cuid())
+  name              String
+  code              String         @unique
+  symbol            String
+  exchangeRateToUSD Float
+  isBaseCurrency    Boolean        @default(false)
+  isActive          Boolean        @default(true)
+  targetRates       ExchangeRate[] @relation("TargetCurrency")
+  exchangeRates     ExchangeRate[] @relation("BaseCurrency")
+
+  @@map("currencies")
+}
+
+model ExchangeRate {
+  id               String   @id @default(cuid())
+  baseCurrencyId   String
+  targetCurrencyId String
+  rate             Float
+  lastUpdated      DateTime @default(now())
+  source           String   @default("MANUAL")
+  isActive         Boolean  @default(true)
+  targetCurrency   Currency @relation("TargetCurrency", fields: [targetCurrencyId], references: [id])
+  baseCurrency     Currency @relation("BaseCurrency", fields: [baseCurrencyId], references: [id])
+
+  @@unique([baseCurrencyId, targetCurrencyId])
+  @@map("exchange_rates")
+}
+
+model Country {
+  id          String  @id
+  name        String
+  flag        String?
+  dialingCode String
+  currency    String
+
+  @@map("countries")
+}
+
+model Advertisement {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String
+  linkUrl         String?
+  backgroundColor String?
+  textColor       String?
+  isActive        Boolean  @default(true)
+  position        String   @default("flight-results")
+  priority        Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("advertisements")
+}
+
+model SiteContent {
+  id        String   @id @default(cuid())
+  section   String   @unique
+  content   String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_content")
+}
+
+model TelegramBotConfig {
+  id        String   @id @default("telegram_config")
+  isEnabled Boolean  @default(false)
+  botToken  String?
+  chatId    String?
+  notifyOn  String
+  updatedAt DateTime @updatedAt
+
+  @@map("telegram_bot_config")
+}
+
+model WhatsAppBotConfig {
+  id            String   @id @default("whatsapp_config")
+  isEnabled     Boolean  @default(false)
+  apiKey        String?
+  phoneNumberId String?
+  notifyOn      String
+  updatedAt     DateTime @updatedAt
+
+  @@map("whatsapp_bot_config")
+}
+
+model RolePermissions {
+  id          String   @id @default("role_permissions")
+  permissions String
+  updatedAt   DateTime @updatedAt
+
+  @@map("role_permissions")
+}
 enum UserRole {
   USER
   ADMIN
   SUPER_ADMIN
+}
+
+enum FlightStatus {
+  ON_TIME
+  CLOSE
+  WAITING_FOR_COMMAND
+  NO_AVAILABILITY
+  CALL_US
+  CANCELLED
 }
 
 enum UserStatus {
@@ -39,6 +568,10 @@ enum TicketStatus {
   IN_PROGRESS
   CLOSED
   RESOLVED
+  PENDING_CUSTOMER
+  WAITING_FOR_SUPPORT
+  RESPONDED
+  COMPLETED
 }
 
 enum TransactionType {
@@ -58,511 +591,3 @@ enum AccountType {
   EXPENSE
 }
 
-model User {
-  id                 String     @id @default(cuid())
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  email              String     @unique
-  username           String     @unique
-  name               String
-  phone              String?
-  passwordHash       String
-  role               UserRole   @default(USER)
-  status             UserStatus @default(ACTIVE)
-  canBypassRateLimit Boolean    @default(false)
-  tenantId           String?
-  displayCurrencies  String     @default("[]")
-
-  // Relations
-  refreshTokens      RefreshToken[]
-  bookings           Booking[]
-  tickets            Ticket[]
-  refunds            Refund[]
-  createdFlights     Flight[]            @relation("FlightCreator")
-  savedPassengers    SavedPassenger[]
-  wallets            Wallet[]
-  walletTransactions WalletTransaction[]
-  activityLogs       ActivityLog[]
-  journalEntries     JournalEntry[]
-  expenses           Expense[]
-  agentAllotments    SeatAllotment[]     @relation("AgentAllotments")
-
-  @@map("users")
-}
-
-model RefreshToken {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@map("refresh_tokens")
-}
-
-model SavedPassenger {
-  id                     String   @id @default(cuid())
-  userId                 String
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firstName              String
-  lastName               String
-  nationality            String
-  gender                 String
-  nationalId             String?
-  passportNumber         String?
-  passportIssuingCountry String?
-  dateOfBirth            String?
-  passportExpiryDate     String?
-  createdAt              DateTime @default(now())
-
-  bookingId String?
-  booking   Booking? @relation("BookingPassengers", fields: [bookingId], references: [id])
-
-  @@map("saved_passengers")
-}
-
-model Tenant {
-  id                  String   @id @default(cuid())
-  name                String
-  slug                String   @unique
-  contactEmail        String
-  contactPhone        String
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  logoUrl             String?
-  primaryColor        String?
-  theme               String   @default("default")
-  homepageContentId   String   @default("home-1")
-  supportedLanguages  String   @default("[\"fa\", \"en\", \"ar\"]")
-  supportedCurrencies String   @default("[\"IRR\", \"USD\"]")
-
-  @@map("tenants")
-}
-
-model Flight {
-  id                                String           @id @default(cuid())
-  airline                           String
-  airlineLogoUrl                    String?
-  flightNumber                      String
-  aircraft                          String
-  flightClass                       String
-  duration                          Int // Duration in minutes
-  stops                             Int              @default(0)
-  price                             BigInt
-  taxes                             BigInt
-  availableSeats                    Int
-  totalCapacity                     Int
-  baggageAllowance                  String?
-  status                            String           @default("SCHEDULED")
-  bookingClosesBeforeDepartureHours Int              @default(3)
-  sourcingType                      String           @default("Manual")
-  commissionModelId                 String?
-  commissionModel                   CommissionModel? @relation(fields: [commissionModelId], references: [id])
-  refundPolicyId                    String?
-  refundPolicy                      RefundPolicy?    @relation(fields: [refundPolicyId], references: [id])
-  creatorId                         String?
-  creator                           User?            @relation("FlightCreator", fields: [creatorId], references: [id])
-  tenantId                          String?
-  createdAt                         DateTime         @default(now())
-  updatedAt                         DateTime         @updatedAt
-
-  // Relations to Airport for departure and arrival
-  departureAirportId String
-  departureAirport   Airport  @relation("DepartureFlight", fields: [departureAirportId], references: [id])
-  departureTerminal  String?
-  departureGate      String?
-  departureTime      DateTime
-
-  arrivalAirportId String
-  arrivalAirport   Airport  @relation("ArrivalFlight", fields: [arrivalAirportId], references: [id])
-  arrivalTerminal  String?
-  arrivalGate      String?
-  arrivalTime      DateTime
-
-  // Added for reverse relations
-  airlineInfo Airline @relation(fields: [airlineId], references: [id])
-  airlineId   String
-
-  aircraftInfo Aircraft @relation(fields: [aircraftId], references: [id])
-  aircraftId   String
-
-  flightClassInfo FlightClass @relation(fields: [flightClassId], references: [id])
-  flightClassId   String
-
-  bookings   Booking[]
-  allotments SeatAllotment[]
-
-  @@map("flights")
-}
-
-model SeatAllotment {
-  id        String   @id @default(cuid())
-  flightId  String
-  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
-  agentId   String
-  agent     User     @relation("AgentAllotments", fields: [agentId], references: [id])
-  seats     Int
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  @@map("seat_allotments")
-}
-
-model Booking {
-  id               String        @id @default(cuid())
-  userId           String
-  user             User          @relation(fields: [userId], references: [id])
-  flightId         String
-  flight           Flight        @relation(fields: [flightId], references: [id])
-  contactEmail     String
-  contactPhone     String
-  bookingDate      DateTime      @default(now())
-  status           BookingStatus @default(CONFIRMED)
-  cancellationDate DateTime?
-  purchasePrice    Int?
-  totalPrice       Int?
-  buyerReference   String?
-  notes            String?
-  tenantId         String
-
-  // JSON fields for complex data
-  passengersData String // JSON string
-  searchQuery    String // JSON string
-
-  // Relations
-  passengersInfo SavedPassenger[] @relation("BookingPassengers")
-  refunds        Refund[]
-  tickets        Ticket[]
-
-  @@map("bookings")
-}
-
-model Ticket {
-  id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id])
-  bookingId String?
-  booking   Booking?     @relation(fields: [bookingId], references: [id])
-  subject   String
-  status    TicketStatus @default(OPEN)
-  priority  String       @default("MEDIUM")
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  // Relations
-  messages TicketMessage[]
-
-  @@map("tickets")
-}
-
-model TicketMessage {
-  id         String   @id @default(cuid())
-  ticketId   String
-  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId   String
-  authorType String
-  text       String
-  timestamp  DateTime @default(now())
-
-  @@map("ticket_messages")
-}
-
-model Refund {
-  id             String   @id @default(cuid())
-  bookingId      String
-  booking        Booking  @relation(fields: [bookingId], references: [id])
-  userId         String
-  user           User     @relation(fields: [userId], references: [id])
-  requestDate    DateTime @default(now())
-  createdAt      DateTime @default(now())
-  status         String   @default("PENDING_EXPERT_REVIEW")
-  originalAmount Int
-  penaltyAmount  Int
-  refundAmount   Int
-  reason         String?
-  adminNotes     String?
-  processedAt    DateTime?
-
-  expertReviewerName    String?
-  expertReviewDate      DateTime?
-  financialReviewerName String?
-  financialReviewDate   DateTime?
-  paymentProcessorName  String?
-  paymentDate           DateTime?
-  rejecterName          String?
-  rejectionDate         DateTime?
-  rejectionReason       String?
-
-  @@map("refunds")
-}
-
-model Wallet {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  balance   Int      @default(0)
-  currency  String   @default("IRR")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, currency])
-  @@map("wallets")
-}
-
-model WalletTransaction {
-  id               String          @id @default(cuid())
-  userId           String
-  user             User            @relation(fields: [userId], references: [id])
-  date             DateTime        @default(now())
-  type             TransactionType
-  amount           Int
-  currency         String
-  description      String
-  relatedBookingId String?
-  relatedUserId    String?
-
-  @@map("wallet_transactions")
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  action    String
-  timestamp DateTime @default(now())
-
-  @@map("activity_logs")
-}
-
-model Account {
-  id       String      @id
-  name     String      // JSON string
-  code     String?
-  type     AccountType
-  parentId String?
-  isParent Boolean     @default(false)
-  balance  Int         @default(0)
-  currency String      @default("IRR")
-
-  // Relations
-  transactions Transaction[]
-  children     Account[]     @relation("AccountHierarchy")
-  parent       Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
-  expenses     Expense[]
-
-  @@map("accounts")
-}
-
-model JournalEntry {
-  id          String   @id @default(cuid())
-  date        DateTime @default(now())
-  description String
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  bookingId   String?
-
-  // Relations
-  transactions Transaction[]
-
-  @@map("journal_entries")
-}
-
-model Transaction {
-  id             String       @id @default(cuid())
-  journalEntryId String
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  accountId      String
-  account        Account      @relation(fields: [accountId], references: [id])
-  debit          Int          @default(0)
-  credit         Int          @default(0)
-
-  @@map("transactions")
-}
-
-model Expense {
-  id               String   @id @default(cuid())
-  date             DateTime @default(now())
-  description      String
-  amount           Int
-  currency         String   @default("IRR")
-  accountId        String
-  account          Account  @relation(fields: [accountId], references: [id])
-  recordedByUserId String
-  recordedBy       User     @relation(fields: [recordedByUserId], references: [id])
-
-  @@map("expenses")
-}
-
-model Airline {
-  id      String @id @default(cuid())
-  name    String // JSON string
-  logoUrl String
-
-  flights Flight[]
-
-  @@map("airlines")
-}
-
-model Aircraft {
-  id       String @id @default(cuid())
-  name     String // JSON string
-  capacity Int
-
-  flights Flight[]
-
-  @@map("aircrafts")
-}
-
-model FlightClass {
-  id   String @id @default(cuid())
-  name String // JSON string
-
-  flights Flight[]
-
-  @@map("flight_classes")
-}
-
-model Airport {
-  id      String  @id @default(cuid())
-  iata    String  @unique
-  icao    String?
-  code    String? @unique
-  name    String  // JSON string
-  city    String  // JSON string
-  country String  // JSON string
-
-  departureFlights Flight[] @relation("DepartureFlight")
-  arrivalFlights   Flight[] @relation("ArrivalFlight")
-
-  @@map("airports")
-}
-
-model CommissionModel {
-  id                   String @id @default(cuid())
-  name                 String // JSON string
-  calculationType      String
-  charterCommission    Float
-  creatorCommission    Float
-  webServiceCommission Float
-
-  flights Flight[]
-
-  @@map("commission_models")
-}
-
-model RateLimit {
-  id       String @id @default(cuid())
-  fromCity String
-  toCity   String
-  maxPrice Int
-
-  @@map("rate_limits")
-}
-
-model RefundPolicy {
-  id         String  @id @default(cuid())
-  name       String  // JSON string
-  policyType String?
-  airlineId  String?
-  rules      String  // JSON string
-
-  flights Flight[]
-
-  @@map("refund_policies")
-}
-
-model Currency {
-  id                String  @id @default(cuid())
-  name              String  // JSON string
-  code              String  @unique
-  symbol            String  // JSON string
-  exchangeRateToUSD Float
-  isBaseCurrency    Boolean @default(false)
-  isActive          Boolean @default(true)
-
-  // Relations
-  exchangeRates     ExchangeRate[] @relation("BaseCurrency")
-  targetRates       ExchangeRate[] @relation("TargetCurrency")
-
-  @@map("currencies")
-}
-
-model ExchangeRate {
-  id              String   @id @default(cuid())
-  baseCurrencyId  String
-  targetCurrencyId String
-  rate            Float
-  lastUpdated     DateTime @default(now())
-  source          String   @default("MANUAL") // MANUAL, API, etc.
-  isActive        Boolean  @default(true)
-  
-  // Relations
-  baseCurrency    Currency @relation("BaseCurrency", fields: [baseCurrencyId], references: [id])
-  targetCurrency  Currency @relation("TargetCurrency", fields: [targetCurrencyId], references: [id])
-
-  @@unique([baseCurrencyId, targetCurrencyId])
-  @@map("exchange_rates")
-}
-
-model Country {
-  id          String  @id
-  name        String  // JSON string
-  flag        String?
-  dialingCode String
-  currency    String
-
-  @@map("countries")
-}
-
-model Advertisement {
-  id        String   @id @default(cuid())
-  title     String
-  imageUrl  String
-  linkUrl   String
-  placement String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  @@map("advertisements")
-}
-
-model SiteContent {
-  id        String   @id @default(cuid())
-  section   String   @unique
-  content   String   // JSON string
-  updatedAt DateTime @updatedAt
-
-  @@map("site_content")
-}
-
-model TelegramBotConfig {
-  id        String   @id @default("telegram_config")
-  isEnabled Boolean  @default(false)
-  botToken  String?
-  chatId    String?
-  notifyOn  String   // JSON string
-  updatedAt DateTime @updatedAt
-
-  @@map("telegram_bot_config")
-}
-
-model WhatsAppBotConfig {
-  id            String   @id @default("whatsapp_config")
-  isEnabled     Boolean  @default(false)
-  apiKey        String?
-  phoneNumberId String?
-  notifyOn      String   // JSON string
-  updatedAt     DateTime @updatedAt
-
-  @@map("whatsapp_bot_config")
-}
-
-model RolePermissions {
-  id          String   @id @default("role_permissions")
-  permissions String   // JSON string
-  updatedAt   DateTime @updatedAt
-
-  @@map("role_permissions")
-}

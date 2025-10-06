@@ -34,7 +34,7 @@ export class TicketsService {
       user: ticket.user,
       messages: ticket.messages.map(msg => ({
         id: msg.id,
-        author: msg.authorType,
+        author: msg.authorType as 'USER' | 'ADMIN',
         authorName: msg.authorType === 'USER' ? ticket.user?.name || ticket.user?.username : 'پشتیبانی',
         text: msg.text,
         timestamp: msg.timestamp.toISOString()
@@ -47,7 +47,7 @@ export class TicketsService {
       data: {
         userId,
         subject: data.subject,
-        status: 'OPEN',
+        status: 'WAITING_FOR_SUPPORT', // User creates ticket, status is "waiting for support"
         priority: data.priority || 'MEDIUM',
         bookingId: data.bookingId,
         messages: {
@@ -55,10 +55,22 @@ export class TicketsService {
             authorId: userId,
             authorType: 'USER',
             text: data.message,
+            timestamp: new Date(),
           },
         },
       },
-      include: { messages: true },
+      include: { 
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true
+          }
+        }
+      },
     });
 
     return {
@@ -114,27 +126,159 @@ export class TicketsService {
     const newMessage = await this.prisma.ticketMessage.create({
       data: {
         ticketId,
-        author: 'USER',
+        authorId: userId,
+        authorType: 'USER',
         text: messageText,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
       },
     });
 
     const updatedTicket = await this.prisma.ticket.update({
       where: { id: ticketId },
       data: {
-        status: 'OPEN', // Reopen ticket on new user message
-        updatedAt: new Date().toISOString(),
+        status: 'WAITING_FOR_SUPPORT', // User replies, status becomes "waiting for support"
+        updatedAt: new Date(),
       },
-      include: { messages: true },
+      include: { 
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true
+          }
+        }
+      },
     });
+
+    // Format the ticket data to match frontend expectations
+    const formattedTicket = {
+      id: updatedTicket.id,
+      subject: updatedTicket.subject,
+      status: updatedTicket.status,
+      priority: updatedTicket.priority,
+      createdAt: updatedTicket.createdAt.toISOString(),
+      updatedAt: updatedTicket.updatedAt.toISOString(),
+      bookingId: updatedTicket.bookingId,
+      user: updatedTicket.user,
+      messages: updatedTicket.messages.map(msg => ({
+        id: msg.id,
+        author: msg.authorType as 'USER' | 'ADMIN',
+        authorName: msg.authorType === 'USER' ? updatedTicket.user?.name || updatedTicket.user?.username : 'پشتیبانی',
+        text: msg.text,
+        timestamp: msg.timestamp.toISOString()
+      }))
+    };
 
     return {
       success: true,
       message: newMessage,
       ticketStatus: updatedTicket.status,
-      ticket: updatedTicket,
+      ticket: formattedTicket,
     };
+  }
+
+  async addAdminMessage(adminId: string, ticketId: string, messageText: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+
+    if (!ticket) {
+      throw new NotFoundException('تیکت یافت نشد');
+    }
+
+    const newMessage = await this.prisma.ticketMessage.create({
+      data: {
+        ticketId,
+        authorId: adminId,
+        authorType: 'ADMIN',
+        text: messageText,
+        timestamp: new Date(),
+      },
+    });
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: 'RESPONDED', // Admin replies, status becomes "responded"
+        updatedAt: new Date(),
+      },
+      include: { 
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true
+          }
+        }
+      },
+    });
+
+    return {
+      id: updatedTicket.id,
+      subject: updatedTicket.subject,
+      status: updatedTicket.status,
+      priority: updatedTicket.priority,
+      createdAt: updatedTicket.createdAt.toISOString(),
+      updatedAt: updatedTicket.updatedAt.toISOString(),
+      bookingId: updatedTicket.bookingId,
+      user: updatedTicket.user,
+      messages: updatedTicket.messages.map(msg => ({
+        id: msg.id,
+        author: msg.authorType as 'USER' | 'ADMIN',
+        authorName: msg.authorType === 'USER' ? updatedTicket.user?.name || updatedTicket.user?.username : 'پشتیبانی',
+        text: msg.text,
+        timestamp: msg.timestamp.toISOString()
+      }))
+    };
+  }
+
+  async markTicketAsInProgress(ticketId: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+
+    if (!ticket) {
+      throw new NotFoundException('تیکت یافت نشد');
+    }
+
+    const updatedTicket = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: 'IN_PROGRESS', // Admin opens ticket, status becomes "in progress"
+        updatedAt: new Date(),
+      },
+    });
+
+    return updatedTicket;
+  }
+
+  async autoCloseOldTickets() {
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    
+    const oldTickets = await this.prisma.ticket.findMany({
+      where: {
+        status: {
+          in: ['WAITING_FOR_SUPPORT', 'RESPONDED']
+        },
+        updatedAt: {
+          lt: fortyEightHoursAgo
+        }
+      }
+    });
+
+    for (const ticket of oldTickets) {
+      await this.prisma.ticket.update({
+        where: { id: ticket.id },
+        data: {
+          status: 'COMPLETED', // Auto-close after 48 hours
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    return { closedCount: oldTickets.length };
   }
 
   async closeTicket(userId: string, ticketId: string) {

@@ -80,21 +80,22 @@ export const UsersDashboard: React.FC<UsersDashboardProps> = ({ users, currentUs
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {users.map(user => {
-                            const userTenant = user.tenantId ? tenants.find(t => t.id === user.tenantId) : null;
+                            if (!user) return null; // Safety check for undefined user
+                            const userTenant = user?.tenantId ? tenants.find(t => t.id === user.tenantId) : null;
                             return (
                                 <tr key={user.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{user.username}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user?.name || 'N/A'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{user?.username || 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{userTenant?.name || '-'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t(`dashboard.users.roleValues.${user.role}`)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={user.status} /></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t(`dashboard.users.roleValues.${user?.role || 'USER'}`)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={user?.status || 'ACTIVE'} /></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium space-x-2 space-x-reverse">
                                         <button onClick={() => setChargingUser(user)} className="p-2 text-slate-500 hover:text-green-600 rounded-full hover:bg-slate-100 transition" title={t('dashboard.users.chargeWallet')}>
                                             <CreditCardIcon className="w-5 h-5" />
                                         </button>
                                          <button 
                                             onClick={() => setResettingUser(user)} 
-                                            disabled={user.id === currentUser.id}
+                                            disabled={user?.id === currentUser?.id}
                                             className="p-2 text-slate-500 hover:text-yellow-600 rounded-full hover:bg-slate-100 transition disabled:opacity-50 disabled:cursor-not-allowed" 
                                             title={t('dashboard.users.resetPassword')}
                                         >
@@ -113,7 +114,17 @@ export const UsersDashboard: React.FC<UsersDashboardProps> = ({ users, currentUs
             {editingUser && <UserDetailsModal user={editingUser} currentUser={currentUser} currencies={currencies} rolePermissions={rolePermissions} tenants={tenants} onClose={() => setEditingUser(null)} onUpdate={handleUpdateAndClose} />}
             {resettingUser && <ResetPasswordModal user={resettingUser} onClose={() => setResettingUser(null)} onSave={handleResetAndClose} />}
             {chargingUser && <ChargeWalletModal user={chargingUser} currencies={currencies} onClose={() => setChargingUser(null)} onSave={handleChargeAndClose} />}
-            {isAddUserModalOpen && <AddUserModal tenants={tenants} onClose={() => setIsAddUserModalOpen(false)} onCreate={(newUser) => { onCreateUser(newUser); setIsAddUserModalOpen(false); }} />}
+            {isAddUserModalOpen && <AddUserModal tenants={tenants} onClose={() => setIsAddUserModalOpen(false)} onCreate={async (newUser) => { 
+                console.log('🔍 DEBUG - UsersDashboard onCreate called with:', newUser);
+                try {
+                    await onCreateUser(newUser);
+                    console.log('🔍 DEBUG - UsersDashboard onCreateUser completed, closing modal');
+                    setIsAddUserModalOpen(false);
+                } catch (error) {
+                    console.error('🔍 DEBUG - Error in UsersDashboard onCreate:', error);
+                    // Keep modal open on error
+                }
+            }} />}
         </div>
     );
 };

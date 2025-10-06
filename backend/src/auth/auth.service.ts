@@ -13,14 +13,19 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(email: string, password: string) {
+  async login(identifier: string, password: string) {
     try {
-      console.log('Login attempt:', { email, password });
-      const user = await this.prisma.user.findUnique({
-        where: { email }
+      console.log('Login attempt:', { identifier, password });
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: identifier },
+            { username: identifier }
+          ]
+        }
       });
 
-      console.log('Found user:', user ? { id: user.id, email: user.email, status: user.status } : 'null');
+      console.log('Found user:', user ? { id: user.id, email: user.email, username: user.username, status: user.status } : 'null');
 
       if (!user) {
         throw new UnauthorizedException('User not found');

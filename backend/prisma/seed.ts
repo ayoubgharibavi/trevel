@@ -450,7 +450,6 @@ async function main() {
       title: 'پروازهای ارزان به مشهد',
       imageUrl: '/ads/mashhad-promo.jpg',
       linkUrl: '/search?from=تهران&to=مشهد',
-      placement: 'SEARCH_RESULTS_TOP',
       isActive: true,
     },
     {
@@ -458,7 +457,6 @@ async function main() {
       title: 'رزرو هتل در استانبول',
       imageUrl: '/ads/istanbul-hotel.jpg',
       linkUrl: '/hotels/istanbul',
-      placement: 'SIDEBAR_BOTTOM',
       isActive: true,
     },
   ];
@@ -601,6 +599,552 @@ async function main() {
   console.log('✅ Database seeding completed successfully!');
   console.log('👤 Admin credentials: admin@trevel.com / admin123');
   console.log('👤 User credentials: user@trevel.com / user123');
+
+  // Create API Management entries
+  const apiManagementEntries = [
+    {
+      id: 'api-charter118',
+      name: 'charter118',
+      displayName: 'Charter118 API',
+      baseUrl: process.env.CHARTER118_BASE_URL || 'https://api.charter118.com',
+      apiKey: process.env.CHARTER118_API_KEY || '',
+      isActive: true,
+      isEnabled: true,
+      balance: null,
+      currency: 'USD',
+      status: 'unknown',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-sepehr',
+      name: 'sepehr',
+      displayName: 'Sepehr API',
+      baseUrl: process.env.SEPEHR_BASE_URL || 'https://api.sepehr.com',
+      apiKey: process.env.SEPEHR_API_KEY || '',
+      isActive: true,
+      isEnabled: true,
+      balance: null,
+      currency: 'IRR',
+      status: 'unknown',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-manual',
+      name: 'manual',
+      displayName: 'Manual Booking API',
+      baseUrl: 'internal',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: null,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        type: 'internal',
+        description: 'Internal manual booking system'
+      })
+    },
+    {
+      id: 'api-test',
+      name: 'test-api',
+      displayName: 'Test API',
+      baseUrl: 'https://jsonplaceholder.typicode.com',
+      apiKey: '',
+      isActive: false,
+      isEnabled: true,
+      balance: 1000.50,
+      currency: 'USD',
+      status: 'inactive',
+      config: JSON.stringify({
+        timeout: 10000,
+        retries: 2,
+        endpoints: {
+          test: '/posts/1'
+        }
+      })
+    },
+    {
+      id: 'api-sepehr',
+      name: 'sepehr',
+      displayName: 'سپهر API',
+      baseUrl: process.env.SEPEHR_BASE_URL || 'https://api.sepehr.com',
+      apiKey: process.env.SEPEHR_API_KEY || '',
+      isActive: true,
+      isEnabled: true,
+      balance: 5000000,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-charter118',
+      name: 'charter118',
+      displayName: 'Charter118 API',
+      baseUrl: process.env.CHARTER118_BASE_URL || 'https://api.charter118.com',
+      apiKey: process.env.CHARTER118_API_KEY || '',
+      isActive: true,
+      isEnabled: true,
+      balance: 2500.75,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-pars',
+      name: 'pars',
+      displayName: 'پارس API',
+      baseUrl: 'https://api.pars.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 15000000,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 25000,
+        retries: 2,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-alibaba',
+      name: 'alibaba',
+      displayName: 'علی‌بابا API',
+      baseUrl: 'https://api.alibaba.ir',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 8000000,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 20000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-snapp',
+      name: 'snapp',
+      displayName: 'اسنپ API',
+      baseUrl: 'https://api.snapp.ir',
+      apiKey: '',
+      isActive: false,
+      isEnabled: true,
+      balance: 3000000,
+      currency: 'IRR',
+      status: 'maintenance',
+      config: JSON.stringify({
+        timeout: 15000,
+        retries: 2,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-tap30',
+      name: 'tap30',
+      displayName: 'تپ‌سی API',
+      baseUrl: 'https://api.tap30.ir',
+      apiKey: '',
+      isActive: true,
+      isEnabled: false,
+      balance: 12000000,
+      currency: 'IRR',
+      status: 'inactive',
+      config: JSON.stringify({
+        timeout: 18000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-digikala',
+      name: 'digikala',
+      displayName: 'دیجی‌کالا API',
+      baseUrl: 'https://api.digikala.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 20000000,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 22000,
+        retries: 3,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-bamilo',
+      name: 'bamilo',
+      displayName: 'بامیلو API',
+      baseUrl: 'https://api.bamilo.com',
+      apiKey: '',
+      isActive: false,
+      isEnabled: true,
+      balance: 5000000,
+      currency: 'IRR',
+      status: 'error',
+      config: JSON.stringify({
+        timeout: 20000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-torob',
+      name: 'torob',
+      displayName: 'تورب API',
+      baseUrl: 'https://api.torob.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 7000000,
+      currency: 'IRR',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 25000,
+        retries: 3,
+        endpoints: {
+          search: '/flights/search',
+          book: '/flights/book',
+          cancel: '/flights/cancel',
+          balance: '/account/balance'
+        }
+      })
+    },
+    {
+      id: 'api-kiwi',
+      name: 'kiwi',
+      displayName: 'کیوی API',
+      baseUrl: 'https://api.kiwi.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 1500.25,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-skyscanner',
+      name: 'skyscanner',
+      displayName: 'اسکای‌اسکنر API',
+      baseUrl: 'https://api.skyscanner.net',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 3200.50,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 35000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-kayak',
+      name: 'kayak',
+      displayName: 'کایاک API',
+      baseUrl: 'https://api.kayak.com',
+      apiKey: '',
+      isActive: false,
+      isEnabled: true,
+      balance: 800.75,
+      currency: 'USD',
+      status: 'maintenance',
+      config: JSON.stringify({
+        timeout: 25000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-expedia',
+      name: 'expedia',
+      displayName: 'اکسپدیا API',
+      baseUrl: 'https://api.expedia.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 4500.00,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 30000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-booking',
+      name: 'booking',
+      displayName: 'بوکینگ API',
+      baseUrl: 'https://api.booking.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 2800.30,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 28000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-agoda',
+      name: 'agoda',
+      displayName: 'آگودا API',
+      baseUrl: 'https://api.agoda.com',
+      apiKey: '',
+      isActive: false,
+      isEnabled: true,
+      balance: 1200.45,
+      currency: 'USD',
+      status: 'error',
+      config: JSON.stringify({
+        timeout: 20000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-hotels',
+      name: 'hotels',
+      displayName: 'هتلز API',
+      baseUrl: 'https://api.hotels.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: false,
+      balance: 1800.60,
+      currency: 'USD',
+      status: 'inactive',
+      config: JSON.stringify({
+        timeout: 22000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-trivago',
+      name: 'trivago',
+      displayName: 'تریواگو API',
+      baseUrl: 'https://api.trivago.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 950.25,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 18000,
+        retries: 2,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    },
+    {
+      id: 'api-airbnb',
+      name: 'airbnb',
+      displayName: 'ایربی‌ان‌بی API',
+      baseUrl: 'https://api.airbnb.com',
+      apiKey: '',
+      isActive: true,
+      isEnabled: true,
+      balance: 2200.80,
+      currency: 'USD',
+      status: 'active',
+      config: JSON.stringify({
+        timeout: 25000,
+        retries: 3,
+        endpoints: {
+          search: '/search',
+          book: '/book',
+          cancel: '/cancel',
+          balance: '/balance'
+        }
+      })
+    }
+  ];
+
+  // API Management entries commented out - model not in schema
+  // for (const api of apiManagementEntries) {
+  //   await prisma.apiManagement.upsert({
+  //     where: { id: api.id },
+  //     update: {},
+  //     create: api,
+  //   });
+  // }
+
+  // Create loading settings
+  const loadingSettings = [
+    {
+      id: 'loading-1',
+      name: 'Flight Search Loading',
+      description: 'تنظیمات بارگذاری برای جستجوی پروازها',
+      isEnabled: true,
+      timeout: 10000,
+      retryCount: 3,
+      priority: 1,
+    },
+    {
+      id: 'loading-2',
+      name: 'Booking Process Loading',
+      description: 'تنظیمات بارگذاری برای فرآیند رزرو',
+      isEnabled: true,
+      timeout: 15000,
+      retryCount: 5,
+      priority: 2,
+    },
+    {
+      id: 'loading-3',
+      name: 'Payment Gateway Loading',
+      description: 'تنظیمات بارگذاری برای درگاه پرداخت',
+      isEnabled: false,
+      timeout: 20000,
+      retryCount: 2,
+      priority: 3,
+    },
+    {
+      id: 'loading-4',
+      name: 'API Response Loading',
+      description: 'تنظیمات بارگذاری برای پاسخ‌های API',
+      isEnabled: true,
+      timeout: 30000,
+      retryCount: 3,
+      priority: 4,
+    },
+    {
+      id: 'loading-5',
+      name: 'Image Loading',
+      description: 'تنظیمات بارگذاری برای تصاویر',
+      isEnabled: true,
+      timeout: 5000,
+      retryCount: 2,
+      priority: 5,
+    },
+  ];
+
+  // Loading settings commented out - model not in schema
+  // for (const setting of loadingSettings) {
+  //   await prisma.loadingSettings.upsert({
+  //     where: { id: setting.id },
+  //     update: {},
+  //     create: setting,
+  //   });
+  // }
 }
 
 main()

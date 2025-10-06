@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Flight } from '../types';
 import { PlaneTakeoffIcon } from './icons/PlaneTakeoffIcon';
@@ -19,7 +18,19 @@ export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) 
             <div className="bg-gradient-to-r from-slate-50 to-blue-50 p-6 border-b border-slate-200">
                 <div className="flex items-center gap-4">
                     <div className="relative">
-                        <img src={flight.airlineLogoUrl} alt={`${flight.airline} logo`} className="w-12 h-12 rounded-2xl object-cover shadow-md" />
+                        {flight.airlineLogoUrl && flight.airlineLogoUrl.trim() !== '' ? (
+                            <img 
+                                src={flight.airlineLogoUrl} 
+                                alt={`${typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'Airline'} logo`} 
+                                className="w-12 h-12 rounded-2xl object-cover shadow-md" 
+                            />
+                        ) : (
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                            </div>
+                        )}
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                             <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -27,7 +38,7 @@ export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) 
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-slate-800">{flight.airline}</h3>
+                        <h3 className="text-xl font-bold text-slate-800">{typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'نامشخص'}</h3>
                         <p className="text-sm text-slate-500 font-medium">{flight.aircraft} | {flight.flightNumber}</p>
                     </div>
                 </div>
@@ -90,3 +101,5 @@ export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) 
         </div>
     );
 };
+
+

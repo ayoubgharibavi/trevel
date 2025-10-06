@@ -34,11 +34,12 @@ export interface FlightEndpoint {
 }
 
 export enum FlightStatus {
-    SCHEDULED = 'SCHEDULED',
-    DELAYED = 'DELAYED',
+    ON_TIME = 'ON_TIME',
+    CLOSE = 'CLOSE',
+    WAITING_FOR_COMMAND = 'WAITING_FOR_COMMAND',
+    NO_AVAILABILITY = 'NO_AVAILABILITY',
+    CALL_US = 'CALL_US',
     CANCELLED = 'CANCELLED',
-    DEPARTED = 'DEPARTED',
-    ARRIVED = 'ARRIVED',
 }
 
 export enum FlightSourcingType {
@@ -63,7 +64,9 @@ export interface Flight {
     flightNumber: string;
     departure: FlightEndpoint;
     arrival: FlightEndpoint;
-    duration: string;
+    departureAirport?: FlightEndpoint; // Alternative structure from API
+    arrivalAirport?: FlightEndpoint; // Alternative structure from API
+    duration: string | number; // Support both string and number formats
     stops: number;
     price: number;
     taxes: number;
@@ -160,15 +163,38 @@ export interface Tenant {
     contactPhone: string;
     isActive: boolean;
     createdAt: string;
-    settings: {
-        theme: string;
-        logoUrl: string;
-        homepageContentId: string;
-        supportedLanguages: Language[];
-        supportedCurrencies: Currency[];
-    };
+    updatedAt: string;
     logoUrl?: string; // Optional: Tenant-specific logo
     primaryColor?: string; // Optional: Tenant-specific primary color
+    theme: string;
+    homepageContentId: string;
+    supportedLanguages: string;
+    supportedCurrencies: string;
+    domain?: string;
+    subdomain?: string;
+    customDomain?: string;
+    parentTenantId?: string;
+    commissionRate: number;
+    commissionAmount?: number;
+    commissionType: 'PERCENTAGE' | 'FIXED';
+    parentCommissionRate: number;
+    parentCommissionAmount?: number;
+    parentCommissionType: 'PERCENTAGE' | 'FIXED';
+    isWhiteLabel: boolean;
+    pricingType: 'GROSS' | 'NET';
+    customBranding?: any;
+    footerText?: string;
+    supportEmail?: string;
+    supportPhone?: string;
+    parentTenant?: Tenant;
+    subTenants?: Tenant[];
+    users?: User[];
+    bookings?: Booking[];
+    _count?: {
+        users: number;
+        bookings: number;
+        subTenants: number;
+    };
 }
 
 export enum BookingStatus {
@@ -188,6 +214,8 @@ export interface Booking {
         children: PassengerDetails[];
         infants: PassengerDetails[];
     };
+    passengersInfo?: PassengerDetails[]; // Alternative structure from API
+    passengersData?: string; // JSON string structure from API
     contactEmail: string;
     contactPhone: string;
     query: SearchQuery;
@@ -198,6 +226,7 @@ export interface Booking {
     buyerReference?: string;
     notes?: string;
     tenantId: string;
+    source?: string; // API source: manual, charter118, sepehr, etc.
 }
 
 export enum TicketStatus {
@@ -205,6 +234,9 @@ export enum TicketStatus {
     IN_PROGRESS = 'IN_PROGRESS',
     CLOSED = 'CLOSED',
     PENDING_CUSTOMER = 'PENDING_CUSTOMER',
+    WAITING_FOR_SUPPORT = 'WAITING_FOR_SUPPORT',
+    RESPONDED = 'RESPONDED',
+    COMPLETED = 'COMPLETED',
 }
 
 export enum TicketPriority {
@@ -473,10 +505,17 @@ export enum AdPlacement {
 export interface Advertisement {
     id: string;
     title: string; // For internal reference in the admin panel
+    description?: string;
     imageUrl: string;
-    linkUrl: string;
+    linkUrl?: string;
+    backgroundColor?: string;
+    textColor?: string;
     placement: AdPlacement;
+    position?: 'flight-results' | 'homepage' | 'sidebar';
+    priority?: number;
     isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface SiteContent {
@@ -527,7 +566,7 @@ export type PassengerData = {
     contactPhone: string;
 };
 
-export type View = 'SEARCH' | 'PASSENGER_DETAILS' | 'REVIEW' | 'CONFIRMATION' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT' | 'CURRENCY_CONVERTER';
+export type View = 'SEARCH' | 'SEARCH_RESULTS' | 'PASSENGER_DETAILS' | 'REVIEW' | 'CONFIRMATION' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT' | 'CURRENCY_CONVERTER' | 'SIMPLE_TEST' | 'SEPEHR_SEARCH_RESULTS' | 'SEPEHR_BOOKING' | 'SEPEHR_BOOKING_CONFIRMATION';
 
 export interface TelegramBotConfig {
     isEnabled: boolean;
@@ -633,3 +672,4 @@ export interface AdminStats {
     totalExpenses: number;
     profit: number;
 }
+

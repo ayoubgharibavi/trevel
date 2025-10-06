@@ -54,18 +54,8 @@ export const ETicketModal: React.FC<ETicketModalProps> = ({ booking, onClose }) 
     }, [ticketToPrint]);
 
     const handleDownloadTicket = (withPrice: boolean) => {
-        // Try backend PDF first, fallback to client-side generation
-        if (withPrice) {
-            try {
-                apiService.downloadETicketPDF(booking.id);
-            } catch (error) {
-                console.error('Backend PDF failed, using client-side:', error);
-                setTicketToPrint({ booking: booking, withPrice });
-            }
-        } else {
-            // Client-side generation for without price
-            setTicketToPrint({ booking: booking, withPrice });
-        }
+        // Always use client-side generation since backend PDF is disabled
+        setTicketToPrint({ booking: booking, withPrice });
     };
     
     return (

@@ -1,256 +1,368 @@
-import React, { useState } from 'react';
-import type { Flight, RefundPolicy, Advertisement, User, CurrencyInfo, SearchQuery } from '@/types';
-import { AdPlacement, TripType } from '@/types';
-import { FlightCard } from '@/components/FlightCard';
-import { SortDropdown, SortOption } from '@/components/SortDropdown';
-import { useLocalization } from '@/hooks/useLocalization';
+import React, { useState, useMemo } from 'react';
+import { FlightCard } from './FlightCard';
+import { SortDropdown } from '@/components/SortDropdown';
 import { AdBanner } from '@/components/AdBanner';
-import { PlaneTakeoffIcon } from '@/components/icons/PlaneTakeoffIcon';
-import { ArrowRightLeftIcon } from '@/components/icons/ArrowRightLeftIcon';
-
-interface PopularRoutesProps {
-    routes: { from: string, to: string }[];
-    onSearch: (query: SearchQuery) => void;
-}
-
-const PopularRoutes: React.FC<PopularRoutesProps> = ({ routes, onSearch }) => {
-    const { t } = useLocalization();
-
-
-    const handleRouteClick = (from: string, to: string) => {
-        const today = new Date().toISOString().split('T')[0];
-        const query: SearchQuery = {
-            tripType: TripType.OneWay,
-            from,
-            to,
-            departureDate: today,
-            passengers: { adults: 1, children: 0, infants: 0 },
-        };
-        onSearch(query);
-    };
-
-    return (
-        <div className="text-center py-12">
-            <h3 className="text-2xl font-bold text-slate-800 mb-8">{t('popularRoutes.title')}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {routes.map((route, index) => (
-                    <button
-                        key={index}
-                        onClick={() => handleRouteClick(route.from, route.to)}
-                        className="p-6 bg-white border-2 border-dashed border-slate-300 rounded-xl hover:border-solid hover:border-accent hover:bg-blue-50/50 transition-all text-center group transform hover:-translate-y-1"
-                    >
-                        <div className="flex items-center justify-center gap-2 text-slate-700 group-hover:text-primary transition-colors">
-                            <PlaneTakeoffIcon className="w-6 h-6" />
-                            <span className="font-bold text-xl">{route.from}</span>
-                            <ArrowRightLeftIcon className="w-5 h-5 text-slate-400" />
-                            <span className="font-bold text-xl">{route.to}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-2 group-hover:text-accent transition-colors font-semibold">{t('popularRoutes.searchNow')}</p>
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
+import { useLocalization } from '@/hooks/useLocalization';
+import { Flight, SearchQuery, RefundPolicy, Advertisement, User, Currency } from '@/types';
 
 interface SearchResultsProps {
   flights: Flight[];
+  searchQuery: SearchQuery | null;
   onSelectFlight: (flight: Flight) => void;
   refundPolicies: RefundPolicy[];
   advertisements: Advertisement[];
   currentUser: User | null;
-  currencies: CurrencyInfo[];
-  popularRoutes: { from: string; to: string }[];
+  currencies: Currency[];
+  popularRoutes: any[];
   onSearch: (query: SearchQuery) => void;
 }
 
-const durationToMinutes = (duration: string | number): number => {
-    if (typeof duration === 'number') {
-        return duration;
-    }
-    const hoursMatch = duration.match(/(\d+)h/);
-    const minutesMatch = duration.match(/(\d+)m/);
-    const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
-    const minutes = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
-    return hours * 60 + minutes;
-};
-
-
-export const SearchResults: React.FC<SearchResultsProps> = ({ flights, onSelectFlight, refundPolicies, advertisements, currentUser, currencies, popularRoutes, onSearch }) => {
-  const [sortOption, setSortOption] = useState<SortOption>('best');
-  const { t } = useLocalization();
-
-  console.log('🔍 SearchResults component - flights prop:', flights);
-  console.log('🔍 SearchResults component - flights length:', flights.length);
-  console.log('🔍 SearchResults component - flights type:', typeof flights);
-  console.log('🔍 SearchResults component - flights is array:', Array.isArray(flights));
-  console.log('🔍 SearchResults component - flights data:', flights);
-  console.log('🔍 SearchResults component - flights[0]:', flights[0]);
-
-  const topAd = advertisements.find(ad => ad.isActive && ad.placement === AdPlacement.SEARCH_RESULTS_TOP);
-
-
-
-
-  const sortedFlights = [...flights].sort((a, b) => {
-    console.log('🔍 Sorting flights:', flights.length, 'flights');
-    if (sortOption === 'price') {
-      const aPrice = (typeof a.price === 'string' ? parseInt(a.price) : a.price) + (typeof a.taxes === 'string' ? parseInt(a.taxes) : a.taxes);
-      const bPrice = (typeof b.price === 'string' ? parseInt(b.price) : b.price) + (typeof b.taxes === 'string' ? parseInt(b.taxes) : b.taxes);
-      return aPrice - bPrice;
-    }
-    if (sortOption === 'duration') {
-        return durationToMinutes(a.duration) - durationToMinutes(b.duration);
-    }
-     if (sortOption === 'best') {
-        if (flights.length <= 1) return 0;
-
-        const prices = flights.map(f => (typeof f.price === 'string' ? parseInt(f.price) : f.price) + (typeof f.taxes === 'string' ? parseInt(f.taxes) : f.taxes));
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-
-        const durations = flights.map(f => durationToMinutes(f.duration));
-        const minDuration = Math.min(...durations);
-        const maxDuration = Math.max(...durations);
-
-        const getScore = (flight: Flight) => {
-            const flightPrice = (typeof flight.price === 'string' ? parseInt(flight.price) : flight.price) + (typeof flight.taxes === 'string' ? parseInt(flight.taxes) : flight.taxes);
-            const priceScore = maxPrice === minPrice ? 0 : (flightPrice - minPrice) / (maxPrice - minPrice);
-            const durationScore = maxDuration === minDuration ? 0 : (durationToMinutes(flight.duration) - minDuration) / (maxDuration - minDuration);
-            // 60% weight for price, 40% for duration
-            return 0.6 * priceScore + 0.4 * durationScore;
-        };
-
-        return getScore(a) - getScore(b);
-    }
-    return 0;
+export const SearchResults: React.FC<SearchResultsProps> = ({ 
+  flights, 
+  searchQuery, 
+  onSelectFlight, 
+  refundPolicies, 
+  advertisements, 
+  currentUser, 
+  currencies, 
+  popularRoutes, 
+  onSearch 
+}) => {
+  const { t, formatNumber, language } = useLocalization();
+  const [sortOption, setSortOption] = useState('price');
+  const [selectedFilters, setSelectedFilters] = useState({
+    stops: [] as string[],
+    flightClass: [] as string[],
+    ticketType: [] as string[],
+    timeRange: [] as string[],
+    airlines: [] as string[]
   });
 
-  console.log('🔍 About to render sortedFlights:', sortedFlights.length, 'flights');
-  console.log('🔍 About to render - flights.length:', flights.length);
-  console.log('🔍 About to render - sortedFlights.length:', sortedFlights.length);
-  console.log('🔍 About to render - sortedFlights data:', sortedFlights);
+  // Sort flights based on selected option
+  const sortedFlights = useMemo(() => {
+    const flightsCopy = [...flights];
+    
+    switch (sortOption) {
+      case 'price':
+        return flightsCopy.sort((a, b) => {
+          const priceA = Number(a.price) + Number(a.taxes);
+          const priceB = Number(b.price) + Number(b.taxes);
+          return priceA - priceB;
+        });
+      case 'duration':
+        return flightsCopy.sort((a, b) => {
+          const durationA = typeof a.duration === 'number' ? a.duration : 0;
+          const durationB = typeof b.duration === 'number' ? b.duration : 0;
+          return durationA - durationB;
+        });
+      case 'departure':
+        return flightsCopy.sort((a, b) => {
+          const timeA = new Date(a.departure?.dateTime || 0).getTime();
+          const timeB = new Date(b.departure?.dateTime || 0).getTime();
+          return timeA - timeB;
+        });
+      default:
+        return flightsCopy;
+    }
+  }, [flights, sortOption]);
 
-  // Show loading state
-  console.log('🔍 Checking flights.length === 0:', flights.length === 0);
-  console.log('🔍 flights.length:', flights.length);
-  console.log('🔍 flights:', flights);
-  console.log('🔍 flights.length === 0 result:', flights.length === 0);
-  console.log('🔍 flights.length !== 0 result:', flights.length !== 0);
-  console.log('🔍 flights.length > 0 result:', flights.length > 0);
-  console.log('🔍 flights.length === 0 condition:', flights.length === 0);
-  console.log('🔍 flights.length === 0 condition result:', flights.length === 0);
-  if (flights.length === 0) {
-    console.log('🔍 Rendering no flights UI - flights.length is 0');
-    console.log('🔍 flights array:', flights);
-    console.log('🔍 flights.length:', flights.length);
-    console.log('🔍 flights === 0:', flights.length === 0);
+  // Filter flights based on selected filters
+  const filteredFlights = useMemo(() => {
+    return sortedFlights.filter(flight => {
+      // Filter by stops
+      if (selectedFilters.stops.length > 0) {
+        const stopsStr = flight.stops.toString();
+        if (!selectedFilters.stops.includes(stopsStr)) return false;
+      }
+
+      // Filter by flight class
+      if (selectedFilters.flightClass.length > 0) {
+        const flightClass = typeof flight.flightClass === 'string' ? flight.flightClass : (flight.flightClass as any)?.name || '';
+        if (!selectedFilters.flightClass.includes(flightClass)) return false;
+      }
+
+      // Filter by ticket type
+      if (selectedFilters.ticketType.length > 0) {
+        const ticketType = flight.ticketType || 'سیستمی';
+        if (!selectedFilters.ticketType.includes(ticketType)) return false;
+      }
+
+      // Filter by time range
+      if (selectedFilters.timeRange.length > 0) {
+        const departureTime = new Date(flight.departure?.dateTime || 0).getHours();
+        const timeRange = selectedFilters.timeRange.some(range => {
+          switch (range) {
+            case '0-8': return departureTime >= 0 && departureTime < 8;
+            case '8-12': return departureTime >= 8 && departureTime < 12;
+            case '12-18': return departureTime >= 12 && departureTime < 18;
+            case '18-24': return departureTime >= 18 && departureTime < 24;
+            default: return false;
+          }
+        });
+        if (!timeRange) return false;
+      }
+
+      return true;
+    });
+  }, [sortedFlights, selectedFilters]);
+
+  const handleFilterChange = (filterType: string, value: string) => {
+    setSelectedFilters(prev => ({
+      ...prev,
+      [filterType]: (prev[filterType as keyof typeof prev] as string[]).includes(value)
+        ? (prev[filterType as keyof typeof prev] as string[]).filter(item => item !== value)
+        : [...(prev[filterType as keyof typeof prev] as string[]), value]
+    }));
+  };
+
+  const topAd = advertisements.find(ad => ad.position === 'top');
+  const bottomAd = advertisements.find(ad => ad.position === 'bottom');
+
+  if (!searchQuery) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <div className="mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-2">{t('searchResults.noFlights')}</h3>
-            <p className="text-slate-600 mb-6">{t('searchResults.noFlightsDescription')}</p>
-          </div>
-          
-          {/* Popular Routes */}
-          <PopularRoutes routes={popularRoutes} onSearch={onSearch} />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">
+            {t('searchResults.noSearchQuery')}
+          </h2>
+          <p className="text-gray-600">
+            {t('searchResults.pleaseSearch')}
+          </p>
         </div>
       </div>
     );
   }
 
-  console.log('🔍 Rendering SearchResults with flights:', flights.length, 'flights');
-  console.log('🔍 Rendering SearchResults with sortedFlights:', sortedFlights.length, 'flights');
-  console.log('🔍 flights.length > 0:', flights.length > 0);
-  console.log('🔍 flights.length !== 0:', flights.length !== 0);
-  console.log('🔍 About to render flight cards - flights.length:', flights.length);
-  console.log('🔍 About to render flight cards - sortedFlights.length:', sortedFlights.length);
-  console.log('🔍 About to render flight cards - sortedFlights:', sortedFlights);
-  console.log('🔍 About to render flight cards - flights.length > 0:', flights.length > 0);
-  console.log('🔍 About to render flight cards - sortedFlights.length > 0:', sortedFlights.length > 0);
-  console.log('🔍 About to render flight cards - flights.length === 0:', flights.length === 0);
-  console.log('🔍 About to render flight cards - sortedFlights.length === 0:', sortedFlights.length === 0);
-  console.log('🔍 About to render flight cards - flights.length !== 0:', flights.length !== 0);
-  console.log('🔍 About to render flight cards - sortedFlights.length !== 0:', sortedFlights.length !== 0);
-  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Results Header */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-2">
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
-                  {t('searchResults.title')}
-                </h2>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <p className="text-slate-600 font-medium">
-                    {t('searchResults.resultsCount', { count: sortedFlights.length })}
-                  </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{searchQuery.tripType === 'OneWay' ? 'یک طرفه' : 'رفت و برگشت'}</span>
+                <span className="mx-2">•</span>
+                <span className="font-medium">{searchQuery.passengers.adults + searchQuery.passengers.children + searchQuery.passengers.infants} مسافر</span>
+                <span className="mx-2">•</span>
+                <span className="font-medium">{searchQuery.departureDate instanceof Date ? searchQuery.departureDate.toLocaleDateString('fa-IR') : searchQuery.departureDate}</span>
+                {searchQuery.returnDate && (
+                  <>
+                    <span className="mx-2">-</span>
+                    <span className="font-medium">{searchQuery.returnDate instanceof Date ? searchQuery.returnDate.toLocaleDateString('fa-IR') : searchQuery.returnDate}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{searchQuery.from}</span>
+                <span className="mx-2">→</span>
+                <span className="font-medium">{searchQuery.to}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex gap-6">
+          {/* Sidebar Filters */}
+          <div className="w-80 flex-shrink-0">
+            <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">فیلترها</h3>
+              
+              {/* Stops Filter */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">توقف</h4>
+                <div className="space-y-2">
+                  {[
+                    { value: '0', label: 'بدون توقف' },
+                    { value: '1', label: 'یک توقف' },
+                    { value: '2', label: 'دو توقف' }
+                  ].map(option => (
+                    <label key={option.value} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.stops.includes(option.value)}
+                        onChange={() => handleFilterChange('stops', option.value)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="mr-2 text-sm text-gray-600">{option.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
-              
-              {/* Sort Options */}
-              <div className="w-full sm:w-auto">
-                <SortDropdown value={sortOption} onChange={setSortOption} />
+
+              {/* Flight Class Filter */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">نوع پرواز</h4>
+                <div className="space-y-2">
+                  {['اقتصادی', 'بیزینسی', 'سطح یک'].map(option => (
+                    <label key={option} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.flightClass.includes(option)}
+                        onChange={() => handleFilterChange('flightClass', option)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="mr-2 text-sm text-gray-600">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ticket Type Filter */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">نوع بلیط</h4>
+                <div className="space-y-2">
+                  {['سیستمی', 'چارتری'].map(option => (
+                    <label key={option} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.ticketType.includes(option)}
+                        onChange={() => handleFilterChange('ticketType', option)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="mr-2 text-sm text-gray-600">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time Range Filter */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">بازه زمانی</h4>
+                <div className="space-y-2">
+                  {[
+                    { value: '0-8', label: '0-8 (صبح)' },
+                    { value: '8-12', label: '8-12 (ظهر)' },
+                    { value: '12-18', label: '12-18 (بعدازظهر)' },
+                    { value: '18-24', label: '18-24 (شب)' }
+                  ].map(option => (
+                    <label key={option.value} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.timeRange.includes(option.value)}
+                        onChange={() => handleFilterChange('timeRange', option.value)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="mr-2 text-sm text-gray-600">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Airlines Filter */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">ایرلاین</h4>
+                <div className="space-y-2">
+                  {Array.from(new Set(flights.map(f => typeof f.airline === 'string' ? f.airline : (f.airline as any)?.name || ''))).map((airline: string) => (
+                    <label key={airline} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.airlines.includes(airline)}
+                        onChange={() => handleFilterChange('airlines', airline)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="mr-2 text-sm text-gray-600">{airline}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Top Advertisement */}
-          {topAd && (
-            <div className="rounded-2xl overflow-hidden shadow-lg">
-              <AdBanner 
-                advertisement={topAd} 
-                currentUser={currentUser}
-                onAdClick={() => {
-                  // Handle ad click
-                  console.log('Ad clicked:', topAd.id);
-                }}
-              />
+          {/* Main Content */}
+          <div className="flex-1">
+            {/* Special Offer Banner */}
+            <div className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold">پیشنهاد ویژه</h3>
+                  <p className="text-sm opacity-90">بهترین قیمت‌ها را برای شما پیدا کرده‌ایم</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold">-20%</div>
+                  <div className="text-sm opacity-90">تخفیف ویژه</div>
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Flight Results */}
-          <div className="space-y-6">
-            {console.log('🔍 Rendering flight cards for:', sortedFlights.length, 'flights')}
-            {console.log('🔍 sortedFlights array:', sortedFlights)}
-            {console.log('🔍 sortedFlights.length > 0:', sortedFlights.length > 0)}
-            {console.log('🔍 sortedFlights.length === 0:', sortedFlights.length === 0)}
-            {console.log('🔍 sortedFlights.length !== 0:', sortedFlights.length !== 0)}
-            {console.log('🔍 sortedFlights.length > 0 result:', sortedFlights.length > 0)}
-            {console.log('🔍 sortedFlights.length === 0 result:', sortedFlights.length === 0)}
-            {console.log('🔍 sortedFlights.length !== 0 result:', sortedFlights.length !== 0)}
-            {console.log('🔍 sortedFlights.length > 0 condition:', sortedFlights.length > 0)}
-            {console.log('🔍 sortedFlights.length === 0 condition:', sortedFlights.length === 0)}
-            {console.log('🔍 sortedFlights.length !== 0 condition:', sortedFlights.length !== 0)}
-            {sortedFlights.map((flight, index) => {
-              console.log('🔍 Rendering flight card:', index, flight.id, flight.flightNumber);
-              console.log('🔍 Flight object:', flight);
-              return (
-                <div 
-                  key={flight.id} 
-                  className="transform transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <FlightCard 
-                    flight={flight} 
-                    onSelect={onSelectFlight} 
-                    refundPolicies={refundPolicies} 
-                    currentUser={currentUser} 
-                    currencies={currencies} 
+            {/* Results Header */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    نتایج جستجو
+                  </h2>
+                  <p className="text-gray-600">
+                    {filteredFlights.length} پرواز پیدا شد
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-600">مرتب‌سازی بر اساس:</span>
+                  <SortDropdown 
+                    value={sortOption} 
+                    onChange={setSortOption}
                   />
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Flight Results */}
+            {filteredFlights.length > 0 ? (
+        <div className="space-y-4">
+                {filteredFlights.map((flight, index) => (
+                  <div key={flight.id} className="relative">
+                    {/* Special Offer Badge for first flight */}
+                    {index === 0 && (
+                      <div className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full z-10">
+                        پیشنهاد ویژه
+                      </div>
+                    )}
+                    
+                    <FlightCard 
+                      flight={flight} 
+                      onSelect={onSelectFlight} 
+                      refundPolicies={refundPolicies} 
+                      currentUser={currentUser} 
+                      currencies={currencies} 
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <div className="text-6xl mb-4">✈️</div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                  در این تاریخ پروازی وجود ندارد
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  متأسفانه برای تاریخ انتخابی شما پروازی یافت نشد. لطفاً تاریخ دیگری را انتخاب کنید.
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  جستجوی مجدد
+                </button>
+              </div>
+            )}
+
+            {/* Bottom Advertisement */}
+            {bottomAd && (
+              <div className="mt-8">
+                <AdBanner 
+                  imageUrl={bottomAd.imageUrl} 
+                  linkUrl={bottomAd.linkUrl} 
+                  altText={bottomAd.altText} 
+                  onAdClick={() => {
+                    console.log('Ad clicked:', bottomAd.linkUrl);
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

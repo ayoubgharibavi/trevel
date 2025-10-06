@@ -38,6 +38,7 @@ export class UpdateExchangeRateDto {
   @IsOptional()
   source?: string;
 }
+
 export class SignupDto {
   @ApiProperty({ example: 'احمد محمدی' })
   @IsString()
@@ -64,7 +65,6 @@ export class SignupDto {
   @IsNotEmpty()
   phone!: string;
 }
-
 
 export class UpdateProfileDto {
   @ApiProperty({ required: false })
@@ -97,22 +97,70 @@ export class SavedPassengerDto {
   passportNumber?: string;
 }
 
+export class PassengerDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  @IsOptional()
+  seatNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  ticketNumber?: string;
+}
+
 export class CreateBookingDto {
-  @ApiProperty()
+  @IsString()
   flightId!: string;
 
-  @ApiProperty()
-  passengers!: {
-    adults: any[];
-    children: any[];
-    infants: any[];
-  };
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PassengerDto)
+  passengers!: PassengerDto[];
 
-  @ApiProperty()
-  contactEmail!: string;
+  @IsNumber()
+  totalPrice!: number;
 
-  @ApiProperty()
-  contactPhone!: string;
+  @IsString()
+  @IsOptional()
+  contactEmail?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  buyerReference?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @IsNumber()
+  @IsOptional()
+  purchasePrice?: number;
+
+  @IsString()
+  @IsOptional()
+  searchQuery?: string;
+
+  @IsString()
+  @IsOptional()
+  sepehrBookingId?: string;
+
+  @IsString()
+  @IsOptional()
+  sepehrPnr?: string;
+
+  @IsString()
+  @IsOptional()
+  charter118BookingId?: string;
+
+  @IsString()
+  @IsOptional()
+  charter118ConfirmationCode?: string;
 }
 
 export class CancelBookingDto {
@@ -150,8 +198,6 @@ export class UpdateUserDto {
   status?: string;
 }
 
-// DTOs are defined inline in this file
-
 export class FlightSearchQueryDto {
   @IsNotEmpty()
   @IsString()
@@ -176,6 +222,9 @@ export class FlightSearchQueryDto {
   @IsOptional()
   @IsString()
   infants?: string; // Number of infants
+
+  // Index signature to allow additional properties
+  [key: string]: any;
 }
 
 class FlightLocationDto {
@@ -321,9 +370,10 @@ export class CreateFlightDto {
   @IsNotEmpty()
   price!: number;
 
-  @ApiProperty({ example: 1000000, description: 'مالیات بلیط' })
+  @ApiProperty({ example: 0, description: 'مالیات بلیط', required: false })
+  @IsOptional()
   @Transform(({ value }) => {
-    if (value === null || value === undefined) return value;
+    if (value === null || value === undefined) return 0;
     if (typeof value === 'string') {
       const parsed = parseInt(value, 10);
       return isNaN(parsed) ? 0 : parsed;
@@ -332,8 +382,7 @@ export class CreateFlightDto {
     return 0;
   })
   @IsNumber()
-  @IsNotEmpty()
-  taxes!: number;
+  taxes?: number;
 
   @ApiProperty({ example: 'Economy', description: 'کلاس پروازی' })
   @IsString()
@@ -378,7 +427,7 @@ export class CreateFlightDto {
   @IsOptional()
   baggageAllowance?: string;
 
-  @ApiProperty({ example: 'SCHEDULED', description: 'وضعیت پرواز', required: false })
+  @ApiProperty({ example: 'ON_TIME', description: 'وضعیت پرواز', required: false })
   @IsString()
   @IsOptional()
   status?: string;
@@ -541,7 +590,7 @@ export class UpdateFlightDto {
   @IsOptional()
   baggageAllowance?: string;
 
-  @ApiProperty({ example: 'SCHEDULED', description: 'وضعیت پرواز', required: false })
+  @ApiProperty({ example: 'ON_TIME', description: 'وضعیت پرواز', required: false })
   @IsString()
   @IsOptional()
   status?: string;
@@ -579,6 +628,111 @@ export * from './login.dto';
 export * from './update-user.dto';
 export * from './wallet.dto';
 export * from './refresh.dto';
+export * from './sepehr.dto';
+
+// Advertisement DTOs
+export class CreateAdvertisementDto {
+  @ApiProperty({ example: 'تبلیغ پرواز تهران-مشهد' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({ example: 'پروازهای ارزان قیمت تهران به مشهد' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: 'https://example.com/ad.jpg' })
+  @IsString()
+  @IsNotEmpty()
+  imageUrl!: string;
+
+  @ApiProperty({ example: 'https://example.com/landing' })
+  @IsString()
+  @IsOptional()
+  linkUrl?: string;
+
+  @ApiProperty({ example: '#FF5733' })
+  @IsString()
+  @IsOptional()
+  backgroundColor?: string;
+
+  @ApiProperty({ example: '#FFFFFF' })
+  @IsString()
+  @IsOptional()
+  textColor?: string;
+
+  @ApiProperty({ example: 'flight-results' })
+  @IsString()
+  @IsOptional()
+  position?: string;
+
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @IsOptional()
+  priority?: number;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class UpdateAdvertisementDto {
+  @ApiProperty({ example: 'تبلیغ پرواز تهران-مشهد' })
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @ApiProperty({ example: 'پروازهای ارزان قیمت تهران به مشهد' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: 'https://example.com/ad.jpg' })
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
+  @ApiProperty({ example: 'https://example.com/landing' })
+  @IsString()
+  @IsOptional()
+  linkUrl?: string;
+
+  @ApiProperty({ example: '#FF5733' })
+  @IsString()
+  @IsOptional()
+  backgroundColor?: string;
+
+  @ApiProperty({ example: '#FFFFFF' })
+  @IsString()
+  @IsOptional()
+  textColor?: string;
+
+  @ApiProperty({ example: 'flight-results' })
+  @IsString()
+  @IsOptional()
+  position?: string;
+
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @IsOptional()
+  priority?: number;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
+
+
+
+
+
+
+
+
 
 
 

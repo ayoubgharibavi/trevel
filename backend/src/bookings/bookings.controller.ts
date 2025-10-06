@@ -21,10 +21,23 @@ export class BookingsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create new booking' })
+  @ApiOperation({ summary: 'Create booking' })
   @ApiBody({ type: CreateBookingDto })
   async createBooking(@Req() req: any, @Body() body: CreateBookingDto) {
-    return this.bookingsService.createBooking(req.user.userId, body);
+    console.log('🔍 DEBUG - createBooking req.user:', req.user);
+    console.log('🔍 DEBUG - Using userId:', req.user.userId);
+    return this.bookingsService.createBooking(body, req.user.userId);
+  }
+
+  @Post('manual')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create manual booking' })
+  @ApiBody({ type: CreateBookingDto })
+  async createManualBooking(@Req() req: any, @Body() body: CreateBookingDto) {
+    console.log('🔍 DEBUG - req.user:', req.user);
+    console.log('🔍 DEBUG - Using userId:', req.user.userId);
+    return this.bookingsService.createManualBooking(body, req.user.userId);
   }
 
   @Get(':id')
@@ -32,7 +45,7 @@ export class BookingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get booking details' })
   async getBooking(@Req() req: any, @Param('id') bookingId: string) {
-    return this.bookingsService.getBooking(req.user.userId, bookingId);
+    return this.bookingsService.getBookingById(bookingId, req.user.userId);
   }
 
   @Put(':id/cancel')
@@ -41,7 +54,7 @@ export class BookingsController {
   @ApiOperation({ summary: 'Cancel booking' })
   @ApiBody({ type: CancelBookingDto })
   async cancelBooking(@Req() req: any, @Param('id') bookingId: string, @Body() body: CancelBookingDto) {
-    return this.bookingsService.cancelBooking(req.user.userId, bookingId, body.reason);
+    return this.bookingsService.cancelBooking(bookingId, req.user.userId);
   }
 
   @Get(':id/e-ticket')
@@ -49,7 +62,7 @@ export class BookingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get e-ticket' })
   async getETicket(@Req() req: any, @Param('id') bookingId: string) {
-    return this.bookingsService.getETicket(req.user.userId, bookingId);
+    return this.bookingsService.getETicketData(req.user.userId, bookingId);
   }
 
   @Get(':id/e-ticket/pdf')

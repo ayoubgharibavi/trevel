@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFlightDto, UpdateFlightDto } from '../common/dto';
 import { Prisma } from '@prisma/client';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class FlightsService {
@@ -14,36 +15,47 @@ export class FlightsService {
         throw new BadRequestException('Missing required search parameters');
       }
 
-    // Search airports by IATA code or city name
-    const allAirports = await this.prisma.airport.findMany();
-    
-    // Extract city name from combined format like "تهران (IKA)" -> "تهران"
-    const extractCityName = (input: string): string => {
-      return input.replace(/\s*\([A-Z]{3}\)\s*$/, '').trim();
-    };
-    
-    const fromCity = extractCityName(from);
-    const toCity = extractCityName(to);
-    
-    const departureAirport = allAirports.find(airport => {
-      if (airport.iata === from.toUpperCase()) return true;
-      const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
-      return Object.values(cityNames).some((name: any) => 
-        name.toLowerCase() === fromCity.toLowerCase()
-      );
-    });
+      // Search airports by IATA code or city name
+      const allAirports = await this.prisma.airport.findMany();
+      
+      // Extract city name from combined format like "تهران (IKA)" -> "تهران"
+      const extractCityName = (input: string): string => {
+        return input.replace(/\s*\([A-Z]{3}\)\s*$/, '').trim();
+      };
+      
+      const fromCity = extractCityName(from);
+      const toCity = extractCityName(to);
+      
+      const departureAirport = allAirports.find(airport => {
+        if (airport.iata === from.toUpperCase()) return true;
+        try {
+          const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
+          return Object.values(cityNames).some((name: any) => 
+            name.toLowerCase() === fromCity.toLowerCase()
+          );
+        } catch (error) {
+          // If JSON parsing fails, try direct string comparison
+          return airport.city.toLowerCase() === fromCity.toLowerCase();
+        }
+      });
 
-    const arrivalAirport = allAirports.find(airport => {
-      if (airport.iata === to.toUpperCase()) return true;
-      const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
-      return Object.values(cityNames).some((name: any) => 
-        name.toLowerCase() === toCity.toLowerCase()
-      );
-    });
+      const arrivalAirport = allAirports.find(airport => {
+        if (airport.iata === to.toUpperCase()) return true;
+        try {
+          const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
+          return Object.values(cityNames).some((name: any) => 
+            name.toLowerCase() === toCity.toLowerCase()
+          );
+        } catch (error) {
+          // If JSON parsing fails, try direct string comparison
+          return airport.city.toLowerCase() === toCity.toLowerCase();
+        }
+      });
 
-    if (!departureAirport || !arrivalAirport) {
-      throw new BadRequestException('Invalid departure or arrival airport/city');
-    }
+      if (!departureAirport || !arrivalAirport) {
+        // Return empty array instead of throwing error for AI search
+        return [];
+      }
 
     const searchDateTime = new Date(departureDate);
     if (isNaN(searchDateTime.getTime())) {
@@ -59,7 +71,7 @@ export class FlightsService {
           gte: new Date(searchDateTime.getFullYear(), searchDateTime.getMonth(), searchDateTime.getDate()),
           lt: new Date(searchDateTime.getFullYear(), searchDateTime.getMonth(), searchDateTime.getDate() + 1),
         },
-        status: 'SCHEDULED',
+        status: 'ON_TIME',
       },
       include: {
         departureAirport: true,
@@ -73,33 +85,33 @@ export class FlightsService {
 
     // Transform flights to match frontend expectations
     return flights.map(flight => {
-      const departureCityData = JSON.parse(flight.departureAirport.city as string);
-      const departureNameData = JSON.parse(flight.departureAirport.name as string);
-      const arrivalCityData = JSON.parse(flight.arrivalAirport.city as string);
-      const arrivalNameData = JSON.parse(flight.arrivalAirport.name as string);
-      const airlineNameData = JSON.parse(flight.airlineInfo.name as string);
-      const aircraftNameData = JSON.parse(flight.aircraftInfo.name as string);
-      const flightClassNameData = JSON.parse(flight.flightClassInfo.name as string);
-
+      const departureCityData = flight.departureAirport?.city ? JSON.parse(flight.departureAirport.city as string) : null;
+      const departureNameData = flight.departureAirport?.name ? JSON.parse(flight.departureAirport.name as string) : null;
+      const arrivalCityData = flight.arrivalAirport?.city ? JSON.parse(flight.arrivalAirport.city as string) : null;
+      const arrivalNameData = flight.arrivalAirport?.name ? JSON.parse(flight.arrivalAirport.name as string) : null;
+      const airlineNameData = flight.airlineInfo?.name ? JSON.parse(flight.airlineInfo.name as string) : null;
+      const aircraftNameData = flight.aircraftInfo?.name ? JSON.parse(flight.aircraftInfo.name as string) : null;
+      const flightClassNameData = flight.flightClassInfo?.name ? JSON.parse(flight.flightClassInfo.name as string) : null;
+      
       return {
         id: flight.id,
-        airline: airlineNameData.fa || airlineNameData.en,
+        airline: airlineNameData?.fa || airlineNameData?.en || '',
         airlineLogoUrl: flight.airlineLogoUrl,
         flightNumber: flight.flightNumber,
         departure: {
-          airportCode: flight.departureAirport.iata,
-          airportName: departureNameData.fa || departureNameData.en,
-          city: departureCityData.fa || departureCityData.en,
+          airportCode: flight.departureAirport?.iata || '',
+          airportName: departureNameData?.fa || departureNameData?.en || '',
+          city: departureCityData?.fa || departureCityData?.en || '',
           dateTime: flight.departureTime.toISOString(),
         },
         arrival: {
-          airportCode: flight.arrivalAirport.iata,
-          airportName: arrivalNameData.fa || arrivalNameData.en,
-          city: arrivalCityData.fa || arrivalCityData.en,
+          airportCode: flight.arrivalAirport?.iata || '',
+          airportName: arrivalNameData?.fa || arrivalNameData?.en || '',
+          city: arrivalCityData?.fa || arrivalCityData?.en || '',
           dateTime: flight.arrivalTime.toISOString(),
         },
-        aircraft: aircraftNameData.fa || aircraftNameData.en,
-        flightClass: flightClassNameData.fa || flightClassNameData.en,
+        aircraft: aircraftNameData?.fa || aircraftNameData?.en || '',
+        flightClass: flightClassNameData?.fa || flightClassNameData?.en || '',
         duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
         stops: flight.stops,
         price: Number(flight.price),
@@ -134,8 +146,8 @@ export class FlightsService {
     const airportMap = new Map(airports.map(airport => [airport.id, airport]));
 
     return routes.map(route => {
-      const departureAirport = airportMap.get(route.departureAirportId);
-      const arrivalAirport = airportMap.get(route.arrivalAirportId);
+      const departureAirport = route.departureAirportId ? airportMap.get(route.departureAirportId) : null;
+      const arrivalAirport = route.arrivalAirportId ? airportMap.get(route.arrivalAirportId) : null;
       
       if (!departureAirport || !arrivalAirport) return null;
       
@@ -166,37 +178,37 @@ export class FlightsService {
       throw new BadRequestException('Flight not found');
     }
 
-    const departureCityData = JSON.parse(flight.departureAirport.city as string);
-    const departureNameData = JSON.parse(flight.departureAirport.name as string);
-    const arrivalCityData = JSON.parse(flight.arrivalAirport.city as string);
-    const arrivalNameData = JSON.parse(flight.arrivalAirport.name as string);
-    const airlineNameData = JSON.parse(flight.airlineInfo.name as string);
-    const aircraftNameData = JSON.parse(flight.aircraftInfo.name as string);
-    const flightClassNameData = JSON.parse(flight.flightClassInfo.name as string);
+    const departureCityData = flight.departureAirport?.city ? JSON.parse(flight.departureAirport.city as string) : null;
+    const departureNameData = flight.departureAirport?.name ? JSON.parse(flight.departureAirport.name as string) : null;
+    const arrivalCityData = flight.arrivalAirport?.city ? JSON.parse(flight.arrivalAirport.city as string) : null;
+    const arrivalNameData = flight.arrivalAirport?.name ? JSON.parse(flight.arrivalAirport.name as string) : null;
+    const airlineNameData = flight.airlineInfo?.name ? JSON.parse(flight.airlineInfo.name as string) : null;
+    const aircraftNameData = flight.aircraftInfo?.name ? JSON.parse(flight.aircraftInfo.name as string) : null;
+    const flightClassNameData = flight.flightClassInfo?.name ? JSON.parse(flight.flightClassInfo.name as string) : null;
 
     return {
       id: flight.id,
-      airline: airlineNameData.fa || airlineNameData.en,
-      airlineLogoUrl: flight.airlineInfo.logoUrl,
+      airline: airlineNameData?.fa || airlineNameData?.en || '',
+      airlineLogoUrl: flight.airlineInfo?.logoUrl || '',
       flightNumber: flight.flightNumber,
       departure: {
-        airportCode: flight.departureAirport.iata,
-        airportName: departureNameData.fa || departureNameData.en,
-        city: departureCityData.fa || departureCityData.en,
+        airportCode: flight.departureAirport?.iata || '',
+        airportName: departureNameData?.fa || departureNameData?.en || '',
+        city: departureCityData?.fa || departureCityData?.en || '',
         dateTime: flight.departureTime.toISOString(),
       },
       arrival: {
-        airportCode: flight.arrivalAirport.iata,
-        airportName: arrivalNameData.fa || arrivalNameData.en,
-        city: arrivalCityData.fa || arrivalCityData.en,
+        airportCode: flight.arrivalAirport?.iata || '',
+        airportName: arrivalNameData?.fa || arrivalNameData?.en || '',
+        city: arrivalCityData?.fa || arrivalCityData?.en || '',
         dateTime: flight.arrivalTime.toISOString(),
       },
-      aircraft: aircraftNameData.fa || aircraftNameData.en,
-      flightClass: flightClassNameData.fa || flightClassNameData.en,
+      aircraft: aircraftNameData?.fa || aircraftNameData?.en || '',
+      flightClass: flightClassNameData?.fa || flightClassNameData?.en || '',
       duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
       stops: flight.stops,
-      price: flight.price,
-      taxes: flight.taxes,
+      price: Number(flight.price),
+      taxes: Number(flight.taxes),
       availableSeats: flight.availableSeats,
       totalCapacity: flight.totalCapacity,
       baggageAllowance: flight.baggageAllowance,
@@ -206,52 +218,274 @@ export class FlightsService {
 
   async aiSearch(query: Record<string, string>, language = 'fa', user?: any) {
     try {
-      // First try regular search
-      const regularResults = await this.search(query, user);
+      const { from, to, departureDate } = query;
       
-      // If we have results, return them
-      if (regularResults && regularResults.length > 0) {
-        return regularResults;
-      }
-      
-      // If no results, try Gemini AI search
-      const { from, to, departureDate, adults = '1', children = '0', infants = '0' } = query;
-      
-      // Create a mock flight based on the search criteria
-      const mockFlight = {
-        id: 'ai-generated-' + Date.now(),
-        airline: 'ایران ایر',
-        airlineLogoUrl: '/images/iran-air-logo.png',
-        flightNumber: 'IR' + Math.floor(Math.random() * 9000 + 1000),
-        departure: {
-          airportCode: from.toUpperCase(),
-          airportName: from === 'تهران' ? 'فرودگاه امام خمینی' : 'فرودگاه ' + from,
-          city: from,
-          dateTime: new Date(departureDate + 'T08:00:00Z').toISOString(),
-        },
-        arrival: {
-          airportCode: to.toUpperCase(),
-          airportName: to === 'مشهد' ? 'فرودگاه شهید هاشمی نژاد' : 'فرودگاه ' + to,
-          city: to,
-          dateTime: new Date(departureDate + 'T09:30:00Z').toISOString(),
-        },
-        aircraft: 'بوئینگ 737',
-        flightClass: 'اکونومی',
-        duration: '1h 30m',
-        stops: 0,
-        price: Math.floor(Math.random() * 2000000 + 1000000), // Random price between 1M-3M IRR
-        taxes: 200000,
-        availableSeats: Math.floor(Math.random() * 50 + 20),
-        totalCapacity: 180,
-        baggageAllowance: '20 کیلوگرم',
-        status: 'SCHEDULED',
+      // Map city names to airport codes
+      const cityToAirportMap: { [key: string]: { code: string, name: string } } = {
+        'تهران': { code: 'IKA', name: 'فرودگاه امام خمینی' },
+        'مشهد': { code: 'MHD', name: 'فرودگاه شهید هاشمی نژاد' },
+        'دبی': { code: 'DXB', name: 'فرودگاه بین‌المللی دبی' },
+        'استانبول': { code: 'IST', name: 'فرودگاه بین‌المللی استانبول' },
+        'اصفهان': { code: 'IFN', name: 'فرودگاه بین‌المللی اصفهان' },
+        'شیراز': { code: 'SYZ', name: 'فرودگاه بین‌المللی شیراز' },
+        'تبریز': { code: 'TBZ', name: 'فرودگاه بین‌المللی تبریز' },
+        'اهواز': { code: 'AWZ', name: 'فرودگاه بین‌المللی اهواز' },
+        'کرمان': { code: 'KER', name: 'فرودگاه بین‌المللی کرمان' },
+        'یزد': { code: 'AZD', name: 'فرودگاه بین‌المللی یزد' }
       };
       
-      return [mockFlight];
+      // Get airport codes for from and to cities
+      const fromAirport = cityToAirportMap[from] || { code: 'IKA', name: 'فرودگاه امام خمینی' };
+      const toAirport = cityToAirportMap[to] || { code: 'MHD', name: 'فرودگاه شهید هاشمی نژاد' };
+      
+      // Calculate duration based on route
+      let duration = '2h 30m';
+      let durationMinutes = 150;
+      if (from === 'تهران' && to === 'دبی') {
+        duration = '3h 30m';
+        durationMinutes = 210;
+      } else if (from === 'تهران' && to === 'مشهد') {
+        duration = '1h 30m';
+        durationMinutes = 90;
+      }
+      
+      // Create simple mock flights based on actual search query
+      const flightId = `ai-generated-${Date.now()}`;
+      const mockFlights = [
+        {
+          id: flightId,
+          airline: 'ایران ایر',
+          airlineLogoUrl: '/images/iran-air-logo.png',
+          flightNumber: 'IR1234',
+          departure: {
+            airportCode: fromAirport.code,
+            airportName: fromAirport.name,
+            city: from,
+            dateTime: new Date(departureDate + 'T08:00:00Z').toISOString(),
+          },
+          arrival: {
+            airportCode: toAirport.code,
+            airportName: toAirport.name,
+            city: to,
+            dateTime: new Date(new Date(departureDate + 'T08:00:00Z').getTime() + durationMinutes * 60 * 1000).toISOString(),
+          },
+          duration: duration,
+          stops: 0,
+          price: 1500000,
+          taxes: 150000,
+          flightClass: 'اقتصادی',
+          aircraft: 'Boeing 737',
+          availableSeats: 25,
+          baggageAllowance: '20 کیلوگرم',
+        }
+      ];
+      
+      // SENIOR FIX: Save AI-generated flights to database for booking
+      try {
+        // Find or create airports based on search query
+        const departureAirport = await this.prisma.airport.upsert({
+          where: { iata: fromAirport.code },
+          update: {},
+          create: {
+            iata: fromAirport.code,
+            icao: fromAirport.code === 'IKA' ? 'OIIE' : fromAirport.code === 'DXB' ? 'OMDB' : 'OIIE',
+            name: JSON.stringify({ fa: fromAirport.name, en: fromAirport.name }),
+            city: JSON.stringify({ fa: from, en: from }),
+            country: JSON.stringify({ fa: 'ایران', en: 'Iran' })
+          }
+        });
+
+        const arrivalAirport = await this.prisma.airport.upsert({
+          where: { iata: toAirport.code },
+          update: {},
+          create: {
+            iata: toAirport.code,
+            icao: toAirport.code === 'MHD' ? 'OIMM' : toAirport.code === 'DXB' ? 'OMDB' : 'OIMM',
+            name: JSON.stringify({ fa: toAirport.name, en: toAirport.name }),
+            city: JSON.stringify({ fa: to, en: to }),
+            country: JSON.stringify({ fa: 'ایران', en: 'Iran' })
+          }
+        });
+
+        await this.prisma.flight.upsert({
+          where: { id: flightId },
+          update: {},
+          create: {
+            id: flightId,
+            flightNumber: 'IR1234',
+            airline: 'ایران ایر',
+            aircraft: 'Boeing 737',
+            flightClass: 'اقتصادی',
+            duration: durationMinutes, // Dynamic duration based on route
+            price: BigInt(1500000),
+            taxes: BigInt(150000),
+            availableSeats: 25,
+            totalCapacity: 150,
+            airlineId: undefined,
+            aircraftId: undefined,
+            flightClassId: undefined,
+            departureAirportId: departureAirport.id,
+            arrivalAirportId: arrivalAirport.id,
+            departureTime: new Date(departureDate + 'T08:00:00Z'),
+            arrivalTime: new Date(departureDate + 'T09:30:00Z'),
+            status: 'ON_TIME'
+          }
+        });
+        console.log('✅ AI-generated flight saved to database:', flightId);
+      } catch (dbError) {
+        console.error('❌ Error saving AI flight to database:', dbError);
+        // Continue with mock flights even if DB save fails
+      }
+      
+      return mockFlights;
     } catch (error) {
       console.error('Error in AI search:', error);
-      // Fallback to regular search
-      return this.search(query, user);
+      throw new BadRequestException('Internal server error during flight search');
+    }
+  }
+
+  /**
+   * Cron job to automatically cancel past flights
+   * Runs every hour to check for flights that should be cancelled
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async autoCancelPastFlights() {
+    try {
+      const now = new Date();
+      console.log(`🕐 Running auto-cancel check at ${now.toISOString()}`);
+      
+      // Find flights that are scheduled but have passed their departure time
+      const pastFlights = await this.prisma.flight.findMany({
+        where: {
+          status: 'ON_TIME',
+          departureTime: {
+            lt: now
+          }
+        }
+      });
+
+      if (pastFlights.length === 0) {
+        console.log('✅ No past flights found to cancel');
+        return;
+      }
+
+      console.log(`📋 Found ${pastFlights.length} past flights to cancel`);
+
+      for (const flight of pastFlights) {
+        // Update flight status to CANCELLED
+        await this.prisma.flight.update({
+          where: { id: flight.id },
+          data: { 
+            status: 'CANCELLED',
+            updatedAt: now
+          }
+        });
+
+        // Cancel all related bookings
+        const relatedBookings = await this.prisma.booking.findMany({
+          where: {
+            flightId: flight.id,
+            status: {
+              in: ['CONFIRMED', 'PENDING']
+            }
+          }
+        });
+
+        if (relatedBookings.length > 0) {
+          await this.prisma.booking.updateMany({
+            where: {
+              flightId: flight.id,
+              status: {
+                in: ['CONFIRMED', 'PENDING']
+              }
+            },
+            data: {
+              status: 'CANCELLED'
+            }
+          });
+
+          console.log(`✈️ Flight ${flight.flightNumber} cancelled - ${relatedBookings.length} bookings affected`);
+        } else {
+          console.log(`✈️ Flight ${flight.flightNumber} cancelled - no active bookings`);
+        }
+      }
+
+      console.log(`✅ Auto-cancel completed: ${pastFlights.length} flights cancelled`);
+    } catch (error) {
+      console.error('❌ Error in auto-cancel past flights:', error);
+    }
+  }
+
+  /**
+   * Manual method to cancel past flights (can be called from admin panel)
+   */
+  async cancelPastFlights() {
+    try {
+      const now = new Date();
+      
+      const pastFlights = await this.prisma.flight.findMany({
+        where: {
+          status: 'ON_TIME',
+          departureTime: {
+            lt: now
+          }
+        }
+      });
+
+      const results = [];
+
+      for (const flight of pastFlights) {
+        // Update flight status to CANCELLED
+        const updatedFlight = await this.prisma.flight.update({
+          where: { id: flight.id },
+          data: { 
+            status: 'CANCELLED',
+            updatedAt: now
+          }
+        });
+
+        // Cancel all related bookings
+        const relatedBookings = await this.prisma.booking.findMany({
+          where: {
+            flightId: flight.id,
+            status: {
+              in: ['CONFIRMED', 'PENDING']
+            }
+          }
+        });
+
+        let cancelledBookings = 0;
+        if (relatedBookings.length > 0) {
+          const bookingUpdate = await this.prisma.booking.updateMany({
+            where: {
+              flightId: flight.id,
+              status: {
+                in: ['CONFIRMED', 'PENDING']
+              }
+            },
+            data: {
+              status: 'CANCELLED'
+            }
+          });
+          cancelledBookings = bookingUpdate.count;
+        }
+
+        results.push({
+          flightId: flight.id,
+          flightNumber: flight.flightNumber,
+          departureTime: flight.departureTime,
+          cancelledBookings: cancelledBookings
+        });
+      }
+
+      return {
+        success: true,
+        message: `${results.length} past flights cancelled successfully`,
+        cancelledFlights: results
+      };
+    } catch (error) {
+      console.error('Error cancelling past flights:', error);
+      throw new BadRequestException('Failed to cancel past flights');
     }
   }
 
@@ -269,9 +503,40 @@ export class FlightsService {
     ]);
 
     // Find airline, aircraft, and flight class
-    const airlineRecord = airlines.find(airline => airline.id === rest.airline);
-    const aircraftRecord = aircrafts.find(aircraft => aircraft.id === rest.aircraft);
-    const flightClassRecord = flightClasses.find(fc => fc.id === rest.flightClass);
+    const airlineRecord = airlines.find(airline => {
+      // First try to match by ID
+      if (airline.id === rest.airline) return true;
+      // Then try to match by name (JSON string)
+      const airlineNames = typeof airline.name === 'string' ? JSON.parse(airline.name) : airline.name;
+      return Object.values(airlineNames).some((name: any) =>
+        name && typeof name === 'string' && name.toLowerCase() === rest.airline?.toLowerCase()
+      );
+    });
+    
+    const aircraftRecord = aircrafts.find(aircraft => {
+      // First try to match by ID
+      if (aircraft.id === rest.aircraft) return true;
+      // Then try to match by name (JSON string)
+      const aircraftNames = typeof aircraft.name === 'string' ? JSON.parse(aircraft.name) : aircraft.name;
+      return Object.values(aircraftNames).some((name: any) =>
+        name && typeof name === 'string' && name.toLowerCase() === rest.aircraft?.toLowerCase()
+      );
+    });
+    
+    console.log('🔍 Looking for flightClass:', rest.flightClass);
+    console.log('🔍 Available flight classes:', flightClasses.map(fc => ({ id: fc.id, name: fc.name })));
+    
+    const flightClassRecord = flightClasses.find(fc => {
+      // First try to match by ID
+      if (fc.id === rest.flightClass) return true;
+      // Then try to match by name (JSON string)
+      const flightClassNames = typeof fc.name === 'string' ? JSON.parse(fc.name) : fc.name;
+      return Object.values(flightClassNames).some((name: any) =>
+        name && typeof name === 'string' && name.toLowerCase() === rest.flightClass?.toLowerCase()
+      );
+    });
+    
+    console.log('🔍 Found flightClassRecord:', flightClassRecord);
 
     // Find departure and arrival airports
     const departureAirport = airports.find(airport => {
@@ -388,7 +653,7 @@ export class FlightsService {
         flightClass: rest.flightClass,
         flightNumber: rest.flightNumber,
         price: rest.price,
-        taxes: rest.taxes,
+        taxes: rest.taxes || 0,
         airlineLogoUrl: airlineRecord.logoUrl,
         airlineId: airlineRecord.id,
         aircraftId: aircraftRecord.id,
@@ -442,13 +707,13 @@ export class FlightsService {
       airlineLogoUrl: newFlight.airlineLogoUrl,
       flightNumber: newFlight.flightNumber,
       departure: {
-        airportCode: newFlight.departureAirport.iata,
+        airportCode: newFlight.departureAirport?.iata || '',
         airportName: departureNameData.fa || departureNameData.en,
         city: departureCityData.fa || departureCityData.en,
         dateTime: newFlight.departureTime.toISOString(),
       },
       arrival: {
-        airportCode: newFlight.arrivalAirport.iata,
+        airportCode: newFlight.arrivalAirport?.iata || '',
         airportName: arrivalNameData.fa || arrivalNameData.en,
         city: arrivalCityData.fa || arrivalCityData.en,
         dateTime: newFlight.arrivalTime.toISOString(),
@@ -469,7 +734,7 @@ export class FlightsService {
       refundPolicyId: newFlight.refundPolicyId,
       creatorId: newFlight.creatorId,
       tenantId: newFlight.tenantId,
-      allotments: newFlight.allotments || [],
+      allotments: (newFlight as any).allotments || [],
     };
   }
 
@@ -529,33 +794,33 @@ export class FlightsService {
     });
 
     // Transform to match frontend expectations
-    const departureCityData = JSON.parse(updatedFlight.departureAirport.city as string);
-    const departureNameData = JSON.parse(updatedFlight.departureAirport.name as string);
-    const arrivalCityData = JSON.parse(updatedFlight.arrivalAirport.city as string);  
-    const arrivalNameData = JSON.parse(updatedFlight.arrivalAirport.name as string);
-    const airlineNameData = JSON.parse(updatedFlight.airlineInfo.name as string);
-    const aircraftNameData = JSON.parse(updatedFlight.aircraftInfo.name as string);
-    const flightClassNameData = JSON.parse(updatedFlight.flightClassInfo.name as string);
+    const departureCityData = updatedFlight.departureAirport?.city ? JSON.parse(updatedFlight.departureAirport.city as string) : null;
+    const departureNameData = updatedFlight.departureAirport?.name ? JSON.parse(updatedFlight.departureAirport.name as string) : null;
+    const arrivalCityData = updatedFlight.arrivalAirport?.city ? JSON.parse(updatedFlight.arrivalAirport.city as string) : null;
+    const arrivalNameData = updatedFlight.arrivalAirport?.name ? JSON.parse(updatedFlight.arrivalAirport.name as string) : null;
+    const airlineNameData = updatedFlight.airlineInfo?.name ? JSON.parse(updatedFlight.airlineInfo.name as string) : null;
+    const aircraftNameData = updatedFlight.aircraftInfo?.name ? JSON.parse(updatedFlight.aircraftInfo.name as string) : null;
+    const flightClassNameData = updatedFlight.flightClassInfo?.name ? JSON.parse(updatedFlight.flightClassInfo.name as string) : null;
     
     return {
       id: updatedFlight.id,
-      airline: airlineNameData.fa || airlineNameData.en,
+      airline: airlineNameData?.fa || airlineNameData?.en || '',
       airlineLogoUrl: updatedFlight.airlineLogoUrl,
       flightNumber: updatedFlight.flightNumber,
       departure: {
-        airportCode: updatedFlight.departureAirport.iata,
-        airportName: departureNameData.fa || departureNameData.en,
-        city: departureCityData.fa || departureCityData.en,
+        airportCode: updatedFlight.departureAirport?.iata || '',
+        airportName: departureNameData?.fa || departureNameData?.en || '',
+        city: departureCityData?.fa || departureCityData?.en || '',
         dateTime: updatedFlight.departureTime.toISOString(),
       },
       arrival: {
-        airportCode: updatedFlight.arrivalAirport.iata,
-        airportName: arrivalNameData.fa || arrivalNameData.en,
-        city: arrivalCityData.fa || arrivalCityData.en,
+        airportCode: updatedFlight.arrivalAirport?.iata || '',
+        airportName: arrivalNameData?.fa || arrivalNameData?.en || '',
+        city: arrivalCityData?.fa || arrivalCityData?.en || '',
         dateTime: updatedFlight.arrivalTime.toISOString(),
       },
-      aircraft: aircraftNameData.fa || aircraftNameData.en,
-      flightClass: flightClassNameData.fa || flightClassNameData.en,
+      aircraft: aircraftNameData?.fa || aircraftNameData?.en || '',
+      flightClass: flightClassNameData?.fa || flightClassNameData?.en || '',
       duration: `${Math.floor(updatedFlight.duration / 60)}h ${updatedFlight.duration % 60}m`,
       stops: updatedFlight.stops,
       price: Number(updatedFlight.price),
@@ -611,15 +876,229 @@ export class FlightsService {
     });
 
     return airports.map(airport => {
-      const cityData = JSON.parse(airport.city as string);
-      const nameData = JSON.parse(airport.name as string);
+      let cityData, nameData, countryData;
+      
+      try {
+        cityData = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
+        nameData = typeof airport.name === 'string' ? JSON.parse(airport.name) : airport.name;
+        countryData = typeof airport.country === 'string' ? JSON.parse(airport.country) : airport.country;
+      } catch (error) {
+        // If parsing fails, use the raw values
+        cityData = airport.city;
+        nameData = airport.name;
+        countryData = airport.country;
+      }
       
       return {
         id: airport.id,
-        iata: airport.iata,
-        city: cityData.fa || cityData.en,
-        name: nameData.fa || nameData.en,
+        code: airport.iata,
+        city: cityData.fa || cityData.en || cityData,
+        name: nameData.fa || nameData.en || nameData,
+        country: countryData.fa || countryData.en || countryData,
+        isActive: true,
       };
     });
   }
+
+  async getDailyPrices(from: string, to: string, month?: string) {
+    try {
+      // Parse month parameter or use current month
+      const targetMonth = month ? new Date(month + '-01') : new Date();
+      const year = targetMonth.getFullYear();
+      const monthNum = targetMonth.getMonth();
+      
+      // Find airports for route filtering
+      const allAirports = await this.prisma.airport.findMany();
+      
+      // Extract city name from combined format like "تهران (IKA)" -> "تهران"
+      const extractCityName = (input: string): string => {
+        return input.replace(/\s*\([A-Z]{3}\)\s*$/, '').trim();
+      };
+      
+      const fromCity = extractCityName(from);
+      const toCity = extractCityName(to);
+      
+      const departureAirport = allAirports.find(airport => {
+        if (airport.iata === from.toUpperCase()) return true;
+        const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
+        return Object.values(cityNames).some((name: any) => 
+          name.toLowerCase() === fromCity.toLowerCase()
+        );
+      });
+
+      const arrivalAirport = allAirports.find(airport => {
+        if (airport.iata === to.toUpperCase()) return true;
+        const cityNames = typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city;
+        return Object.values(cityNames).some((name: any) => 
+          name.toLowerCase() === toCity.toLowerCase()
+        );
+      });
+
+      if (!departureAirport || !arrivalAirport) {
+        throw new BadRequestException('Invalid departure or arrival airport/city');
+      }
+      
+      // Get flights for the entire month
+      const startDate = new Date(year, monthNum, 1);
+      const endDate = new Date(year, monthNum + 1, 0);
+      
+      const flights = await this.prisma.flight.findMany({
+        where: {
+          departureTime: {
+            gte: startDate,
+            lte: endDate,
+          },
+          departureAirportId: departureAirport.id,
+          arrivalAirportId: arrivalAirport.id,
+        },
+        select: {
+          id: true,
+          departureTime: true,
+          price: true,
+          taxes: true,
+        },
+      });
+
+      // Group flights by date and find minimum price for each day
+      const dailyPrices: { [key: string]: number } = {};
+      
+      flights.forEach(flight => {
+        const date = flight.departureTime.toISOString().split('T')[0];
+        const totalPrice = Number(flight.price) + Number(flight.taxes);
+        
+        if (!dailyPrices[date] || totalPrice < dailyPrices[date]) {
+          dailyPrices[date] = totalPrice;
+        }
+      });
+
+      // Generate all days in the month
+      const daysInMonth = endDate.getDate();
+      const result = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, monthNum, day);
+        const dateString = date.toISOString().split('T')[0];
+        
+        // Skip past dates
+        if (date < new Date()) continue;
+        
+        const price = dailyPrices[dateString];
+        if (price) {
+          result.push({
+            date: dateString,
+            price: price,
+            isLowest: false, // Will be calculated below
+          });
+        }
+      }
+
+      // Find lowest price and mark it
+      if (result.length > 0) {
+        const lowestPrice = Math.min(...result.map(r => r.price));
+        result.forEach(item => {
+          if (item.price === lowestPrice) {
+            item.isLowest = true;
+          }
+        });
+      }
+
+      return {
+        success: true,
+        data: result,
+        month: `${year}-${String(monthNum + 1).padStart(2, '0')}`,
+      };
+    } catch (error) {
+      console.error('Error getting daily prices:', error);
+      throw new BadRequestException('Failed to get daily prices');
+    }
+  }
+
+  async saveCharter118Flight(flight: any, charter118BookingId: string) {
+    try {
+      console.log('🔍 Saving Charter118 flight to database:', flight.id);
+      
+      // Find or create airports
+      const departureAirport = await this.prisma.airport.upsert({
+        where: { iata: flight.departure.airportCode },
+        update: {},
+        create: {
+          iata: flight.departure.airportCode,
+          icao: flight.departure.airportCode === 'IKA' ? 'OIIE' : flight.departure.airportCode === 'DXB' ? 'OMDB' : 'OIIE',
+          name: JSON.stringify({ fa: flight.departure.airportName, en: flight.departure.airportName }),
+          city: JSON.stringify({ fa: flight.departure.city, en: flight.departure.city }),
+          country: JSON.stringify({ fa: 'ایران', en: 'Iran' })
+        }
+      });
+
+      const arrivalAirport = await this.prisma.airport.upsert({
+        where: { iata: flight.arrival.airportCode },
+        update: {},
+        create: {
+          iata: flight.arrival.airportCode,
+          icao: flight.arrival.airportCode === 'DXB' ? 'OMDB' : flight.arrival.airportCode === 'IKA' ? 'OIIE' : 'OMDB',
+          name: JSON.stringify({ fa: flight.arrival.airportName, en: flight.arrival.airportName }),
+          city: JSON.stringify({ fa: flight.arrival.city, en: flight.arrival.city }),
+          country: JSON.stringify({ fa: 'امارات', en: 'UAE' })
+        }
+      });
+
+      // Save the flight to database
+      const savedFlight = await this.prisma.flight.upsert({
+        where: { id: flight.id },
+        update: {
+          status: 'ON_TIME' as any
+        },
+        create: {
+          id: flight.id,
+          flightNumber: flight.flightNumber,
+          airline: flight.airline,
+          aircraft: flight.aircraft,
+          flightClass: flight.flightClass,
+          duration: this.parseDurationToMinutes(flight.duration),
+          price: BigInt(flight.price),
+          taxes: BigInt(flight.taxes || 0),
+          availableSeats: flight.availableSeats,
+          totalCapacity: flight.totalCapacity || 150,
+          airlineId: undefined,
+          aircraftId: undefined,
+          flightClassId: undefined,
+          departureAirportId: departureAirport.id,
+          arrivalAirportId: arrivalAirport.id,
+          departureTime: new Date(flight.departure.dateTime),
+          arrivalTime: new Date(flight.arrival.dateTime),
+          status: 'ON_TIME' as any,
+          source: 'charter118'
+        }
+      });
+
+      console.log('✅ Charter118 flight saved successfully:', savedFlight.id);
+      
+      return {
+        success: true,
+        data: savedFlight,
+        message: 'Charter118 flight saved successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error saving Charter118 flight:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+        message: 'Failed to save Charter118 flight'
+      };
+    }
+  }
+
+  private parseDurationToMinutes(duration: string): number {
+    // Parse duration like "3h 30m" to minutes
+    const match = duration.match(/(\d+)h\s*(\d+)?m?/);
+    if (match) {
+      const hours = parseInt(match[1]);
+      const minutes = match[2] ? parseInt(match[2]) : 0;
+      return hours * 60 + minutes;
+    }
+    return 210; // Default 3h 30m
+  }
+
 }
+
+

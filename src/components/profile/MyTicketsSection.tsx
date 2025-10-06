@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Ticket, Booking } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { PlusIcon } from '@/components/icons/PlusIcon';
@@ -19,8 +19,13 @@ const StatusBadge: React.FC<{ status: Ticket['status'] }> = ({ status }) => {
         OPEN: { classes: 'bg-blue-100 text-blue-800' },
         IN_PROGRESS: { classes: 'bg-yellow-100 text-yellow-800' },
         CLOSED: { classes: 'bg-gray-100 text-gray-800' },
+        RESOLVED: { classes: 'bg-green-100 text-green-800' },
+        PENDING_CUSTOMER: { classes: 'bg-orange-100 text-orange-800' },
+        WAITING_FOR_SUPPORT: { classes: 'bg-purple-100 text-purple-800' },
+        RESPONDED: { classes: 'bg-green-100 text-green-800' },
+        COMPLETED: { classes: 'bg-emerald-100 text-emerald-800' },
     };
-    return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusMap[status].classes}`}>{t(`dashboard.tickets.statusValues.${status}`)}</span>;
+    return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusMap[status]?.classes || 'bg-gray-100 text-gray-800'}`}>{t(`dashboard.tickets.statusValues.${status}`)}</span>;
 };
 
 
@@ -32,6 +37,16 @@ export const MyTicketsSection: React.FC<MyTicketsSectionProps> = ({ tickets, use
     const sortedTickets = useMemo(() => {
         return [...tickets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     }, [tickets]);
+
+    // Update viewingTicket when tickets change to reflect latest messages
+    useEffect(() => {
+        if (viewingTicket) {
+            const updatedTicket = tickets.find(t => t.id === viewingTicket.id);
+            if (updatedTicket) {
+                setViewingTicket(updatedTicket);
+            }
+        }
+    }, [tickets, viewingTicket]);
 
     const handleCreateTicket = (subject: string, message: string, bookingId?: string) => {
         onCreateTicket(subject, message, bookingId);

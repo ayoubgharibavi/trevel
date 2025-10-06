@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Flight, AirlineInfo, AircraftInfo, FlightClassInfo, AirportInfo, Language, SeatAllotment } from '@/types';
 import { Permission, FlightSourcingType as FSTEnum, PolicyType, FlightStatus, CommissionModel, RefundPolicy, Booking, User, RolePermissions } from '@/types';
 import { hasPermission } from '@/utils/permissions';
+import { apiService } from '@/services/apiService';
 import { EditIcon } from '@/components/icons/EditIcon';
 import { TrashIcon } from '@/components/icons/TrashIcon';
 import { PlusIcon } from '@/components/icons/PlusIcon';
@@ -19,6 +20,7 @@ import { PlaneIcon } from '@/components/icons/PlaneIcon';
 import { SeatIcon } from '@/components/icons/SeatIcon';
 import { ChartBarIcon } from '@/components/icons/ChartBarIcon';
 import { FlightCapacityModal } from './FlightCapacityModal';
+import { AlertTriangleIcon } from '@/components/icons/AlertTriangleIcon';
 
 
 interface FlightsDashboardProps {
@@ -180,14 +182,19 @@ interface CreateFlightFormProps {
 
 const StatusBadge: React.FC<{ status: FlightStatus }> = ({ status }) => {
     const { t } = useLocalization();
-    const styles: Record<FlightStatus, string> = {
+    const styles: Record<string, string> = {
         SCHEDULED: 'bg-green-100 text-green-800',
         CANCELLED: 'bg-red-100 text-red-800',
         DELAYED: 'bg-yellow-100 text-yellow-800',
         DEPARTED: 'bg-blue-100 text-blue-800',
         ARRIVED: 'bg-gray-100 text-gray-800',
+        EXPIRED: 'bg-orange-100 text-orange-800', // Add expired status
     };
-    return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${styles[status]}`}>{t(`dashboard.flights.statusValues.${status}`)}</span>;
+    
+    // Map EXPIRED to Persian text
+    const statusText = status === 'EXPIRED' ? 'منقضی شده' : t(`dashboard.flights.statusValues.${status}`);
+    
+    return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${styles[status]}`}>{statusText}</span>;
 };
 
 
@@ -195,14 +202,22 @@ const FlightsList: React.FC<FlightsListProps> = ({ flights, bookings, aircrafts,
     const { t, formatNumber, formatDate, language } = useLocalization();
     const handleToggleStatus = async (flight: Flight) => {
         try {
-            const newStatus = flight.status === 'SCHEDULED' ? 'CANCELLED' : 'SCHEDULED';
-            const updatedFlight = { ...flight, status: newStatus };
-            
-            // Call the update function
-            await onUpdateFlight(updatedFlight);
-            
-            // Show success message
-            console.log(`✅ Flight ${flight.flightNumber} status updated to ${newStatus}`);
+            // Call the toggle status API instead of updateFlight
+            const response = await apiService.toggleFlightStatus(flight.id);
+            if (response.success && response.data) {
+                // Update the flight status in the local state
+                const statusCycle = ['ON_TIME', 'CLOSE', 'WAITING_FOR_COMMAND', 'NO_AVAILABILITY', 'CALL_US', 'CANCELLED'];
+                const currentIndex = statusCycle.indexOf(flight.status);
+                const nextIndex = (currentIndex + 1) % statusCycle.length;
+                const newStatus = statusCycle[nextIndex];
+                const updatedFlight = { ...flight, status: newStatus };
+                onUpdateFlight(updatedFlight);
+                
+                // Show success message
+                console.log(`✅ Flight ${flight.flightNumber} status updated to ${newStatus}`);
+            } else {
+                console.error('❌ Error updating flight status:', response.error);
+            }
         } catch (error) {
             console.error('❌ Error updating flight status:', error);
             // You could add a toast notification here
@@ -348,7 +363,8 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
         let finalValue = value;
         
         if (type === 'number') {
-            finalValue = parseFloat(value) || 0;
+            // Allow 0 as a valid value
+            finalValue = value === '' ? 0 : parseFloat(value) || 0;
         } else if (name === 'duration') {
             // Keep duration as string for frontend display, will be converted to number in transformFlightDataForBackend
             finalValue = value;
@@ -509,7 +525,7 @@ const CreateFlightForm: React.FC<CreateFlightFormProps> = ({ flightToEdit, airli
                     </div>
                     <div>
                         <label className="text-xs">{t('dashboard.flights.form.taxes')}</label>
-                        <input type="number" name="taxes" placeholder={t('dashboard.flights.form.taxes')} value={formData.taxes || ''} onChange={handleChange} className="w-full p-2 border rounded" required />
+                        <input type="number" name="taxes" placeholder={t('dashboard.flights.form.taxes')} value={formData.taxes || 0} onChange={handleChange} className="w-full p-2 border rounded" min="0" />
                     </div>
                      <div>
                         <label className="text-xs">{t('dashboard.flights.form.duration')}</label>
@@ -602,7 +618,33 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
     const [flightToEdit, setFlightToEdit] = useState<Flight | null>(null);
     const [reportFlight, setReportFlight] = useState<Flight | null>(null);
     const [capacityModalFlight, setCapacityModalFlight] = useState<Flight | null>(null);
+    const [showCancelPastModal, setShowCancelPastModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const { t, language } = useLocalization();
+
+    // Cancel past flights function
+    const handleCancelPastFlights = async () => {
+        try {
+            setIsLoading(true);
+            const response = await apiService.request('/api/v1/admin/cancel-past-flights', {
+                method: 'POST',
+            });
+
+            if (response.success) {
+                alert(`✅ ${response.data.message}`);
+                // Refresh the page to show updated flight statuses
+                window.location.reload();
+            } else {
+                alert(`❌ خطا: ${response.error}`);
+            }
+        } catch (error) {
+            console.error('Error cancelling past flights:', error);
+            alert('❌ خطا در لغو پروازهای گذشته');
+        } finally {
+            setIsLoading(false);
+            setShowCancelPastModal(false);
+        }
+    };
 
     // Parse duration string like "2h 30m" to minutes
     const parseDurationToMinutes = (duration: string): number => {
@@ -780,12 +822,21 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
                 <>
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold text-slate-800">{t('dashboard.flights.title')}</h2>
-                        {canCreate && (
-                             <button onClick={handleAddNew} className="flex items-center gap-2 bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-800 transition text-sm">
-                                <PlusIcon className="w-5 h-5" />
-                                <span>{t('dashboard.flights.addNew')}</span>
+                        <div className="flex items-center gap-3">
+                            {canCreate && (
+                                 <button onClick={handleAddNew} className="flex items-center gap-2 bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-800 transition text-sm">
+                                    <PlusIcon className="w-5 h-5" />
+                                    <span>{t('dashboard.flights.addNew')}</span>
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => setShowCancelPastModal(true)}
+                                className="flex items-center gap-2 bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition text-sm"
+                            >
+                                <AlertTriangleIcon className="w-5 h-5" />
+                                <span>لغو پروازهای گذشته</span>
                             </button>
-                        )}
+                        </div>
                     </div>
                     <FlightStats flights={flights} bookings={bookings} aircrafts={aircrafts} />
                     <FlightsList 
@@ -836,6 +887,36 @@ export const FlightsDashboard: React.FC<FlightsDashboardProps> = ({ flights, boo
                     bookings={bookings}
                     aircrafts={aircrafts}
                 />
+            )}
+            {showCancelPastModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <AlertTriangleIcon className="w-6 h-6 text-red-600" />
+                            <h3 className="text-lg font-bold text-slate-800">لغو پروازهای گذشته</h3>
+                        </div>
+                        <p className="text-slate-600 mb-6">
+                            آیا مطمئن هستید که می‌خواهید تمام پروازهایی که تاریخشان گذشته را لغو کنید؟ 
+                            این عمل غیرقابل برگشت است و تمام رزروهای مربوطه نیز لغو خواهند شد.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setShowCancelPastModal(false)}
+                                className="px-4 py-2 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                                disabled={isLoading}
+                            >
+                                انصراف
+                            </button>
+                            <button
+                                onClick={handleCancelPastFlights}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'در حال پردازش...' : 'لغو پروازها'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

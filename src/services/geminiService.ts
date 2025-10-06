@@ -110,10 +110,19 @@ export const generateFlights = async (query: SearchQuery, lang: Language): Promi
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(query),
+      body: JSON.stringify({
+        from: query.from,
+        to: query.to,
+        departureDate: query.departureDate,
+        adults: query.passengers.adults.toString(),
+        children: query.passengers.children.toString(),
+        infants: query.passengers.infants.toString(),
+      }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Backend error:', errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -121,6 +130,7 @@ export const generateFlights = async (query: SearchQuery, lang: Language): Promi
     return Array.isArray(flights) ? flights : [flights];
   } catch (error) {
     console.error('Error generating flights with AI search:', error);
+    // Return empty array instead of throwing error
     return [];
   }
 };

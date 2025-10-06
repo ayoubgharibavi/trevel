@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  trevel-app:
+    build: .
+    container_name: trevel_production
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - trevel-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: trevel_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - trevel-app
+    networks:
+      - trevel-network
+
+networks:
+  trevel-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:
+

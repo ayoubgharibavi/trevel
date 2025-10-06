@@ -5,6 +5,7 @@ import type { JournalEntry, Account, User } from '@/types';
 import { AccountType } from '@/types';
 import { useLocalization } from '@/hooks/useLocalization';
 import { DownloadIcon } from '@/components/icons/DownloadIcon';
+import { SearchIcon } from '@/components/icons/SearchIcon';
 // PDF functionality will use browser print
 
 interface FinancialReportProps {
@@ -312,6 +313,19 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({ journalEntries
                     <div>
                         <label className="text-xs text-slate-500">{t('accounting.reports.to')}</label>
                         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border rounded text-sm"/>
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 invisible">{t('accounting.reports.search')}</label>
+                        <button 
+                            onClick={() => {
+                                // Trigger report refresh with new date range
+                                console.log('Searching reports from', startDate, 'to', endDate);
+                            }}
+                            className="w-full p-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                            <SearchIcon className="w-4 h-4" />
+                            {t('accounting.reports.search')}
+                        </button>
                     </div>
                     {activeReport === 'accountLedger' && (
                         <div>

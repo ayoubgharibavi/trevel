@@ -1,3 +1,4 @@
+
 import { API_BASE_URL } from '@/config';
 import { ApiResponse, User, LoginPayload, SignupPayload, UpdateProfilePayload, AddSavedPassengerPayload, UpdateSavedPassengerPayload, UpdateUserPayload, TelegramBotConfig, WhatsAppBotConfig, RolePermissions, Advertisement, SiteContent, Booking, Ticket, Expense, Account, CommissionModel, CurrencyInfo, RefundPolicy, CountryInfo, RateLimit, ActivityLog, CreateExpensePayload, UpdateTenantPayload, CreateTenantPayload, ChargeWalletPayload, Refund, AdminStats, SavedPassenger, Flight, Tenant, BasicDataType, Wallet } from '@/types';
 
@@ -15,7 +16,7 @@ class ApiService {
     this.validateStoredTokens();
   }
 
-  private initTokens() {
+  initTokens() {
     this.accessToken = localStorage.getItem('accessToken');
     this.refreshToken = localStorage.getItem('refreshToken');
     console.log('🔑 ApiService initialized with tokens:', {
@@ -39,9 +40,14 @@ class ApiService {
       '/api/v1/flights/search',
       '/api/v1/flights/popular-routes',
       '/api/v1/flights/airports/search',
+      '/api/v1/flights/ai-search',
       '/api/v1/exchange-rates',
       '/api/v1/exchange-rates/currencies',
       '/api/v1/exchange-rates/convert',
+      // Flight search APIs that are public
+      '/api/v1/sepehr/search',
+      '/api/v1/charter118/search',
+      '/api/v1/flights/save-charter118',
       // Admin basic data endpoints that are public
       '/api/v1/admin/basic-data'
     ];
@@ -110,6 +116,11 @@ class ApiService {
     return false;
   }
 
+  // Public method for external token refresh
+  async refreshTokenPublic(): Promise<boolean> {
+    return this.refreshAccessToken();
+  }
+
   private async request<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers: Record<string, string> = {
@@ -134,21 +145,42 @@ class ApiService {
     }
 
     try {
-      let response = await fetch(url, { ...options, headers });
+      // SENIOR FIX: Add timeout and retry mechanism
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      let response = await fetch(url, { 
+        ...options, 
+        headers,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
 
-      // Only try to refresh token if we get 401 and it's not a refresh request
-      if (response.status === 401 && endpoint !== '/api/v1/auth/refresh' && this.refreshToken) {
-        const refreshed = await this.refreshAccessToken();
-        if (refreshed && this.accessToken) {
-          headers['Authorization'] = `Bearer ${this.accessToken}`;
-          response = await fetch(url, { ...options, headers });
-        } else {
-          this.clearTokens();
-          // Force reload to clear stale data and redirect to login
-          if (typeof window !== 'undefined') {
-            console.log('🔄 Token refresh failed, forcing page reload');
-            setTimeout(() => window.location.reload(), 100);
+      // Handle 401 responses professionally
+      if (response.status === 401) {
+        // For public endpoints, 401 shouldn't happen - log and continue
+        if (isPublicEndpoint) {
+          console.warn('🚨 Unexpected 401 for public endpoint:', endpoint);
+          // Continue processing the response normally
+        } else if (endpoint !== '/api/v1/auth/refresh' && this.refreshToken) {
+          // Try to refresh token for protected endpoints
+          const refreshed = await this.refreshAccessToken();
+          if (refreshed && this.accessToken) {
+            headers['Authorization'] = `Bearer ${this.accessToken}`;
+            response = await fetch(url, { ...options, headers });
+          } else {
+            this.clearTokens();
+            // Force reload to clear stale data and redirect to login
+            if (typeof window !== 'undefined') {
+              console.log('🔄 Token refresh failed, forcing page reload');
+              setTimeout(() => window.location.reload(), 100);
+            }
+            return { success: false, error: 'Unauthorized', data: null };
           }
+        } else {
+          // No refresh token available, clear tokens and return error
+          this.clearTokens();
           return { success: false, error: 'Unauthorized', data: null };
         }
       }
@@ -161,10 +193,25 @@ class ApiService {
         throw new Error('خطا در پردازش پاسخ سرور');
       }
 
-      if (!response.ok) {
+      // Accept both 200 and 201 as successful responses
+      if (response.status !== 200 && response.status !== 201) {
         // If the response is not ok, and data has a message, use that message
         // Otherwise, fallback to a generic error message
         throw new Error(data?.message || data?.error || 'خطا در برقراری ارتباط');
+      }
+      
+      // Log successful responses for debugging
+      console.log(`✅ API Response ${response.status}:`, endpoint, data);
+      
+      // Special logging for Charter118
+      if (endpoint.includes('charter118')) {
+        console.log('🔍 CHARTER118 API Response Details:');
+        console.log('🔍 - Endpoint:', endpoint);
+        console.log('🔍 - Status:', response.status);
+        console.log('🔍 - Data:', data);
+        console.log('🔍 - Success:', data?.success);
+        console.log('🔍 - Data Array:', Array.isArray(data?.data));
+        console.log('🔍 - Data Length:', data?.data?.length);
       }
 
       // For login/signup responses, store tokens if they are at the top level
@@ -188,27 +235,49 @@ class ApiService {
       return { data, success: true };
     } catch (error) {
       console.error('API Error:', error);
+      
+      // SENIOR FIX: Better error handling for network issues
+      let errorMessage = 'خطا در برقراری ارتباط';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timeout - server is not responding';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error - please check your connection and try again';
+        } else if (error.message.includes('ERR_NETWORK_CHANGED')) {
+          errorMessage = 'Network connection lost - please refresh the page';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'خطا در برقراری ارتباط',
+        error: errorMessage,
         data: null // Ensure data is null on error
       };
     }
   }
 
-  async login(email: string, password: string): Promise<ApiResponse<{
+  async login(identifier: string, password: string): Promise<ApiResponse<{
     accessToken: string;
     refreshToken: string;
     user: User;
   }>> {
+    console.log('Admin login attempt with:', identifier);
     const response = await this.request<{
       accessToken: string;
       refreshToken: string;
       user: User;
     }>('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ 
+        username: identifier.includes('@') ? undefined : identifier,
+        email: identifier.includes('@') ? identifier : undefined,
+        password 
+      }),
     });
+
+    console.log('Admin login response:', response);
 
     // Store tokens if login was successful
     if (response.success && response.data) {
@@ -342,18 +411,38 @@ class ApiService {
 
   async addMessageToTicket(ticketId: string, messageText: string): Promise<ApiResponse<{
     ticketStatus: Ticket['status'];
+    ticket: Ticket;
   }>> {
     return this.request<{
       ticketStatus: Ticket['status'];
+      ticket: Ticket;
     }>(`/api/v1/tickets/${ticketId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ message: messageText }),
     });
   }
 
+  async getSavedPassengers(): Promise<ApiResponse<SavedPassenger[]>> {
+    console.log('🔍 getSavedPassengers - Current access token:', this.accessToken);
+    console.log('🔍 getSavedPassengers - localStorage access token:', localStorage.getItem('accessToken'));
+    
+    // Force refresh tokens before making the request
+    this.refreshTokens();
+    console.log('🔍 getSavedPassengers - After refresh, access token:', this.accessToken);
+    
+    return this.request<SavedPassenger[]>('/api/v1/users/me/saved-passengers');
+  }
+
   async addSavedPassenger(passengerData: AddSavedPassengerPayload): Promise<ApiResponse<{
     passenger: SavedPassenger;
   }>> {
+    console.log('🔍 addSavedPassenger - Current access token:', this.accessToken);
+    console.log('🔍 addSavedPassenger - localStorage access token:', localStorage.getItem('accessToken'));
+    
+    // Force refresh tokens before making the request
+    this.refreshTokens();
+    console.log('🔍 addSavedPassenger - After refresh, access token:', this.accessToken);
+    
     return this.request<{
       passenger: SavedPassenger;
     }>('/api/v1/users/me/saved-passengers', {
@@ -367,6 +456,53 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(passengerData),
     });
+  }
+
+  async generateTicketPDF(bookingId: string): Promise<ApiResponse<Blob>> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/bookings/${bookingId}/e-ticket/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF');
+    }
+
+    const blob = await response.blob();
+    return {
+      success: true,
+      data: blob,
+    };
+  }
+
+  async getUserBookings(): Promise<ApiResponse<any[]>> {
+    return this.request('/api/v1/bookings', { method: 'GET' });
+  }
+
+  getAccessToken(): string | null {
+    return this.accessToken;
+  }
+
+  refreshTokens(): boolean {
+    const storedAccessToken = localStorage.getItem('accessToken');
+    const storedRefreshToken = localStorage.getItem('refreshToken');
+    
+    console.log('🔄 refreshTokens called');
+    console.log('🔄 Current tokens:', { access: this.accessToken, refresh: this.refreshToken });
+    console.log('🔄 Stored tokens:', { access: storedAccessToken, refresh: storedRefreshToken });
+    
+    if (storedAccessToken !== this.accessToken || storedRefreshToken !== this.refreshToken) {
+      console.log('🔄 Refreshing apiService tokens from localStorage');
+      this.accessToken = storedAccessToken;
+      this.refreshToken = storedRefreshToken;
+      console.log('🔄 New tokens:', { access: this.accessToken, refresh: this.refreshToken });
+    } else {
+      console.log('🔄 Tokens already up to date');
+    }
+    
+    return !!(this.accessToken && this.refreshToken);
   }
 
   async deleteSavedPassenger(passengerId: string): Promise<ApiResponse<any>> {
@@ -728,17 +864,3 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
-
-
-
-
-
-
-
-
-
-
-
-
-
-

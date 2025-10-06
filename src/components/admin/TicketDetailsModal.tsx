@@ -11,21 +11,23 @@ interface TicketDetailsModalProps {
     adminUser: User;
     onClose: () => void;
     onUpdateTicket: (ticket: Ticket) => void;
-    onAddMessage: (ticketId: string, message: TicketMessage) => void;
+    onAddMessage: (ticketId: string, message: TicketMessage) => Promise<void>;
 }
 
 const MessageBubble: React.FC<{ message: TicketMessage; formatDate: (date: string, options?: any) => string }> = ({ message, formatDate }) => {
     const isAdmin = message.author === 'ADMIN';
     return (
-        <div className={`flex items-start gap-3 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdmin ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
-                {isAdmin ? <CogIcon className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
-            </div>
-            <div className={`p-3 rounded-lg max-w-lg ${isAdmin ? 'bg-primary text-white' : 'bg-slate-100'}`}>
-                <p className="text-sm">{message.text}</p>
-                <p className={`text-xs mt-2 opacity-70 ${isAdmin ? 'text-right' : 'text-left'}`}>
-                    {message.authorName} - {formatDate(message.timestamp, { dateStyle: 'short', timeStyle: 'short' })}
-                </p>
+        <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex items-start gap-3 max-w-[80%] ${isAdmin ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdmin ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    {isAdmin ? <CogIcon className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
+                </div>
+                <div className={`p-3 rounded-lg ${isAdmin ? 'bg-primary text-white rounded-br-sm' : 'bg-slate-100 rounded-bl-sm'}`}>
+                    <p className="text-sm">{message.text}</p>
+                    <p className={`text-xs mt-2 opacity-70 ${isAdmin ? 'text-right' : 'text-left'}`}>
+                        {message.authorName} - {formatDate(message.timestamp, { dateStyle: 'short', timeStyle: 'short' })}
+                    </p>
+                </div>
             </div>
         </div>
     );
@@ -35,32 +37,47 @@ export const TicketDetailsModal: React.FC<TicketDetailsModalProps> = ({ ticket, 
     const { t, formatDate } = useLocalization();
     const [replyText, setReplyText] = useState('');
     const [sendChannels, setSendChannels] = useState({ email: true, sms: false, whatsapp: false });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleReply = (e: React.FormEvent) => {
+    const handleReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!replyText.trim()) return;
+        if (!replyText.trim() || isSubmitting) return;
 
-        const newMessage: TicketMessage = {
-            id: `msg-${Date.now()}`,
-            author: 'ADMIN',
-            authorName: adminUser.name,
-            text: replyText,
-            timestamp: new Date().toISOString(),
-        };
-        onAddMessage(ticket.id, newMessage);
-        setReplyText('');
+        setIsSubmitting(true);
+        try {
+            const newMessage: TicketMessage = {
+                id: `msg-${Date.now()}`,
+                author: 'ADMIN',
+                authorName: adminUser.name,
+                text: replyText,
+                timestamp: new Date().toISOString(),
+            };
+            
+            await onAddMessage(ticket.id, newMessage);
+            setReplyText('');
+            
+            // The parent component will update the ticket state
+            // No need to update local state here
+            
+        } catch (error) {
+            console.error('Error sending reply:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
     
     const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        onUpdateTicket({ ...ticket, status: e.target.value as TicketStatus });
+        const newStatus = e.target.value as TicketStatus;
+        onUpdateTicket({ ...ticket, status: newStatus });
     };
     
     const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        onUpdateTicket({ ...ticket, priority: e.target.value as TicketPriority });
+        const newPriority = e.target.value as TicketPriority;
+        onUpdateTicket({ ...ticket, priority: newPriority });
     };
 
-    const statusOptions = Object.keys(t('dashboard.tickets.statusValues', 'en')) as TicketStatus[];
-    const priorityOptions = Object.keys(t('dashboard.tickets.priorityValues', 'en')) as TicketPriority[];
+    const statusOptions: TicketStatus[] = ['OPEN', 'IN_PROGRESS', 'CLOSED', 'RESOLVED', 'PENDING_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESPONDED', 'COMPLETED'];
+    const priorityOptions: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
@@ -71,7 +88,7 @@ export const TicketDetailsModal: React.FC<TicketDetailsModalProps> = ({ ticket, 
                         <div>
                             <h3 className="text-xl leading-6 font-bold text-primary" id="modal-title">{ticket.subject}</h3>
                             <p className="text-sm text-slate-500 mt-1">
-                                {t('profile.myTickets.ticketFor')} {ticket.user.name}
+                                {t('profile.myTickets.ticketFor')} {ticket.user?.name || ticket.user?.username || 'نامشخص'}
                                 {ticket.bookingId && ` - ${t('dashboard.tickets.detailsModal.relatedToBooking', ticket.bookingId)}`}
                             </p>
                         </div>
@@ -97,7 +114,7 @@ export const TicketDetailsModal: React.FC<TicketDetailsModalProps> = ({ ticket, 
 
                 {/* Messages */}
                 <div className="p-6 flex-grow overflow-y-auto max-h-[50vh] space-y-4 bg-slate-50">
-                    {ticket.messages.map(msg => <MessageBubble key={msg.id} message={msg} formatDate={formatDate}/>)}
+                    {(ticket.messages || []).map(msg => <MessageBubble key={msg.id} message={msg} formatDate={formatDate}/>)}
                 </div>
 
                 {/* Reply Form */}
@@ -126,8 +143,8 @@ export const TicketDetailsModal: React.FC<TicketDetailsModalProps> = ({ ticket, 
                                {t('dashboard.bookings.detailsModal.sendVia.whatsapp')}
                             </label>
                         </div>
-                         <button type="submit" disabled={ticket.status === 'CLOSED' || !replyText.trim()} className="bg-accent text-white font-bold py-2 px-6 rounded-lg hover:bg-accent-hover transition disabled:opacity-50">
-                            {t('dashboard.tickets.detailsModal.sendReply')}
+                         <button type="submit" disabled={ticket.status === 'CLOSED' || !replyText.trim() || isSubmitting} className="bg-accent text-white font-bold py-2 px-6 rounded-lg hover:bg-accent-hover transition disabled:opacity-50">
+                            {isSubmitting ? t('dashboard.tickets.detailsModal.sending') : t('dashboard.tickets.detailsModal.sendReply')}
                         </button>
                     </div>
                 </form>

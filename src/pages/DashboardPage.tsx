@@ -19,13 +19,17 @@ import { RefundsDashboard } from '@/components/admin/RefundsDashboard';
 import { useLocalization } from '@/hooks/useLocalization';
 import { ContentDashboard } from '@/components/admin/ContentDashboard';
 import { AffiliateDashboard } from '@/pages/AffiliateDashboard';
-import { AdvertisementsDashboard } from '@/components/admin/AdvertisementsDashboard';
+import { AdvertisementManagement } from '@/components/admin/AdvertisementManagement';
 import { ManualBookingDashboard } from '@/components/admin/ManualBookingDashboard';
 import { PermissionsDashboard } from '@/components/admin/PermissionsDashboard';
 import { TenantsDashboard } from '@/components/admin/TenantsDashboard';
 import { TelegramBotDashboard } from '@/components/admin/TelegramBotDashboard';
 import { WhatsAppBotDashboard } from '@/components/admin/WhatsAppBotDashboard';
 import { ExchangeRatesDashboard } from '@/components/ExchangeRatesDashboard';
+import SepehrBookingsManagement from '@/components/admin/SepehrBookingsManagement';
+import LoadingSettingsManager from '@/components/admin/LoadingSettingsManager';
+import { Charter118Dashboard } from '@/components/admin/Charter118Dashboard';
+import { ApiManagementDashboard } from '@/components/admin/ApiManagementDashboard';
 
 
 interface DashboardPageProps {
@@ -239,6 +243,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                             onDeleteRateLimit={props.onDeleteRateLimit}
                         />;
                 break;
+            case 'loadingSettings':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_CONTENT, props.rolePermissions);
+                if (hasAccess) content = <LoadingSettingsManager onClose={() => setActiveAdminSection('stats')} />;
+                break;
             case 'activityLog':
                 hasAccess = hasPermission(props.user.role, Permission.VIEW_ACTIVITY_LOG, props.rolePermissions);
                 if (hasAccess) content = <ActivityLogDashboard logs={props.activityLogs} />;
@@ -249,12 +257,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 break;
             case 'ads':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_ADS, props.rolePermissions);
-                if (hasAccess) content = <AdvertisementsDashboard 
-                    advertisements={props.advertisements}
-                    onCreate={props.onCreateAdvertisement}
-                    onUpdate={props.onUpdateAdvertisement}
-                    onDelete={props.onDeleteAdvertisement}
-                />;
+                if (hasAccess) content = <AdvertisementManagement onClose={() => setActiveAdminSection('stats')} />;
                 break;
              case 'telegram':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_TELEGRAM_BOT, props.rolePermissions);
@@ -267,6 +270,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
             case 'exchangeRates':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_BASIC_DATA, props.rolePermissions);
                 if (hasAccess) content = <ExchangeRatesDashboard />;
+                break;
+            case 'apiManagement':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_INTEGRATIONS, props.rolePermissions);
+                if (hasAccess) content = <ApiManagementDashboard onApiUpdate={() => {
+                    console.log('API management updated');
+                    // You can add additional logic here
+                }} />;
+                break;
+            case 'sepehrBookings':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_BOOKINGS, props.rolePermissions);
+                if (hasAccess) content = <SepehrBookingsManagement onClose={() => setActiveAdminSection('stats')} />;
+                break;
+            case 'charter118':
+                hasAccess = hasPermission(props.user.role, Permission.MANAGE_BOOKINGS, props.rolePermissions);
+                if (hasAccess) content = <Charter118Dashboard onBookingSuccess={(bookingId) => {
+                    console.log('Charter118 booking successful:', bookingId);
+                    // You can add additional logic here
+                }} />;
                 break;
             default:
                 hasAccess = false;
@@ -305,6 +326,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                     </main>
                 </div>
             </div>
+            
+            {/* Sepehr Bookings Modal */}
         </div>
     );
 };

@@ -16,7 +16,14 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   async login(@Body() body: LoginDto) {
     console.log('Incoming login body:', body); // Add this line for debugging
-    return this.authService.login(body.email, body.password);
+    try {
+      const result = await this.authService.login(body.username || body.email, body.password);
+      console.log('Login successful:', result);
+      return result;
+    } catch (error) {
+          console.error('Login error:', (error as Error).message);
+      throw error;
+    }
   }
 
   @Post('signup')

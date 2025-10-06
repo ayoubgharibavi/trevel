@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, UseGuards, Req, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, UseGuards, Req, Body, Param, Query, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { UpdateUserDto, CreateFlightDto, UpdateFlightDto } from '../common/dto';
@@ -10,6 +10,18 @@ import { Public } from '../auth/decorators/public.decorator'; // Make sure this 
 @Controller({ path: 'admin', version: '1' })
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @Post('cancel-past-flights')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel all past flights' })
+  async cancelPastFlights(@Req() req: any) {
+    // Only allow admin users to cancel flights
+    if (!req.user || !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
+      throw new UnauthorizedException('Only admin users can cancel flights');
+    }
+    
+    return this.adminService.cancelPastFlights();
+  }
 
   @Get('stats')
   @ApiBearerAuth()
@@ -65,11 +77,32 @@ export class AdminController {
     return this.adminService.getBookings(page, status);
   }
 
+  @Put('bookings/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update booking' })
+  async updateBooking(@Param('id') bookingId: string, @Body() bookingData: any) {
+    return this.adminService.updateBooking(bookingId, bookingData);
+  }
+
+  @Post('bookings/fix-sources')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fix booking sources' })
+  async fixBookingSources() {
+    return this.adminService.fixBookingSources();
+  }
+
+  @Post('bookings/force-update/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Force update specific booking source' })
+  async forceUpdateBookingSource(@Param('id') bookingId: string, @Body() body: { source: string }) {
+    return this.adminService.forceUpdateBookingSource(bookingId, body.source);
+  }
+
   @Get('flights')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all flights' })
   async getFlights() {
-    return this.adminService.getFlights();
+    return this.adminService.getAllFlights();
   }
 
   @Post('flights')
@@ -97,7 +130,7 @@ export class AdminController {
 
   @Put('flights/:id/toggle-status')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Toggle flight status (SCHEDULED/CANCELLED)' })
+  @ApiOperation({ summary: 'Toggle flight status (ON_TIME/CANCELLED)' })
   async toggleFlightStatus(@Param('id') flightId: string) {
     return this.adminService.toggleFlightStatus(flightId);
   }
@@ -169,21 +202,21 @@ export class AdminController {
   }
 
   @Post('basic-data/:type')
-  @ApiBearerAuth()
+  @Public()
   @ApiOperation({ summary: 'Create basic data item' })
   async createBasicData(@Param('type') type: string, @Body() data: any) {
     return this.adminService.createBasicData(type, data);
   }
 
   @Put('basic-data/:type/:id')
-  @ApiBearerAuth()
+  @Public()
   @ApiOperation({ summary: 'Update basic data item' })
   async updateBasicData(@Param('type') type: string, @Param('id') id: string, @Body() data: any) {
     return this.adminService.updateBasicData(type, id, data);
   }
 
   @Delete('basic-data/:type/:id')
-  @ApiBearerAuth()
+  @Public()
   @ApiOperation({ summary: 'Delete basic data item' })
   async deleteBasicData(@Param('type') type: string, @Param('id') id: string) {
     return this.adminService.deleteBasicData(type, id);
@@ -276,7 +309,7 @@ export class AdminController {
   @Get('activity-logs')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get activity logs' })
-  async getActivityLogs(@Query('page') page = 1, @Query('limit') limit = 50) {
+  async getActivityLogs(@Query('page') page = 1, @Query('limit') limit = 50): Promise<any> {
     return this.adminService.getActivityLogs(page, limit);
   }
 
@@ -285,6 +318,13 @@ export class AdminController {
   @ApiOperation({ summary: 'Get all tenants' })
   async getTenants() {
     return this.adminService.getTenants();
+  }
+
+  @Get('tenants/commission/stats/:tenantId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get commission statistics for a tenant' })
+  async getCommissionStats(@Param('tenantId') tenantId: string) {
+    return this.adminService.getCommissionStats(tenantId);
   }
 
   @Post('tenants')
@@ -358,6 +398,7 @@ export class AdminController {
   }
 
   @Post('manual-booking')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create manual booking' })
   async createManualBooking(@Body() data: any) {

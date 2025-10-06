@@ -36,11 +36,53 @@ export const MyBookingsSection: React.FC<MyBookingsSectionProps> = ({ bookings, 
 
     const { upcomingBookings, pastBookings } = useMemo(() => {
         const now = new Date();
-        const upcoming = bookings.filter(b => new Date(b.flight.departure.dateTime) >= now);
-        const past = bookings.filter(b => new Date(b.flight.departure.dateTime) < now);
+        console.log('🔍 MyBookingsSection - Processing bookings:', bookings.length);
+        console.log('🔍 MyBookingsSection - Current time:', now.toISOString());
+        
+        const upcoming = bookings.filter(b => {
+            console.log('🔍 Processing booking:', b.id, 'flight:', !!b.flight, 'departure:', !!b.flight?.departure, 'dateTime:', b.flight?.departure?.dateTime);
+            
+            // Null safety checks
+            if (!b || !b.flight || !b.flight.departure || !b.flight.departure.dateTime) {
+                console.warn('⚠️ Invalid booking structure:', b);
+                return false;
+            }
+            
+            const departureTime = new Date(b.flight.departure.dateTime);
+            const isUpcoming = departureTime >= now;
+            console.log('🔍 Booking', b.id, 'departure:', departureTime.toISOString(), 'isUpcoming:', isUpcoming);
+            return isUpcoming;
+        });
+        
+        const past = bookings.filter(b => {
+            console.log('🔍 Processing booking:', b.id, 'flight:', !!b.flight, 'departure:', !!b.flight?.departure, 'dateTime:', b.flight?.departure?.dateTime);
+            
+            // Null safety checks
+            if (!b || !b.flight || !b.flight.departure || !b.flight.departure.dateTime) {
+                console.warn('⚠️ Invalid booking structure:', b);
+                return false;
+            }
+            
+            const departureTime = new Date(b.flight.departure.dateTime);
+            const isPast = departureTime < now;
+            console.log('🔍 Booking', b.id, 'departure:', departureTime.toISOString(), 'isPast:', isPast);
+            return isPast;
+        });
+        
+        console.log('🔍 MyBookingsSection - Upcoming bookings:', upcoming.length, upcoming.map(b => b.id));
+        console.log('🔍 MyBookingsSection - Past bookings:', past.length, past.map(b => b.id));
+        
         return {
-            upcomingBookings: upcoming.sort((a, b) => new Date(a.flight.departure.dateTime).getTime() - new Date(b.flight.departure.dateTime).getTime()),
-            pastBookings: past.sort((a, b) => new Date(b.flight.departure.dateTime).getTime() - new Date(a.flight.departure.dateTime).getTime()),
+            upcomingBookings: upcoming.sort((a, b) => {
+                const aTime = a.flight?.departure?.dateTime ? new Date(a.flight.departure.dateTime).getTime() : 0;
+                const bTime = b.flight?.departure?.dateTime ? new Date(b.flight.departure.dateTime).getTime() : 0;
+                return aTime - bTime;
+            }),
+            pastBookings: past.sort((a, b) => {
+                const aTime = a.flight?.departure?.dateTime ? new Date(a.flight.departure.dateTime).getTime() : 0;
+                const bTime = b.flight?.departure?.dateTime ? new Date(b.flight.departure.dateTime).getTime() : 0;
+                return bTime - aTime;
+            }),
         };
     }, [bookings]);
 
@@ -54,7 +96,7 @@ export const MyBookingsSection: React.FC<MyBookingsSectionProps> = ({ bookings, 
         }
     };
     
-    const policyForCancellation = bookingToCancel ? refundPolicies.find(p => p.id === bookingToCancel.flight.refundPolicyId) : undefined;
+    const policyForCancellation = bookingToCancel && bookingToCancel.flight ? refundPolicies.find(p => p.id === bookingToCancel.flight?.refundPolicyId) : undefined;
 
     return (
         <div className="bg-white p-6 rounded-lg shadow border">

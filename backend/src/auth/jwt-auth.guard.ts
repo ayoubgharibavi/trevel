@@ -50,7 +50,7 @@ export class JwtAuthGuard {
       console.log('✅ Token valid for protected route, user set:', payload.sub);
       return true;
     } catch (error) {
-      console.log('❌ Invalid token for protected route:', error.message);
+      console.log('❌ Invalid token for protected route:', (error as any).message);
       throw new UnauthorizedException();
     }
   }

@@ -13,15 +13,16 @@ interface ChargeWalletModalProps {
 
 export const ChargeWalletModal: React.FC<ChargeWalletModalProps> = ({ user, currencies, onClose, onSave }) => {
     const { t, language } = useLocalization();
-    const [amount, setAmount] = useState<number | ''>('');
+    const [amount, setAmount] = useState<string>('0');
     const [currency, setCurrency] = useState<Currency>('IRR');
     const [description, setDescription] = useState('');
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (amount === '' || amount <= 0) return;
-        const finalDescription = description.trim() || t('dashboard.users.chargeWalletModal.defaultDescription', user.name);
-        onSave(user.id, amount, currency, finalDescription);
+        const numericAmount = parseFloat(amount);
+        if (!amount || amount === '0' || isNaN(numericAmount) || numericAmount <= 0) return;
+        const finalDescription = description.trim() || `شارژ کیف پول ${user.name}`;
+        onSave(user.id, numericAmount, currency, finalDescription);
     };
 
     const activeCurrencies = currencies.filter(c => c.isActive);
@@ -55,10 +56,12 @@ export const ChargeWalletModal: React.FC<ChargeWalletModalProps> = ({ user, curr
                                     type="number"
                                     id="amount"
                                     value={amount}
-                                    onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                                    onChange={(e) => setAmount(e.target.value)}
                                     className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent"
                                     required
                                     min="1"
+                                    step="0.01"
+                                    placeholder="مبلغ شارژ را وارد کنید"
                                 />
                             </div>
                              <div>
@@ -84,7 +87,7 @@ export const ChargeWalletModal: React.FC<ChargeWalletModalProps> = ({ user, curr
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-accent focus:border-accent"
-                                placeholder={t('dashboard.users.chargeWalletModal.descriptionHint')}
+                                placeholder="توضیحات اختیاری (مثال: شارژ کیف پول)"
                             />
                         </div>
                     </div>

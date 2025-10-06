@@ -13,6 +13,17 @@ interface DashboardStatsProps {
     users: User[];
     journalEntries: JournalEntry[];
     commissionModels: CommissionModel[];
+    adminStats?: {
+        totalUsers: number;
+        totalBookings: number;
+        totalRevenue: number;
+        totalIncome: number;
+        netProfit: number;
+        totalExpenses: number;
+        upcomingFlights: number;
+        activeFlights: number;
+        pendingTickets: number;
+    };
 }
 
 const StatCard: React.FC<{ title: string, value: string, icon: React.ReactNode, color: string }> = ({ title, value, icon, color }) => (
@@ -43,7 +54,7 @@ const TimeRangeButton: React.FC<{ label: string; isActive: boolean; onClick: () 
     </button>
 )
 
-export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users, journalEntries, commissionModels }) => {
+export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users, journalEntries, commissionModels, adminStats }) => {
     const [timeRange, setTimeRange] = useState('30d');
 
     const profitableRoutesChartRef = useRef<HTMLCanvasElement>(null);
@@ -58,6 +69,20 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
     const safeCommissionModels = commissionModels || [];
 
     const kpiData = useMemo(() => {
+        // Use adminStats if available, otherwise calculate from local data
+        if (adminStats) {
+            return {
+                totalRevenue: adminStats.totalRevenue,
+                totalIncome: adminStats.totalIncome,
+                netProfit: adminStats.netProfit,
+                totalExpenses: adminStats.totalExpenses,
+                totalBookingsCount: adminStats.totalBookings,
+                totalUsers: adminStats.totalUsers,
+                avgBookingValue: adminStats.totalBookings > 0 ? adminStats.totalRevenue / adminStats.totalBookings : 0
+            };
+        }
+        
+        // Fallback to local calculation
         const confirmedBookings = safeBookings.filter(b => b.status === 'CONFIRMED');
         const totalRevenue = confirmedBookings.reduce((sum, booking) => {
             // Safe check for passengers
@@ -77,8 +102,16 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
         const totalBookingsCount = confirmedBookings.length;
         const avgBookingValue = totalBookingsCount > 0 ? totalRevenue / totalBookingsCount : 0;
 
-        return { totalRevenue, netProfit, totalBookingsCount, avgBookingValue };
-    }, [safeBookings, safeJournalEntries]);
+        return { 
+            totalRevenue, 
+            totalIncome: totalRevenue, // Fallback
+            netProfit, 
+            totalExpenses: totalRevenue - netProfit, // Fallback
+            totalBookingsCount, 
+            totalUsers: users.length,
+            avgBookingValue 
+        };
+    }, [safeBookings, safeJournalEntries, users, adminStats]);
 
     const routePerformance = useMemo(() => {
         const routeProfit: Record<string, number> = {};
@@ -238,7 +271,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard 
                     title="مجموع درآمد" 
-                    value={`${kpiData.totalRevenue.toLocaleString('fa-IR')} تومان`} 
+                    value={`${kpiData.totalIncome.toLocaleString('fa-IR')} تومان`} 
                     icon={<CurrencyTomanIcon className="w-6 h-6" />}
                     color="bg-green-500"
                 />
@@ -249,16 +282,43 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ bookings, users,
                     color="bg-blue-500"
                 />
                 <StatCard 
+                    title="مجموع هزینه‌ها" 
+                    value={`${kpiData.totalExpenses.toLocaleString('fa-IR')} تومان`} 
+                    icon={<ChartBarIcon className="w-6 h-6" />}
+                    color="bg-red-500"
+                />
+                <StatCard 
                     title="تعداد رزروها" 
                     value={kpiData.totalBookingsCount.toLocaleString('fa-IR')} 
                     icon={<TicketIcon className="w-6 h-6" />}
                     color="bg-sky-500"
                 />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard 
                     title="تعداد کاربران" 
-                    value={users.length.toLocaleString('fa-IR')} 
+                    value={kpiData.totalUsers.toLocaleString('fa-IR')} 
                     icon={<UsersIcon className="w-6 h-6" />}
                     color="bg-amber-500"
+                />
+                <StatCard 
+                    title="میانگین ارزش رزرو" 
+                    value={`${kpiData.avgBookingValue.toLocaleString('fa-IR')} تومان`} 
+                    icon={<CurrencyTomanIcon className="w-6 h-6" />}
+                    color="bg-purple-500"
+                />
+                <StatCard 
+                    title="درآمد از رزروها" 
+                    value={`${kpiData.totalRevenue.toLocaleString('fa-IR')} تومان`} 
+                    icon={<CurrencyTomanIcon className="w-6 h-6" />}
+                    color="bg-emerald-500"
+                />
+                <StatCard 
+                    title="نرخ سودآوری" 
+                    value={`${kpiData.totalIncome > 0 ? ((kpiData.netProfit / kpiData.totalIncome) * 100).toFixed(1) : 0}%`} 
+                    icon={<ChartBarIcon className="w-6 h-6" />}
+                    color="bg-indigo-500"
                 />
             </div>
 
