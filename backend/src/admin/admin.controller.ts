@@ -98,6 +98,27 @@ export class AdminController {
     return this.adminService.forceUpdateBookingSource(bookingId, body.source);
   }
 
+  @Get('bookings/suspended')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all suspended bookings' })
+  async getSuspendedBookings() {
+    return this.adminService.getSuspendedBookings();
+  }
+
+  @Post('bookings/confirm-suspended/:blockId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm suspended booking and deduct payment' })
+  async confirmSuspendedBooking(@Param('blockId') blockId: string, @Req() req: any) {
+    return this.adminService.confirmSuspendedBooking(blockId, req.user.userId);
+  }
+
+  @Post('bookings/reject-suspended/:blockId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reject suspended booking and release payment' })
+  async rejectSuspendedBooking(@Param('blockId') blockId: string, @Body() body: { reason?: string }, @Req() req: any) {
+    return this.adminService.rejectSuspendedBooking(blockId, req.user.userId, body.reason);
+  }
+
   @Get('flights')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all flights' })

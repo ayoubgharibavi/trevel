@@ -1,6 +1,6 @@
 import { SepehrFlightSearchDto, SepehrBookingDto } from '../types/sepehr';
 
-const API_BASE_URL = 'http://localhost:3000/api/v1';
+const API_BASE_URL = 'http://89.42.199.60/api/v1';
 
 export interface SepehrFlight {
   id: string;
@@ -64,7 +64,7 @@ export interface SepehrBookingResponse {
   message?: string;
 }
 
-class SepehrApiService {
+export class SepehrApiService {
   private baseUrl: string;
 
   constructor() {

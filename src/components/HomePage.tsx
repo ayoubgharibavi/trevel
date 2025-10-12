@@ -127,7 +127,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
   };
 
   const getPassengerText = () => {
-    const total = searchData.passengers.adults + searchData.passengers.children + searchData.passengers.infants;
+    const total = (searchData.passengers?.adults || 1) + (searchData.passengers?.children || 0) + (searchData.passengers?.infants || 0);
     return `${total} مسافر`;
   };
 
@@ -146,13 +146,13 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-20">
+      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-8 sm:py-12 md:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6">
               سفر هوشمند، تجربه بی‌نظیر
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 sm:mb-8 text-blue-100">
               بهترین قیمت‌ها برای پروازهای داخلی و خارجی
             </p>
           </div>
@@ -160,16 +160,16 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
       </section>
 
       {/* Search Form */}
-      <section className="py-12">
+      <section className="py-6 sm:py-8 md:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
-            <form onSubmit={handleSearch} className="space-y-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl p-4 sm:p-6 md:p-8">
+            <form onSubmit={handleSearch} className="space-y-8 sm:space-y-10">
               {/* Trip Type */}
-              <div className="flex space-x-4 space-x-reverse">
+              <div className="flex space-x-3 sm:space-x-6 space-x-reverse">
                 <button
                   type="button"
                   onClick={() => handleInputChange('tripType', 'oneway')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
                     searchData.tripType === 'oneway'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -180,7 +180,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                 <button
                   type="button"
                   onClick={() => handleInputChange('tripType', 'roundtrip')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 md:px-8 py-3 sm:py-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
                     searchData.tripType === 'roundtrip'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -191,10 +191,10 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
               </div>
 
               {/* Search Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-10">
                 {/* Origin */}
                 <div className="relative" ref={originRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">مبدا</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">مبدا</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -202,7 +202,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                       onChange={(e) => setOriginFilter(e.target.value)}
                       onFocus={() => setIsOriginDropdownOpen(true)}
                       placeholder="شهر مبدا را انتخاب کنید"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right text-sm sm:text-base"
                     />
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                       <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,7 +225,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
 
                     {/* Dropdown */}
                     {isOriginDropdownOpen && (
-                      <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
+                      <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-2 mb-4">
                         {filteredOriginCities.length > 0 ? (
                           <div className="py-2">
                             {filteredOriginCities.map((city, index) => (
@@ -235,7 +235,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                                 className="w-full px-4 py-3 text-right hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
                               >
                                 <div className="flex items-center justify-between">
-                                  <div className="text-left min-w-0 flex-1">
+                                  <div className="text-right min-w-0 flex-1">
                                     <div className="font-medium text-gray-900">{city.name}</div>
                                     <div className="text-sm text-gray-600">{city.country}</div>
                                   </div>
@@ -258,7 +258,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
 
                 {/* Destination */}
                 <div className="relative" ref={destinationRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">مقصد</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">مقصد</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -266,7 +266,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                       onChange={(e) => setDestinationFilter(e.target.value)}
                       onFocus={() => setIsDestinationDropdownOpen(true)}
                       placeholder="شهر مقصد را انتخاب کنید"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right text-sm sm:text-base"
                     />
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                       <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -277,7 +277,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
 
                     {/* Dropdown */}
                     {isDestinationDropdownOpen && (
-                      <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
+                      <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-2 mb-4">
                         {filteredDestinationCities.length > 0 ? (
                           <div className="py-2">
                             {filteredDestinationCities.map((city, index) => (
@@ -287,7 +287,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                                 className="w-full px-4 py-3 text-right hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
                               >
                                 <div className="flex items-center justify-between">
-                                  <div className="text-left min-w-0 flex-1">
+                                  <div className="text-right min-w-0 flex-1">
                                     <div className="font-medium text-gray-900">{city.name}</div>
                                     <div className="text-sm text-gray-600">{city.country}</div>
                                   </div>
@@ -310,7 +310,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
 
                 {/* Date */}
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">تاریخ</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">تاریخ</label>
                   <input
                     type="date"
                     value={searchData.departureDate.toISOString().split('T')[0]}
@@ -320,27 +320,27 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                       handleInputChange('departureDate', date);
                     }}
                     min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right text-sm sm:text-base"
                   />
                 </div>
 
                 {/* Passengers */}
                 <div className="relative" ref={passengerRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">مسافران</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">مسافران</label>
                   <button
                     type="button"
                     onClick={() => setIsPassengerDropdownOpen(!isPassengerDropdownOpen)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right flex items-center justify-between"
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right flex items-center justify-between text-sm sm:text-base"
                   >
                     <span>{getPassengerText()}</span>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
                   {/* Passenger Dropdown */}
                   {isPassengerDropdownOpen && (
-                    <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-4">
+                    <div className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-2 mb-4 p-4">
                       <div className="space-y-4">
                         {/* Adults */}
                         <div className="flex items-center justify-between">
@@ -348,16 +348,16 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                           <div className="flex items-center space-x-3 space-x-reverse">
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('adults', searchData.passengers.adults - 1)}
-                              disabled={searchData.passengers.adults <= 1}
+                              onClick={() => handlePassengerChange('adults', (searchData.passengers?.adults || 1) - 1)}
+                              disabled={(searchData.passengers?.adults || 1) <= 1}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                             >
                               -
                             </button>
-                            <span className="w-8 text-center">{searchData.passengers.adults}</span>
+                            <span className="w-8 text-center">{searchData.passengers?.adults || 1}</span>
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('adults', searchData.passengers.adults + 1)}
+                              onClick={() => handlePassengerChange('adults', (searchData.passengers?.adults || 1) + 1)}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
                             >
                               +
@@ -371,16 +371,16 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                           <div className="flex items-center space-x-3 space-x-reverse">
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('children', searchData.passengers.children - 1)}
-                              disabled={searchData.passengers.children <= 0}
+                              onClick={() => handlePassengerChange('children', (searchData.passengers?.children || 0) - 1)}
+                              disabled={(searchData.passengers?.children || 0) <= 0}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                             >
                               -
                             </button>
-                            <span className="w-8 text-center">{searchData.passengers.children}</span>
+                            <span className="w-8 text-center">{searchData.passengers?.children || 0}</span>
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('children', searchData.passengers.children + 1)}
+                              onClick={() => handlePassengerChange('children', (searchData.passengers?.children || 0) + 1)}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
                             >
                               +
@@ -394,16 +394,16 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
                           <div className="flex items-center space-x-3 space-x-reverse">
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('infants', searchData.passengers.infants - 1)}
-                              disabled={searchData.passengers.infants <= 0}
+                              onClick={() => handlePassengerChange('infants', (searchData.passengers?.infants || 0) - 1)}
+                              disabled={(searchData.passengers?.infants || 0) <= 0}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                             >
                               -
                             </button>
-                            <span className="w-8 text-center">{searchData.passengers.infants}</span>
+                            <span className="w-8 text-center">{searchData.passengers?.infants || 0}</span>
                             <button
                               type="button"
-                              onClick={() => handlePassengerChange('infants', searchData.passengers.infants + 1)}
+                              onClick={() => handlePassengerChange('infants', (searchData.passengers?.infants || 0) + 1)}
                               className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
                             >
                               +
@@ -417,11 +417,11 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
               </div>
 
               {/* Search Button */}
-              <div className="text-center">
+              <div className="text-center pt-6 sm:pt-8">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="bg-blue-600 text-white px-12 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-xl"
+                  className="bg-blue-600 text-white px-6 sm:px-8 md:px-12 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-xl w-full sm:w-auto"
                 >
                   {isLoading ? 'در حال جستجو...' : 'جستجوی پرواز'}
                 </button>
@@ -432,56 +432,56 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
       </section>
 
       {/* Features Section */}
-      <section className="py-16 bg-white">
+      <section className="py-8 sm:py-12 md:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">چرا پرواز هوشمند؟</h2>
-            <p className="text-xl text-gray-600">امکانات ویژه برای تجربه سفر بهتر</p>
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">چرا پرواز هوشمند؟</h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-600">امکانات ویژه برای تجربه سفر بهتر</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center p-6 rounded-lg hover:shadow-lg transition-shadow">
-              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className="text-center p-4 sm:p-6 rounded-lg hover:shadow-lg transition-shadow">
+              <div className="bg-blue-100 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <svg className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">بهترین قیمت‌ها</h3>
-              <p className="text-gray-600">قیمت‌های رقابتی و تخفیف‌های ویژه برای تمام پروازها</p>
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">بهترین قیمت‌ها</h3>
+              <p className="text-sm sm:text-base text-gray-600">قیمت‌های رقابتی و تخفیف‌های ویژه برای تمام پروازها</p>
             </div>
 
-            <div className="text-center p-6 rounded-lg hover:shadow-lg transition-shadow">
-              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center p-4 sm:p-6 rounded-lg hover:shadow-lg transition-shadow">
+              <div className="bg-green-100 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <svg className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">امنیت بالا</h3>
-              <p className="text-gray-600">پرداخت امن و حفاظت از اطلاعات شخصی شما</p>
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">امنیت بالا</h3>
+              <p className="text-sm sm:text-base text-gray-600">پرداخت امن و حفاظت از اطلاعات شخصی شما</p>
             </div>
 
-            <div className="text-center p-6 rounded-lg hover:shadow-lg transition-shadow">
-              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center p-4 sm:p-6 rounded-lg hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
+              <div className="bg-purple-100 w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <svg className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M12 2.25a9.75 9.75 0 100 19.5 9.75 9.75 0 000-19.5z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">پشتیبانی ۲۴/۷</h3>
-              <p className="text-gray-600">پشتیبانی تمام وقت برای حل مشکلات شما</p>
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">پشتیبانی ۲۴/۷</h3>
+              <p className="text-sm sm:text-base text-gray-600">پشتیبانی تمام وقت برای حل مشکلات شما</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Popular Destinations */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-8 sm:py-12 md:py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">مقاصد محبوب</h2>
-            <p className="text-xl text-gray-600">محبوب‌ترین مقاصد سفر</p>
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">مقاصد محبوب</h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-600">محبوب‌ترین مقاصد سفر</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {[
               { name: 'تهران', image: '/images/tehran.jpg', price: 'از ۲۵۰ هزار تومان' },
               { name: 'مشهد', image: '/images/mashhad.jpg', price: 'از ۱۸۰ هزار تومان' },
@@ -489,12 +489,12 @@ const HomePage: React.FC<HomePageProps> = ({ onSearch, onSepehrSearch, isLoading
               { name: 'اصفهان', image: '/images/isfahan.jpg', price: 'از ۲۲۰ هزار تومان' }
             ].map((destination, index) => (
               <div key={index} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                  <span className="text-white text-2xl font-bold">{destination.name}</span>
+                <div className="h-32 sm:h-40 md:h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                  <span className="text-white text-lg sm:text-xl md:text-2xl font-bold">{destination.name}</span>
                 </div>
-                <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{destination.name}</h3>
-                  <p className="text-blue-600 font-medium">{destination.price}</p>
+                <div className="p-3 sm:p-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2">{destination.name}</h3>
+                  <p className="text-sm sm:text-base text-blue-600 font-medium">{destination.price}</p>
                 </div>
               </div>
             ))}

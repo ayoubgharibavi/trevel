@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SepehrApiService } from './sepehr-api.service';
 import { SepehrFlightSearchDto, SepehrBookingDto } from '../common/dto';
@@ -17,8 +17,42 @@ export class SepehrController {
   @Post('search')
   @Public()
   @ApiOperation({ summary: 'Search flights using Sepehr API' })
-  async searchFlights(@Body() searchDto: SepehrFlightSearchDto) {
-    return this.sepehrApiService.searchFlights(searchDto);
+  async searchFlights(@Body() searchDto: any) {
+    try {
+      console.log('Received search request:', searchDto);
+      const result = await this.sepehrApiService.searchFlights(searchDto);
+      console.log('Search result:', result);
+      return result;
+    } catch (error: any) {
+      console.error('Error in searchFlights:', error);
+      throw error;
+    }
+  }
+
+  @Post('simple-search')
+  @Public()
+  @ApiOperation({ summary: 'Simple search endpoint' })
+  async simpleSearch() {
+    try {
+      const testRequest = {
+        departureCity: 'تهران',
+        arrivalCity: 'مشهد',
+        departureDate: '2025-10-25',
+        adults: 1,
+        children: 0,
+        infants: 0
+      };
+      
+      const result = await this.sepehrApiService.searchFlights(testRequest);
+      return result;
+    } catch (error: any) {
+      console.error('Error in simple-search:', error);
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack
+      };
+    }
   }
 
   @Get('health')
@@ -82,6 +116,109 @@ export class SepehrController {
   @ApiOperation({ summary: 'Get all Sepehr bookings' })
   async getAllBookings() {
     return this.mockBookingService.getAllBookings();
+  }
+
+  @Get('credit-status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get Sepehr credit status' })
+  async getCreditStatus() {
+    return this.sepehrApiService.getCreditStatus();
+  }
+
+  @Post('complete-booking')
+  @Public()
+  @ApiOperation({ summary: 'Complete Sepehr booking flow: Book with Sepehr + Save to system' })
+  async completeBooking(@Req() req: any, @Body() bookingDto: any) {
+    try {
+      console.log('🎯 Starting complete Sepehr booking flow...');
+      
+      // Step 1: Book with Sepehr API
+      const sepehrBookingRequest = {
+        flightId: bookingDto.flightId,
+        passengers: bookingDto.passengers.map((passenger: any) => ({
+          name: `${passenger.firstName} ${passenger.lastName}`,
+          type: 'adult' as const,
+          gender: passenger.gender,
+          nationality: passenger.nationality,
+          birthDate: passenger.birthDate,
+          passportNumber: passenger.passportNumber,
+          passportExpiryDate: passenger.passportExpiryDate
+        })),
+        contactInfo: {
+          email: bookingDto.contactInfo.email,
+          phone: bookingDto.contactInfo.phone,
+          address: bookingDto.contactInfo.address
+        }
+      };
+
+      const sepehrBooking = await this.sepehrApiService.bookFlight(sepehrBookingRequest);
+      
+      if (!sepehrBooking.success) {
+        throw new Error('Sepehr booking failed');
+      }
+
+      console.log('✅ Sepehr booking successful:', sepehrBooking.data.bookingId);
+
+      // Step 2: Save booking to our system
+      const systemBookingData = {
+        flightId: bookingDto.flightId,
+        passengers: bookingDto.passengers.map((passenger: any) => ({
+          name: `${passenger.firstName} ${passenger.lastName}`
+        })),
+        totalPrice: bookingDto.totalPrice,
+        contactEmail: bookingDto.contactInfo.email,
+        contactPhone: bookingDto.contactInfo.phone,
+        sepehrBookingId: sepehrBooking.data.bookingId,
+        sepehrPnr: sepehrBooking.data.pnr,
+        flightData: {
+          flightNumber: sepehrBooking.data.flight.flightNumber,
+          airline: 'سپهر', // Default airline name
+          aircraft: 'Boeing 737', // Default, should come from Sepehr response
+          class: 'اقتصادی', // Default, should come from Sepehr response
+          duration: 180, // Default, should come from Sepehr response
+          taxes: 0, // Default, should come from Sepehr response
+          availableSeats: 100, // Default, should come from Sepehr response
+          totalCapacity: 150, // Default, should come from Sepehr response
+          departure: sepehrBooking.data.flight.departure,
+          arrival: sepehrBooking.data.flight.arrival,
+          sourcingType: 'System',
+          baggageAllowance: '20 KG', // Default, should come from Sepehr response
+          stops: 0 // Default, should come from Sepehr response
+        }
+      };
+
+      // Import BookingsService to create the booking
+      const { BookingsService } = await import('../bookings/bookings.service');
+      const { PrismaService } = await import('../prisma/prisma.service');
+      const { WalletBlockService } = await import('../bookings/wallet-block.service');
+      
+      const prismaService = new PrismaService();
+      const walletBlockService = new WalletBlockService(prismaService);
+      const bookingsService = new BookingsService(prismaService, walletBlockService);
+      
+      const systemBooking = await bookingsService.createBooking(systemBookingData, req.user.userId);
+
+      console.log('✅ System booking created:', systemBooking.booking?.id || 'Unknown ID');
+
+      return {
+        success: true,
+        data: {
+          sepehrBooking: sepehrBooking.data,
+          systemBooking: systemBooking,
+          message: 'Complete booking flow successful'
+        },
+        message: 'Booking completed successfully with Sepehr API and saved to system'
+      };
+
+    } catch (error: any) {
+      console.error('❌ Complete Sepehr booking flow failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Complete booking flow failed'
+      };
+    }
   }
 }
 

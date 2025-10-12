@@ -20,7 +20,7 @@ export const SimpleFlightDisplay: React.FC<SimpleFlightDisplayProps> = ({ flight
       <h2 style={{ color: 'red', fontSize: '24px' }}>🚀 SIMPLE FLIGHT CARD</h2>
       <p><strong>Flight ID:</strong> {flight.id}</p>
       <p><strong>Flight Number:</strong> {flight.flightNumber}</p>
-      <p><strong>Airline:</strong> {typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'Unknown'}</p>
+      <p><strong>Airline:</strong> {typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'Unknown')}</p>
       <p><strong>From:</strong> {flight.departure?.city || 'Unknown'} ({flight.departure?.airportCode || 'Unknown'})</p>
       <p><strong>To:</strong> {flight.arrival?.city || 'Unknown'} ({flight.arrival?.airportCode || 'Unknown'})</p>
       <p><strong>Price:</strong> {flight.price}</p>
@@ -65,7 +65,7 @@ export const SimpleFlightDisplay: React.FC<SimpleFlightDisplayProps> = ({ flight
       <h2 style={{ color: 'red', fontSize: '24px' }}>🚀 SIMPLE FLIGHT CARD</h2>
       <p><strong>Flight ID:</strong> {flight.id}</p>
       <p><strong>Flight Number:</strong> {flight.flightNumber}</p>
-      <p><strong>Airline:</strong> {typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'Unknown'}</p>
+      <p><strong>Airline:</strong> {typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'Unknown')}</p>
       <p><strong>From:</strong> {flight.departure?.city || 'Unknown'} ({flight.departure?.airportCode || 'Unknown'})</p>
       <p><strong>To:</strong> {flight.arrival?.city || 'Unknown'} ({flight.arrival?.airportCode || 'Unknown'})</p>
       <p><strong>Price:</strong> {flight.price}</p>

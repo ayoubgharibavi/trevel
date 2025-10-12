@@ -19,7 +19,7 @@ import { RefundsDashboard } from '@/components/admin/RefundsDashboard';
 import { useLocalization } from '@/hooks/useLocalization';
 import { ContentDashboard } from '@/components/admin/ContentDashboard';
 import { AffiliateDashboard } from '@/pages/AffiliateDashboard';
-import { AdvertisementManagement } from '@/components/admin/AdvertisementManagement';
+import { AdvertisementsDashboard } from '@/components/admin/AdvertisementsDashboard';
 import { ManualBookingDashboard } from '@/components/admin/ManualBookingDashboard';
 import { PermissionsDashboard } from '@/components/admin/PermissionsDashboard';
 import { TenantsDashboard } from '@/components/admin/TenantsDashboard';
@@ -257,7 +257,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 break;
             case 'ads':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_ADS, props.rolePermissions);
-                if (hasAccess) content = <AdvertisementManagement onClose={() => setActiveAdminSection('stats')} />;
+                if (hasAccess) content = <AdvertisementsDashboard 
+                    advertisements={props.advertisements || []} 
+                    onCreate={props.onCreateAdvertisement} 
+                    onUpdate={props.onUpdateAdvertisement} 
+                    onDelete={props.onDeleteAdvertisement} 
+                />;
                 break;
              case 'telegram':
                 hasAccess = hasPermission(props.user.role, Permission.MANAGE_TELEGRAM_BOT, props.rolePermissions);

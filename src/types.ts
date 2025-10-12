@@ -78,6 +78,7 @@ export interface Flight {
     status: FlightStatus;
     bookingClosesBeforeDepartureHours: number;
     sourcingType: FlightSourcingType;
+    source?: string; // API source: manual, charter118, sepehr, local, ai, etc.
     commissionModelId?: string;
     refundPolicyId?: string;
     creatorId?: string; // ID of the user (affiliate/admin) who created the flight
@@ -566,7 +567,7 @@ export type PassengerData = {
     contactPhone: string;
 };
 
-export type View = 'SEARCH' | 'SEARCH_RESULTS' | 'PASSENGER_DETAILS' | 'REVIEW' | 'CONFIRMATION' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT' | 'CURRENCY_CONVERTER' | 'SIMPLE_TEST' | 'SEPEHR_SEARCH_RESULTS' | 'SEPEHR_BOOKING' | 'SEPEHR_BOOKING_CONFIRMATION';
+export type View = 'SEARCH' | 'SEARCH_RESULTS' | 'PASSENGER_DETAILS' | 'REVIEW' | 'CONFIRMATION' | 'LOGIN' | 'SIGNUP' | 'PROFILE' | 'ADMIN_LOGIN' | 'ABOUT' | 'CONTACT' | 'CURRENCY_CONVERTER' | 'SIMPLE_TEST' | 'SEPEHR_TEST' | 'SEPEHR_SEARCH_RESULTS' | 'SEPEHR_BOOKING' | 'SEPEHR_BOOKING_CONFIRMATION' | 'PERSIAN_FLIGHT_RESULTS' | 'CRS_BOOKING_TEST' | 'ADMIN_BOOKING_MANAGEMENT';
 
 export interface TelegramBotConfig {
     isEnabled: boolean;

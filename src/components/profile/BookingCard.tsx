@@ -59,7 +59,17 @@ interface BookingCardProps {
 
 export const BookingCard: React.FC<BookingCardProps> = ({ booking, onViewTicket, onCancelBooking }) => {
     const { t, formatDate, language } = useLocalization();
-    const isUpcoming = booking.flight?.departure?.dateTime ? new Date(booking.flight.departure.dateTime) >= new Date() : false;
+    
+    // Enhanced date extraction with fallback
+    const getDepartureTime = () => {
+        if (booking.flight?.departure?.dateTime) return new Date(booking.flight.departure.dateTime);
+        if (booking.flight?.departureTime) return new Date(booking.flight.departureTime);
+        if (booking.flight?.departure?.time) return new Date(booking.flight.departure.time);
+        return null;
+    };
+    
+    const departureTime = getDepartureTime();
+    const isUpcoming = departureTime ? departureTime >= new Date() : false;
     const isCancellable = isUpcoming && booking.status === 'CONFIRMED';
     
     return (
@@ -76,7 +86,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ booking, onViewTicket,
                         <span>{booking.flight?.airline || 'نامشخص'} - {t('flightCard.flightNumber')} {booking.flight?.flightNumber || 'نامشخص'}</span>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                        {t('flightSearch.departureDate')}: {booking.flight?.departure?.dateTime ? formatDate(booking.flight.departure.dateTime, { dateStyle: 'full' }) : 'نامشخص'}
+                        {t('flightSearch.departureDate')}: {departureTime ? formatDate(departureTime.toISOString(), { dateStyle: 'full' }) : 'نامشخص'}
                     </p>
                 </div>
                 <div className="flex flex-col items-end gap-2 w-full sm:w-auto">

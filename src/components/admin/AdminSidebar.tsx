@@ -24,6 +24,7 @@ import { TelegramIcon } from '@/components/icons/TelegramIcon';
 import { WhatsappIcon } from '@/components/icons/WhatsappIcon';
 import { CurrencyTomanIcon } from '@/components/icons/CurrencyTomanIcon';
 import { CogIcon } from '@/components/icons/CogIcon';
+import { CreditCardIcon } from '@/components/icons/CreditCardIcon';
 
 interface AdminSidebarProps {
     activeSection: string;
@@ -85,6 +86,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, user,
         { key: 'whatsapp', permissions: [Permission.MANAGE_WHATSAPP_BOT], icon: <WhatsappIcon className="w-5 h-5" /> },
         { key: 'exchangeRates', permissions: [Permission.MANAGE_BASIC_DATA], icon: <CurrencyTomanIcon className="w-5 h-5" /> },
         { key: 'apiManagement', permissions: [Permission.MANAGE_BASIC_DATA], icon: <CogIcon className="w-5 h-5" /> },
+        { key: 'sepehrCredit', permissions: [Permission.MANAGE_BASIC_DATA], icon: <CreditCardIcon className="w-5 h-5" /> },
         { key: 'loadingSettings', permissions: [Permission.MANAGE_CONTENT], icon: <ClipboardListIcon className="w-5 h-5" /> },
         { key: 'activityLog', permissions: [Permission.VIEW_ACTIVITY_LOG], icon: <ClipboardListIcon className="w-5 h-5" /> },
     ];

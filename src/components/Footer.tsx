@@ -64,8 +64,8 @@ export const Footer: React.FC<FooterProps> = ({ user, siteContent, onAdminLoginC
 
                     <div>
                         <h3 className="font-bold text-white text-lg mb-2">{t('footer.contactInfo')}</h3>
-                        <p className="text-sm">{contactContent.email}</p>
-                        <p className="text-sm">{contactContent.phone}</p>
+                        <p className="text-sm">{contactContent?.email || 'info@example.com'}</p>
+                        <p className="text-sm">{contactContent?.phone || '+98 21 1234 5678'}</p>
                     </div>
                 </div>
             </div>

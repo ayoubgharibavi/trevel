@@ -27,20 +27,30 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const addNotification = useCallback((notification: Omit<Notification, 'id'>) => {
+    console.log('🔍 DEBUG - addNotification called with:', notification);
     const id = Math.random().toString(36).substr(2, 9);
-    const newNotification: Notification = {
+    
+    // Ensure all notification properties are safe strings
+    const safeNotification = {
       ...notification,
       id,
+      title: typeof notification.title === 'string' ? notification.title : JSON.stringify(notification.title),
+      message: typeof notification.message === 'string' ? notification.message : JSON.stringify(notification.message),
       duration: notification.duration || 5000,
     };
-
-    setNotifications(prev => [...prev, newNotification]);
+    
+    console.log('🔍 DEBUG - safeNotification:', safeNotification);
+    console.log('🔍 DEBUG - safeNotification.title type:', typeof safeNotification.title);
+    console.log('🔍 DEBUG - safeNotification.message type:', typeof safeNotification.message);
+    console.log('🔍 DEBUG - safeNotification.title is object:', typeof safeNotification.title === 'object');
+    console.log('🔍 DEBUG - safeNotification.message is object:', typeof safeNotification.message === 'object');
+    setNotifications(prev => [...prev, safeNotification]);
 
     // Auto remove notification after duration
-    if (newNotification.duration && newNotification.duration > 0) {
+    if (safeNotification.duration && safeNotification.duration > 0) {
       setTimeout(() => {
         removeNotification(id);
-      }, newNotification.duration);
+      }, safeNotification.duration);
     }
   }, []);
 
@@ -49,19 +59,41 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   }, []);
 
   const showSuccess = useCallback((title: string, message: string, duration?: number) => {
-    addNotification({ type: 'success', title, message, duration });
+    console.log('🔍 DEBUG - showSuccess called with:', { title, message, duration });
+    console.log('🔍 DEBUG - title type:', typeof title);
+    console.log('🔍 DEBUG - message type:', typeof message);
+    console.log('🔍 DEBUG - message is object:', typeof message === 'object');
+    console.log('🔍 DEBUG - message stringified:', JSON.stringify(message));
+    // Ensure message is always a string
+    const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+    console.log('🔍 DEBUG - safeMessage:', safeMessage);
+    addNotification({ type: 'success', title, message: safeMessage, duration });
   }, [addNotification]);
 
   const showError = useCallback((title: string, message: string, duration?: number) => {
-    addNotification({ type: 'error', title, message, duration });
+    console.log('🔍 DEBUG - showError called with:', { title, message, duration });
+    console.log('🔍 DEBUG - title type:', typeof title);
+    console.log('🔍 DEBUG - message type:', typeof message);
+    console.log('🔍 DEBUG - message is object:', typeof message === 'object');
+    console.log('🔍 DEBUG - message stringified:', JSON.stringify(message));
+    // Ensure message is always a string
+    const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+    console.log('🔍 DEBUG - safeMessage:', safeMessage);
+    console.log('🔍 DEBUG - safeMessage type:', typeof safeMessage);
+    console.log('🔍 DEBUG - safeMessage is object:', typeof safeMessage === 'object');
+    addNotification({ type: 'error', title, message: safeMessage, duration });
   }, [addNotification]);
 
   const showWarning = useCallback((title: string, message: string, duration?: number) => {
-    addNotification({ type: 'warning', title, message, duration });
+    // Ensure message is always a string
+    const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+    addNotification({ type: 'warning', title, message: safeMessage, duration });
   }, [addNotification]);
 
   const showInfo = useCallback((title: string, message: string, duration?: number) => {
-    addNotification({ type: 'info', title, message, duration });
+    // Ensure message is always a string
+    const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+    addNotification({ type: 'info', title, message: safeMessage, duration });
   }, [addNotification]);
 
   const contextValue: NotificationContextType = {
@@ -106,6 +138,12 @@ interface NotificationItemProps {
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onRemove }) => {
+  console.log('🔍 DEBUG - NotificationItem rendering:', notification);
+  console.log('🔍 DEBUG - notification.title type:', typeof notification.title);
+  console.log('🔍 DEBUG - notification.message type:', typeof notification.message);
+  console.log('🔍 DEBUG - notification.title is object:', typeof notification.title === 'object');
+  console.log('🔍 DEBUG - notification.message is object:', typeof notification.message === 'object');
+  
   const getNotificationStyles = () => {
     switch (notification.type) {
       case 'success':
@@ -160,10 +198,10 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onRem
         </div>
         <div className="ml-3 w-0 flex-1">
           <p className="text-sm font-medium">
-            {notification.title}
+            {typeof notification.title === 'string' ? notification.title : JSON.stringify(notification.title)}
           </p>
           <p className="mt-1 text-sm">
-            {notification.message}
+            {typeof notification.message === 'string' ? notification.message : JSON.stringify(notification.message)}
           </p>
         </div>
         <div className="ml-4 flex-shrink-0 flex">

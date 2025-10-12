@@ -2,8 +2,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-// FIX: Changed import to a named import as App.tsx does not have a default export.
-import App from './App';
+// FIX: Import AppWithNotifications to include NotificationProvider
+import AppWithNotifications from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import './assets/index.css'; // Import the main stylesheet
 
@@ -16,7 +16,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <LanguageProvider>
-      <App />
+      <AppWithNotifications />
     </LanguageProvider>
   </React.StrictMode>
 );

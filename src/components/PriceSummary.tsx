@@ -14,9 +14,23 @@ interface PriceSummaryProps {
     onBack?: () => void;
 }
 
-export const PriceSummary: React.FC<PriceSummaryProps> = ({ flight, passengers, onBack }) => {
+export const PriceSummary: React.FC<PriceSummaryProps> = ({ flight, passengers, user, currencies, onBack }) => {
     const { t, formatNumber } = useLocalization();
-    const totalPassengers = passengers.adults + passengers.children + passengers.infants;
+
+    // Add validation
+    if (!flight || !passengers) {
+        console.error('❌ PriceSummary missing required props:', {
+            flight: !!flight,
+            passengers: !!passengers
+        });
+        return (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 text-center">
+                <div className="text-red-500 text-2xl mb-2">❌</div>
+                <p className="text-gray-600">اطلاعات قیمت موجود نیست</p>
+            </div>
+        );
+    }
+    const totalPassengers = (passengers?.adults || 1) + (passengers?.children || 0) + (passengers?.infants || 0);
     const basePriceTotal = flight.price * totalPassengers;
     const taxesTotal = flight.taxes * totalPassengers;
     const finalPrice = basePriceTotal + taxesTotal;
@@ -52,9 +66,9 @@ export const PriceSummary: React.FC<PriceSummaryProps> = ({ flight, passengers, 
             
             {/* Price Details */}
             <div className="p-6 space-y-4">
-                {passengers.adults > 0 && <PriceRow label={t('priceSummary.adult', passengers.adults)} value={flight.price * passengers.adults} />}
-                {passengers.children > 0 && <PriceRow label={t('priceSummary.child', passengers.children)} value={flight.price * passengers.children} />}
-                {passengers.infants > 0 && <PriceRow label={t('priceSummary.infant', passengers.infants)} value={flight.price * passengers.infants} />}
+                {(passengers?.adults || 0) > 0 && <PriceRow label={t('priceSummary.adult', passengers?.adults || 0)} value={flight.price * (passengers?.adults || 0)} />}
+                {(passengers?.children || 0) > 0 && <PriceRow label={t('priceSummary.child', passengers?.children || 0)} value={flight.price * (passengers?.children || 0)} />}
+                {(passengers?.infants || 0) > 0 && <PriceRow label={t('priceSummary.infant', passengers?.infants || 0)} value={flight.price * (passengers?.infants || 0)} />}
                 
                 <div className="border-t border-slate-200 pt-4">
                      <PriceRow label={t('priceSummary.taxes')} value={taxesTotal} description={t('priceSummary.forPassengers', totalPassengers)} />

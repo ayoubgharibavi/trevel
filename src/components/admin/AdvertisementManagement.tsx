@@ -208,7 +208,7 @@ export const AdvertisementManagement: React.FC = () => {
 
       {/* Advertisements Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {advertisements.map((ad) => (
+        {advertisements && Array.isArray(advertisements) && advertisements.length > 0 ? advertisements.map((ad) => (
           <div key={ad.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Ad Preview */}
             <div 

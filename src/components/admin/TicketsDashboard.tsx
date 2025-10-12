@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Ticket, TicketMessage, User } from '@/types';
 import { TicketDetailsModal } from './TicketDetailsModal';
 import { useLocalization } from '@/hooks/useLocalization';
@@ -49,6 +49,7 @@ export const TicketsDashboard: React.FC<TicketsDashboardProps> = ({ tickets, adm
         if (selectedTicket) {
             const updatedTicket = tickets.find(t => t.id === selectedTicket.id);
             if (updatedTicket) {
+                console.log('🔄 Updating selectedTicket with latest data:', updatedTicket);
                 setSelectedTicket(updatedTicket);
             }
         }
@@ -115,8 +116,18 @@ export const TicketsDashboard: React.FC<TicketsDashboardProps> = ({ tickets, adm
                     ticket={selectedTicket}
                     adminUser={adminUser}
                     onClose={() => setSelectedTicket(null)}
-                    onUpdateTicket={onUpdateTicket}
-                    onAddMessage={onAddMessage}
+                    onUpdateTicket={(updatedTicket) => {
+                        onUpdateTicket(updatedTicket);
+                        setSelectedTicket(updatedTicket); // Update the selected ticket in modal
+                    }}
+                    onAddMessage={async (ticketId, message) => {
+                        await onAddMessage(ticketId, message);
+                        // Refresh the selected ticket after adding message
+                        const updatedTicket = tickets.find(t => t.id === ticketId);
+                        if (updatedTicket) {
+                            setSelectedTicket(updatedTicket);
+                        }
+                    }}
                 />
             )}
         </div>

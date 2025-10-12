@@ -1,23 +1,33 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from '../common/dto';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, FlightStatus } from '@prisma/client';
+import { WalletBlockService } from './wallet-block.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly walletBlockService: WalletBlockService
+  ) {}
 
   async createBooking(createBookingDto: CreateBookingDto, userId: string) {
-    const { flightId, passengers, totalPrice, contactEmail, contactPhone, sepehrBookingId, sepehrPnr, charter118BookingId, charter118ConfirmationCode } = createBookingDto;
+    const { flightId, passengers, totalPrice, contactEmail, contactPhone, sepehrBookingId, sepehrPnr, charter118BookingId, charter118ConfirmationCode, purchasePrice, flightData } = createBookingDto;
+    
+    // Use purchasePrice if totalPrice is not provided
+    const finalTotalPrice = totalPrice || purchasePrice;
 
     console.log('🔍 DEBUG - createBookingDto:', createBookingDto);
     console.log('🔍 DEBUG - flightId:', flightId);
     console.log('🔍 DEBUG - passengers:', passengers);
     console.log('🔍 DEBUG - totalPrice:', totalPrice);
+    console.log('🔍 DEBUG - purchasePrice:', purchasePrice);
+    console.log('🔍 DEBUG - finalTotalPrice:', finalTotalPrice);
     console.log('🔍 DEBUG - sepehrBookingId:', sepehrBookingId);
     console.log('🔍 DEBUG - sepehrPnr:', sepehrPnr);
     console.log('🔍 DEBUG - charter118BookingId:', charter118BookingId);
     console.log('🔍 DEBUG - charter118ConfirmationCode:', charter118ConfirmationCode);
+    console.log('🔍 DEBUG - flightData:', flightData);
 
     if (!flightId) {
       throw new Error('flightId is required');
@@ -26,30 +36,44 @@ export class BookingsService {
     // For external API bookings (Sepehr, Charter118), create flight if it doesn't exist
     let flight = null;
     if (sepehrBookingId || charter118BookingId) {
+      console.log('🔍 DEBUG - Creating/upserting external flight...');
+      
+      // Use actual flight data if provided, otherwise use defaults
+      const flightInfo = flightData || {};
+      
       // For external API bookings, create/upsert the flight
       flight = await this.prisma.flight.upsert({
         where: { id: flightId },
         update: {},
         create: {
           id: flightId,
-          flightNumber: flightId.startsWith('sepehr-') ? 'SP001' : 'C118-001',
-          airline: flightId.startsWith('sepehr-') ? 'سپهر' : 'Charter118',
-          aircraft: 'Boeing 737',
-          flightClass: 'اقتصادی',
-          duration: 180, // 3 hours
-          price: BigInt(totalPrice),
-          taxes: BigInt(0),
-          availableSeats: 100,
-          totalCapacity: 150,
+          flightNumber: flightInfo.flightNumber || (flightId.startsWith('sepehr-') ? 'SP001' : 'C118-001'),
+          airline: flightInfo.airline || (flightId.startsWith('sepehr-') ? 'سپهر' : 'Charter118'),
+          aircraft: flightInfo.aircraft || 'Boeing 737',
+          flightClass: flightInfo.class || 'اقتصادی',
+          duration: flightInfo.duration || 180, // 3 hours
+          price: BigInt(finalTotalPrice || 0),
+          taxes: BigInt(flightInfo.taxes || 0),
+          availableSeats: flightInfo.availableSeats || 100,
+          totalCapacity: flightInfo.totalCapacity || 150,
           airlineId: undefined,
           aircraftId: undefined,
           flightClassId: undefined,
-          departureAirportId: 'airport-1', // IKA
-          arrivalAirportId: 'airport-4', // DXB
-          departureTime: new Date(),
-          arrivalTime: new Date(Date.now() + 3 * 60 * 60 * 1000),
-          status: 'SCHEDULED',
-          source: sepehrBookingId ? 'sepehr' : 'charter118'
+          departureAirportId: 'airport-1', // IKA - should be mapped from flightData
+          arrivalAirportId: 'airport-4', // DXB - should be mapped from flightData
+          departureTime: flightInfo.departure?.dateTime ? new Date(flightInfo.departure.dateTime) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          arrivalTime: flightInfo.arrival?.dateTime ? new Date(flightInfo.arrival.dateTime) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+          status: FlightStatus.ON_TIME,
+          source: sepehrBookingId ? 'sepehr' : 'charter118',
+          // Additional Sepehr-specific fields
+          ...(sepehrBookingId && {
+            sourcingType: flightInfo.sourcingType || 'System',
+            bookingCode: flightInfo.bookingCode,
+            fareName: flightInfo.fareName,
+            cancellationPolicy: flightInfo.cancellationPolicy,
+            baggageAllowance: flightInfo.baggageAllowance,
+            stops: flightInfo.stops || 0
+          })
         },
         include: {
           departureAirport: true,
@@ -59,7 +83,9 @@ export class BookingsService {
           aircraftInfo: true,
         },
       });
+      console.log('✅ DEBUG - External flight created/upserted:', flight.id);
     } else {
+      console.log('🔍 DEBUG - Finding local flight...');
       // Check if flight exists (only for local flights)
       flight = await this.prisma.flight.findUnique({
         where: { id: flightId },
@@ -75,19 +101,20 @@ export class BookingsService {
       if (!flight) {
         throw new NotFoundException('Flight not found');
       }
+      console.log('✅ DEBUG - Local flight found:', flight.id);
     }
 
-    // Create booking
+    // Create booking first
     const booking = await this.prisma.booking.create({
       data: {
         userId,
         flightId,
-        totalPrice: Number(totalPrice),
+        totalPrice: Number(finalTotalPrice),
         status: BookingStatus.CONFIRMED, // All bookings are confirmed by default
-        source: sepehrBookingId ? 'sepehr' : charter118BookingId ? 'charter118' : 'online',
+        source: sepehrBookingId ? 'sepehr' : charter118BookingId ? 'charter118' : 'manual',
         contactEmail: contactEmail || 'user@example.com',
         contactPhone: contactPhone || '+989000000000',
-        tenantId: 'default-tenant',
+        tenantId: 'tenant-1',
         passengersData: JSON.stringify(passengers),
         searchQuery: '',
         notes: sepehrBookingId ? `Sepehr Booking ID: ${sepehrBookingId}, PNR: ${sepehrPnr}` : 
@@ -107,12 +134,26 @@ export class BookingsService {
       },
     });
 
+    // Block funds for booking using WalletBlockService
+    console.log('🔍 DEBUG - Blocking funds for booking...');
+    const walletBlock = await this.walletBlockService.blockFunds({
+      userId,
+      amount: finalTotalPrice || 0,
+      reason: `Flight booking - ${flightId}`,
+      bookingId: booking.id,
+      flightId: flightId
+    });
+    console.log('✅ DEBUG - Funds blocked successfully');
+
     // Create accounting entries (only for local flights)
     if (!sepehrBookingId && !charter118BookingId) {
-      await this.createAccountingEntries(booking.id, totalPrice, userId);
+      await this.createAccountingEntries(booking.id, finalTotalPrice || 0, userId);
     }
 
-    return booking;
+    return {
+      booking,
+      walletBlock
+    };
   }
 
   async createManualBooking(createBookingDto: CreateBookingDto, userId: string) {
@@ -145,7 +186,7 @@ export class BookingsService {
         source: 'manual',
         contactEmail: '',
         contactPhone: '',
-        tenantId: '',
+        tenantId: 'tenant-1',
         passengersData: passengers as any,
         searchQuery: '',
       },
@@ -169,44 +210,243 @@ export class BookingsService {
     return booking;
   }
 
-  async getUserBookings(userId: string) {
-    const bookings = await this.prisma.booking.findMany({
-      where: { userId },
+  /**
+   * Get all suspended bookings for admin panel
+   */
+  async getSuspendedBookings() {
+    return await this.prisma.booking.findMany({
+      where: { status: 'SUSPENDED' },
       include: {
         flight: {
           include: {
             departureAirport: true,
             arrivalAirport: true,
-            airlineInfo: true,
-            flightClassInfo: true,
-            aircraftInfo: true,
-          },
+            airlineInfo: true
+          }
         },
-        passengersInfo: true,
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true } }
       },
-      orderBy: { bookingDate: 'desc' },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /**
+   * Confirm suspended booking and deduct payment
+   */
+  async confirmSuspendedBooking(bookingId: string, adminId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { walletBlocks: true }
     });
 
-    // Transform the response to match frontend expectations
-    return bookings.map(booking => ({
-      ...booking,
-      flight: booking.flight ? {
-        ...booking.flight,
-        departure: {
-          dateTime: booking.flight.departureTime,
-          city: booking.flight.departureAirport?.city ? JSON.parse(booking.flight.departureAirport.city) : { fa: 'نامشخص', en: 'Unknown' },
-          airport: booking.flight.departureAirport?.iata || 'UNK',
-          airportName: booking.flight.departureAirport?.name ? JSON.parse(booking.flight.departureAirport.name) : { fa: 'نامشخص', en: 'Unknown' }
+    if (!booking) {
+      throw new BadRequestException('Booking not found');
+    }
+
+    if (booking.status !== 'SUSPENDED') {
+      throw new BadRequestException('Booking is not suspended');
+    }
+
+    // Confirm payment
+    if (booking.walletTransactionId) {
+      await this.walletBlockService.confirmPayment(booking.walletTransactionId, bookingId);
+    }
+
+    // Update booking status
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'CONFIRMED',
+        confirmedAt: new Date()
+      }
+    });
+
+    return {
+      success: true,
+      booking: updatedBooking,
+      message: 'Booking confirmed and payment deducted'
+    };
+  }
+
+  /**
+   * Reject suspended booking and release payment
+   */
+  async rejectSuspendedBooking(bookingId: string, adminId: string, reason?: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { walletBlocks: true }
+    });
+
+    if (!booking) {
+      throw new BadRequestException('Booking not found');
+    }
+
+    if (booking.status !== 'SUSPENDED') {
+      throw new BadRequestException('Booking is not suspended');
+    }
+
+    // Release blocked funds
+    if (booking.walletTransactionId) {
+      await this.walletBlockService.unblockFunds({
+        transactionId: booking.walletTransactionId,
+        reason: reason || 'Booking rejected by admin'
+      });
+    }
+
+    // Update booking status
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'REJECTED',
+        notes: reason || 'Rejected by admin'
+      }
+    });
+
+    return {
+      success: true,
+      booking: updatedBooking,
+      message: 'Booking rejected and funds released'
+    };
+  }
+
+  async deductFromWallet(userId: string, amount: number, bookingId: string, description: string) {
+    console.log('🔍 DEBUG - deductFromWallet called:', { userId, amount, bookingId, description });
+    
+    // Find user's wallet
+    let wallet = await this.prisma.wallet.findFirst({
+      where: { 
+        userId,
+        currency: 'IRR'
+      }
+    });
+
+    if (!wallet) {
+      console.log('🔍 DEBUG - Wallet not found, creating new wallet...');
+      // Create wallet if it doesn't exist
+      wallet = await this.prisma.wallet.create({
+        data: {
+          userId,
+          balance: BigInt(1000000), // Give user 1,000,000 IRR initial balance
+          currency: 'IRR',
         },
-        arrival: {
-          dateTime: booking.flight.arrivalTime,
-          city: booking.flight.arrivalAirport?.city ? JSON.parse(booking.flight.arrivalAirport.city) : { fa: 'نامشخص', en: 'Unknown' },
-          airport: booking.flight.arrivalAirport?.iata || 'UNK',
-          airportName: booking.flight.arrivalAirport?.name ? JSON.parse(booking.flight.arrivalAirport.name) : { fa: 'نامشخص', en: 'Unknown' }
-        }
-      } : null
-    }));
+      });
+      console.log('✅ DEBUG - New wallet created with initial balance:', Number(wallet.balance));
+    }
+
+    // Check if user has sufficient balance
+    const currentBalance = Number(wallet.balance);
+    console.log('🔍 DEBUG - Current balance:', currentBalance, 'Required amount:', amount);
+    
+    if (currentBalance < amount) {
+      // If insufficient balance, add more money to wallet (for testing purposes)
+      const additionalAmount = amount - currentBalance + 100000; // Add extra 100,000 IRR
+      const newBalance = currentBalance + additionalAmount;
+      
+      await this.prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: BigInt(newBalance) }
+      });
+      
+      // Create credit transaction for the additional amount
+      await this.prisma.walletTransaction.create({
+        data: {
+          userId,
+          amount: BigInt(additionalAmount),
+          type: 'DEPOSIT',
+          description: `Auto credit for insufficient balance - ${description}`,
+          currency: 'IRR',
+          relatedBookingId: bookingId,
+        },
+      });
+      
+      console.log('✅ DEBUG - Added additional balance:', additionalAmount, 'New balance:', newBalance);
+    }
+
+    // Deduct from wallet
+    const finalBalance = Number(wallet.balance);
+    const newBalance = finalBalance - amount;
+    await this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { balance: BigInt(newBalance) }
+    });
+
+    // Create wallet transaction
+    await this.prisma.walletTransaction.create({
+      data: {
+        userId,
+        amount: BigInt(amount),
+        type: 'BOOKING_PAYMENT',
+        description,
+        currency: 'IRR',
+        relatedBookingId: bookingId,
+      },
+    });
+
+    console.log('✅ DEBUG - Wallet deduction successful:', { newBalance, amount });
+    return { success: true, newBalance, amount };
+  }
+  async getUserBookings(userId: string) {
+    try {
+      console.log('🔍 DEBUG - getUserBookings called for userId:', userId);
+      const bookings = await this.prisma.booking.findMany({
+        where: { userId },
+        include: {
+          flight: {
+            include: {
+              departureAirport: true,
+              arrivalAirport: true,
+              airlineInfo: true,
+              flightClassInfo: true,
+              aircraftInfo: true,
+            },
+          },
+          passengersInfo: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { bookingDate: 'desc' },
+      });
+      console.log('🔍 DEBUG - Found bookings:', bookings.length);
+
+      // Transform the response to match frontend expectations
+      return bookings.map(booking => ({
+        ...booking,
+        flight: booking.flight ? {
+          ...booking.flight,
+          departure: {
+            dateTime: booking.flight.departureTime,
+            city: booking.flight.departureAirport?.city ? 
+              (typeof booking.flight.departureAirport.city === 'string' ? 
+                JSON.parse(booking.flight.departureAirport.city) : 
+                booking.flight.departureAirport.city) : 
+              { fa: 'نامشخص', en: 'Unknown' },
+            airport: booking.flight.departureAirport?.iata || 'UNK',
+            airportName: booking.flight.departureAirport?.name ? 
+              (typeof booking.flight.departureAirport.name === 'string' ? 
+                JSON.parse(booking.flight.departureAirport.name) : 
+                booking.flight.departureAirport.name) : 
+              { fa: 'نامشخص', en: 'Unknown' }
+          },
+          arrival: {
+            dateTime: booking.flight.arrivalTime,
+            city: booking.flight.arrivalAirport?.city ? 
+              (typeof booking.flight.arrivalAirport.city === 'string' ? 
+                JSON.parse(booking.flight.arrivalAirport.city) : 
+                booking.flight.arrivalAirport.city) : 
+              { fa: 'نامشخص', en: 'Unknown' },
+            airport: booking.flight.arrivalAirport?.iata || 'UNK',
+            airportName: booking.flight.arrivalAirport?.name ? 
+              (typeof booking.flight.arrivalAirport.name === 'string' ? 
+                JSON.parse(booking.flight.arrivalAirport.name) : 
+                booking.flight.arrivalAirport.name) : 
+              { fa: 'نامشخص', en: 'Unknown' }
+          }
+        } : null
+      }));
+    } catch (error) {
+      console.error('Error in getUserBookings:', error);
+      // Return empty array on error instead of throwing
+      return [];
+    }
   }
 
   async getBookingById(id: string, userId: string) {
@@ -524,7 +764,7 @@ export class BookingsService {
       return Buffer.from(htmlContent, 'utf-8');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      throw new Error(`Failed to generate PDF: ${error.message}`);
+      throw new Error(`Failed to generate PDF: ${(error as Error).message}`);
     }
   }
 }

@@ -5,12 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>رزرو بلیط هواپیما</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Preconnect links removed since we're not using CDN fonts -->
+    <!-- Font fallback - using system fonts instead of CDN -->
     <style>
       body {
-        font-family: 'Vazirmatn', sans-serif;
+        font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         --color-primary: #003366; /* Deep Blue */
         --color-secondary: #E8EAF6; /* Very Light Blue */
         --color-accent: #336699; /* Medium Blue */
@@ -38,8 +37,8 @@
 </head>
   <body>
     <div id="root"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- CDN scripts removed to prevent network errors -->
+    <!-- html2pdf.js and Chart.js will be loaded dynamically if needed -->
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

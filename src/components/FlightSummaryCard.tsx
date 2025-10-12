@@ -12,6 +12,17 @@ interface FlightSummaryCardProps {
 export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) => {
     const { formatDate, formatTime } = useLocalization();
 
+    // Add validation
+    if (!flight) {
+        console.error('❌ FlightSummaryCard missing flight prop');
+        return (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 text-center">
+                <div className="text-red-500 text-2xl mb-2">❌</div>
+                <p className="text-gray-600">اطلاعات پرواز موجود نیست</p>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden">
             {/* Header */}
@@ -21,7 +32,7 @@ export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) 
                         {flight.airlineLogoUrl && flight.airlineLogoUrl.trim() !== '' ? (
                             <img 
                                 src={flight.airlineLogoUrl} 
-                                alt={`${typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'Airline'} logo`} 
+                                alt={`${typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'Airline')} logo`} 
                                 className="w-12 h-12 rounded-2xl object-cover shadow-md" 
                             />
                         ) : (
@@ -38,7 +49,7 @@ export const FlightSummaryCard: React.FC<FlightSummaryCardProps> = ({ flight }) 
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-slate-800">{typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'نامشخص'}</h3>
+                        <h3 className="text-xl font-bold text-slate-800">{typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'نامشخص')}</h3>
                         <p className="text-sm text-slate-500 font-medium">{flight.aircraft} | {flight.flightNumber}</p>
                     </div>
                 </div>

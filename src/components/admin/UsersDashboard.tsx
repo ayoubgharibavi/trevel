@@ -119,10 +119,10 @@ export const UsersDashboard: React.FC<UsersDashboardProps> = ({ users, currentUs
                 try {
                     await onCreateUser(newUser);
                     console.log('🔍 DEBUG - UsersDashboard onCreateUser completed, closing modal');
-                    setIsAddUserModalOpen(false);
+                    // Modal will close itself on success
                 } catch (error) {
                     console.error('🔍 DEBUG - Error in UsersDashboard onCreate:', error);
-                    // Keep modal open on error
+                    // Keep modal open on error - don't re-throw
                 }
             }} />}
         </div>

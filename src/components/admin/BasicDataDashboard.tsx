@@ -429,7 +429,7 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
 
         switch (activeTab) {
             case 'airline':
-                data = airlines;
+                data = airlines || [];
                 headers = [t('dashboard.basicData.headers.logo'), t('dashboard.basicData.headers.airlineName')];
                 renderRowCells = (item: AirlineInfo) => (
                     <>
@@ -439,7 +439,7 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 );
                 break;
             case 'aircraft':
-                data = aircrafts;
+                data = aircrafts || [];
                 headers = [t('dashboard.basicData.headers.aircraftName'), t('dashboard.basicData.headers.capacity')];
                 renderRowCells = (item: AircraftInfo) => (
                     <>
@@ -451,7 +451,7 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 );
                 break;
             case 'flightClass':
-                data = flightClasses;
+                data = flightClasses || [];
                 headers = [t('dashboard.basicData.headers.className')];
                 renderRowCells = (item: FlightClassInfo) => (
                     <>
@@ -462,7 +462,7 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 );
                 break;
             case 'airport':
-                data = airports.filter(a => {
+                data = (airports || []).filter(a => {
                     const cityName = parseLocalizedName(a.city, language);
                     const airportName = parseLocalizedName(a.name, language);
                     return cityName.toLowerCase().includes(airportSearchTerm.toLowerCase()) ||
@@ -487,14 +487,14 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 break;
             case 'commissionModel':
                 requiresAddButton = false;
-                specialComponent = <CommissionModelsManager models={commissionModels} onCreate={(d) => onCreate('commissionModel', d)} onUpdate={(d) => onUpdate('commissionModel', d)} onDelete={(id) => onDelete('commissionModel', id)} />;
+                specialComponent = <CommissionModelsManager models={commissionModels || []} onCreate={(d) => onCreate('commissionModel', d)} onUpdate={(d) => onUpdate('commissionModel', d)} onDelete={(id) => onDelete('commissionModel', id)} />;
                 break;
             case 'rateLimit':
                 requiresAddButton = false;
-                specialComponent = <RateLimitsManager rateLimits={rateLimits} airports={airports} onCreate={onCreateRateLimit} onUpdate={onUpdateRateLimit} onDelete={onDeleteRateLimit} />;
+                specialComponent = <RateLimitsManager rateLimits={rateLimits || []} airports={airports || []} onCreate={onCreateRateLimit} onUpdate={onUpdateRateLimit} onDelete={onDeleteRateLimit} />;
                 break;
             case 'currency':
-                data = currencies;
+                data = currencies || [];
                 headers = [t('dashboard.basicData.headers.currencyName'), t('dashboard.basicData.headers.code'), t('dashboard.basicData.headers.symbol'), t('dashboard.basicData.headers.rateToUsd'), t('dashboard.general.status')];
                 renderRowCells = (item: CurrencyInfo) => (
                     <>
@@ -516,10 +516,10 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                 break;
             case 'refundPolicy':
                 requiresAddButton = false;
-                specialComponent = <RefundPoliciesManager policies={refundPolicies} airlines={airlines} onCreate={(d) => onCreate('refundPolicy', d)} onUpdate={(d) => onUpdate('refundPolicy', d)} onDelete={(id) => onDelete('refundPolicy', id)} />;
+                specialComponent = <RefundPoliciesManager policies={refundPolicies || []} airlines={airlines || []} onCreate={(d) => onCreate('refundPolicy', d)} onUpdate={(d) => onUpdate('refundPolicy', d)} onDelete={(id) => onDelete('refundPolicy', id)} />;
                 break;
             case 'country':
-                data = countries;
+                data = countries || [];
                 headers = [t('dashboard.basicData.headers.countryName'), 'ISO Code', t('dashboard.basicData.headers.dialingCode')];
                 renderRowCells = (item: CountryInfo) => (
                     <>
@@ -566,7 +566,7 @@ export const BasicDataDashboard: React.FC<BasicDataDashboardProps> = ({ airlines
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {data.length > 0 ? data.filter((item, index, self) => 
+                            {data && Array.isArray(data) && data.length > 0 ? data.filter((item, index, self) => 
                                 index === self.findIndex(t => t.id === item.id)
                             ).map(item => (
                                 <tr key={item.id}>

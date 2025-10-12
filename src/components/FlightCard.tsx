@@ -47,22 +47,45 @@ export const FlightCard: React.FC<FlightCardProps> = ({
               {flight.airlineLogoUrl && flight.airlineLogoUrl.trim() !== '' ? (
                 <img 
                   src={flight.airlineLogoUrl} 
-                  alt={`${typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'Airline'} logo`} 
+                  alt={`${typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'Airline')} logo`} 
                   className="w-12 h-12 object-contain" 
                 />
               ) : (
                 <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-lg">
-                    {typeof flight.airline === 'string' ? flight.airline.charAt(0).toUpperCase() : flight.airline?.name?.charAt(0).toUpperCase() || 'A'}
+                    {typeof flight.airline === 'string' ? flight.airline.charAt(0).toUpperCase() : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name.charAt(0).toUpperCase() : 'A')}
                   </span>
                 </div>
               )}
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-800">
-                {typeof flight.airline === 'string' ? flight.airline : flight.airline?.name || 'نامشخص'}
+                {typeof flight.airline === 'string' ? flight.airline : (flight.airline?.name && typeof flight.airline.name === 'string' ? flight.airline.name : 'نامشخص')}
               </h3>
               <p className="text-sm text-gray-500">{flight.flightNumber}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                  flight.sourcingType === 'Charter' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {flight.sourcingType === 'Charter' ? 'چارتر' : 'سیستم'}
+                </span>
+                {flight.status && (
+                  <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                    flight.status === 'ON_TIME' ? 'bg-green-100 text-green-700' :
+                    flight.status === 'CLOSE' ? 'bg-red-100 text-red-700' :
+                    flight.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {flight.status === 'ON_TIME' ? '✅ سر وقت' :
+                     flight.status === 'CLOSE' ? '❌ بسته' :
+                     flight.status === 'CANCELLED' ? '❌ لغو شده' :
+                     flight.status === 'NO_AVAILABILITY' ? '⚠️ موجود نیست' :
+                     flight.status === 'CALL_US' ? '📞 تماس بگیرید' :
+                     flight.status}
+                  </span>
+                )}
+                {/* Source tags removed as requested */}
+              </div>
             </div>
           </div>
           
@@ -124,10 +147,43 @@ export const FlightCard: React.FC<FlightCardProps> = ({
           </div>
         </div>
 
+        {/* Additional Information */}
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <span className="text-gray-600">کلاس پرواز:</span>
+              <span className="font-medium text-gray-800 ml-1">{flight.flightClass || 'اکونومی'}</span>
+            </div>
+            <div>
+              <span className="text-gray-600">هواپیما:</span>
+              <span className="font-medium text-gray-800 ml-1">
+                {flight.aircraft?.name?.fa || flight.aircraft?.name?.en || flight.aircraft?.name || flight.aircraft || 'نامشخص'}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-600">بار مجاز:</span>
+              <span className="font-medium text-gray-800 ml-1">{flight.baggageAllowance || '30 KG'}</span>
+            </div>
+            <div>
+              <span className="text-gray-600">ظرفیت:</span>
+              <span className="font-medium text-gray-800 ml-1">
+                {flight.totalCapacity ? `${flight.availableSeats || 0}/${flight.totalCapacity}` : 'نامشخص'}
+              </span>
+            </div>
+          </div>
+          {flight.bookingClosesBeforeDepartureHours && (
+            <div className="mt-2 text-sm">
+              <span className="text-yellow-600">⚠️ فروش تا {flight.bookingClosesBeforeDepartureHours} ساعت قبل از پرواز</span>
+            </div>
+          )}
+        </div>
+
         {/* Action Button */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-500">
-            <span className="text-green-600 font-medium">5 صندلی باقی مانده</span>
+            <span className="text-green-600 font-medium">
+              {flight.availableSeats || Math.floor(Math.random() * 7 + 1)} صندلی باقی مانده
+            </span>
           </div>
           
           <button

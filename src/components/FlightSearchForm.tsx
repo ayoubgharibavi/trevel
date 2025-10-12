@@ -65,11 +65,11 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
 
   // Filter cities based on search input
   const filteredFromCities = uniqueCities.filter(city =>
-    city.toLowerCase().includes(fromFilter.toLowerCase())
+    String(city).toLowerCase().includes(fromFilter.toLowerCase())
   ).slice(0, 8);
 
   const filteredToCities = uniqueCities.filter(city =>
-    city.toLowerCase().includes(toFilter.toLowerCase())
+    String(city).toLowerCase().includes(toFilter.toLowerCase())
   ).slice(0, 8);
 
   // Close dropdowns when clicking outside
@@ -104,7 +104,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
   }, [to]);
 
   const getPassengerText = () => {
-    const total = passengers.adults + passengers.children + passengers.infants;
+    const total = (passengers?.adults || 1) + (passengers?.children || 0) + (passengers?.infants || 0);
     return `${total} مسافر`;
   };
 
@@ -207,7 +207,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
                   filteredFromCities.map((city) => (
                     <button
                       key={city}
-                      onClick={() => handleFromSelect(city)}
+                      onClick={() => handleFromSelect(String(city))}
                       className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none text-sm sm:text-base transition-colors border-b border-gray-100 last:border-b-0"
                     >
                       {city}
@@ -257,7 +257,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
                   filteredToCities.map((city) => (
                     <button
                       key={city}
-                      onClick={() => handleToSelect(city)}
+                      onClick={() => handleToSelect(String(city))}
                       className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none text-sm sm:text-base transition-colors border-b border-gray-100 last:border-b-0"
                     >
                       {city}
@@ -334,7 +334,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
                       >
                         -
                       </button>
-                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers.adults}</span>
+                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers?.adults || 1}</span>
                       <button
                         onClick={() => setPassengers(prev => ({ ...prev, adults: prev.adults + 1 }))}
                         className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-blue-50 hover:border-blue-500 text-sm sm:text-base transition-all duration-300 font-bold text-gray-600 hover:text-blue-600"
@@ -352,7 +352,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
                       >
                         -
                       </button>
-                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers.children}</span>
+                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers?.children || 0}</span>
                       <button
                         onClick={() => setPassengers(prev => ({ ...prev, children: prev.children + 1 }))}
                         className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-blue-50 hover:border-blue-500 text-sm sm:text-base transition-all duration-300 font-bold text-gray-600 hover:text-blue-600"
@@ -370,7 +370,7 @@ const FlightSearchForm: React.FC<FlightSearchFormProps> = ({
                       >
                         -
                       </button>
-                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers.infants}</span>
+                      <span className="w-8 sm:w-10 text-center text-sm sm:text-base font-semibold">{passengers?.infants || 0}</span>
                       <button
                         onClick={() => setPassengers(prev => ({ ...prev, infants: prev.infants + 1 }))}
                         className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-blue-50 hover:border-blue-500 text-sm sm:text-base transition-all duration-300 font-bold text-gray-600 hover:text-blue-600"

@@ -18,10 +18,10 @@ export const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({ valueIRR, curr
     const irrInfo = currencies.find(c => c.code === 'IRR');
     const usdInfo = currencies.find(c => c.code === 'USD');
 
-    // Always display the primary currency (IRR)
+    // Always display the primary currency (IRR - but values are now in Toman)
     const primaryDisplay = (
         <span className={mainClassName}>
-            {formatNumber(valueIRR)} {irrInfo ? irrInfo.symbol[language] : 'IRR'}
+            {formatNumber(valueIRR)} تومان
         </span>
     );
 

@@ -1,4 +1,3 @@
-
 import { API_BASE_URL } from '@/config';
 import { ApiResponse, User, LoginPayload, SignupPayload, UpdateProfilePayload, AddSavedPassengerPayload, UpdateSavedPassengerPayload, UpdateUserPayload, TelegramBotConfig, WhatsAppBotConfig, RolePermissions, Advertisement, SiteContent, Booking, Ticket, Expense, Account, CommissionModel, CurrencyInfo, RefundPolicy, CountryInfo, RateLimit, ActivityLog, CreateExpensePayload, UpdateTenantPayload, CreateTenantPayload, ChargeWalletPayload, Refund, AdminStats, SavedPassenger, Flight, Tenant, BasicDataType, Wallet } from '@/types';
 
@@ -9,11 +8,12 @@ interface RequestOptions extends RequestInit {
 class ApiService {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
-
+  
   constructor() {
     this.initTokens();
     this.initTokenRefresh();
-    this.validateStoredTokens();
+    // Disable validateStoredTokens to prevent token clearing
+    // this.validateStoredTokens();
   }
 
   initTokens() {
@@ -22,8 +22,25 @@ class ApiService {
     console.log('🔑 ApiService initialized with tokens:', {
       hasAccessToken: !!this.accessToken,
       hasRefreshToken: !!this.refreshToken,
-      accessTokenPreview: this.accessToken ? this.accessToken.substring(0, 50) + '...' : null
+      accessTokenPreview: this.accessToken ? this.accessToken.substring(0, 50) + '...' : null,
+      refreshTokenPreview: this.refreshToken ? this.refreshToken.substring(0, 50) + '...' : null
     });
+    
+    // Check if tokens are expired
+    if (this.accessToken) {
+      try {
+        const decoded = JSON.parse(atob(this.accessToken.split('.')[1]));
+        const now = Date.now() / 1000;
+        const isExpired = decoded.exp && decoded.exp < now;
+        console.log('🔑 Token status:', {
+          expiresAt: new Date(decoded.exp * 1000).toISOString(),
+          isExpired,
+          timeLeft: decoded.exp ? Math.max(0, decoded.exp - now) : 'unknown'
+        });
+      } catch (error) {
+        console.error('🔑 Error decoding token:', error);
+      }
+    }
   }
 
   private isPublicEndpoint(endpoint: string): boolean {
@@ -62,10 +79,12 @@ class ApiService {
       try {
         const payload = JSON.parse(atob(accessToken.split('.')[1]));
         const now = Date.now() / 1000;
-        // If token expires in less than 1 hour, clear it
-        if (payload.exp && payload.exp - now < 3600) {
+        // If token is already expired, clear it
+        if (payload.exp && payload.exp - now < 0) {
           console.log('🔄 Clearing expired tokens');
           this.clearTokens();
+        } else {
+          console.log('🔑 Token is valid, expires in:', Math.max(0, payload.exp - now), 'seconds');
         }
       } catch (error) {
         console.log('🔄 Clearing invalid tokens');
@@ -96,24 +115,32 @@ class ApiService {
 
   private async refreshAccessToken(): Promise<boolean> {
     try {
+      console.log('🔄 Attempting to refresh access token...');
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken }),
       });
 
-      const data: ApiResponse<{ accessToken: string }> = await response.json();
+      const data = await response.json();
+      console.log('🔄 Refresh response:', { status: response.status, data });
 
       if (response.ok && data.success && data.data?.accessToken) {
-        this.setTokens(data.data.accessToken, this.refreshToken!);
+        // Use new refreshToken if provided, otherwise keep the old one
+        const newRefreshToken = data.data.refreshToken || this.refreshToken!;
+        this.setTokens(data.data.accessToken, newRefreshToken);
+        console.log('✅ Token refresh successful');
         return true;
+      } else {
+        console.error('❌ Token refresh failed:', data.error);
+        // Don't clear tokens, just return false
+        return false;
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error('❌ Token refresh error:', error);
+      // Don't clear tokens, just return false
+      return false;
     }
-
-    this.clearTokens();
-    return false;
   }
 
   // Public method for external token refresh
@@ -131,16 +158,28 @@ class ApiService {
     // Check if this is a public endpoint that doesn't need authentication
     const isPublicEndpoint = this.isPublicEndpoint(endpoint);
     
+    console.log('🔍 DEBUG - Request endpoint:', endpoint);
+    console.log('🔍 DEBUG - Is public endpoint:', isPublicEndpoint);
+    console.log('🔍 DEBUG - Has access token:', !!this.accessToken);
+    console.log('🔍 DEBUG - Access token preview:', this.accessToken ? this.accessToken.substring(0, 50) + '...' : 'NONE');
+    
     if (this.accessToken && !isPublicEndpoint) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
       console.log('🔑 Using access token for protected request:', endpoint);
+      console.log('🔑 Authorization header:', `Bearer ${this.accessToken.substring(0, 50)}...`);
     } else if (isPublicEndpoint) {
       console.log('🌐 Public endpoint, no auth required:', endpoint);
     } else {
       console.log('⚠️ No access token available for protected request:', endpoint);
-      // For protected endpoints without token, return unauthorized error immediately
-      if (!isPublicEndpoint) {
-        return { success: false, error: 'Unauthorized', data: null };
+      // For protected endpoints without token, try to get from localStorage
+      this.initTokens();
+      if (this.accessToken) {
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+        console.log('🔑 Using access token from localStorage for protected request:', endpoint);
+      } else {
+        console.error('❌ ERROR - Unauthorized request to protected endpoint:', endpoint);
+        // Don't return error immediately, let the request go through and handle 401 response
+        console.log('🔄 Proceeding without token, will handle 401 response');
       }
     }
 
@@ -171,11 +210,8 @@ class ApiService {
             response = await fetch(url, { ...options, headers });
           } else {
             this.clearTokens();
-            // Force reload to clear stale data and redirect to login
-            if (typeof window !== 'undefined') {
-              console.log('🔄 Token refresh failed, forcing page reload');
-              setTimeout(() => window.location.reload(), 100);
-            }
+            // Don't force reload, just return error
+            console.log('🔄 Token refresh failed, returning error');
             return { success: false, error: 'Unauthorized', data: null };
           }
         } else {
@@ -188,9 +224,23 @@ class ApiService {
       let data;
       try {
         data = await response.json();
+        console.log('🔍 DEBUG - API response data:', data);
+        console.log('🔍 DEBUG - API response data type:', typeof data);
+        console.log('🔍 DEBUG - API response data is object:', typeof data === 'object');
+        console.log('🔍 DEBUG - API response data stringified:', JSON.stringify(data));
       } catch (jsonError) {
         console.error('JSON parsing error:', jsonError);
-        throw new Error('خطا در پردازش پاسخ سرور');
+        try {
+          const responseText = await response.text();
+          console.error('Response text:', responseText);
+        } catch (textError) {
+          console.error('Could not read response text:', textError);
+        }
+        return { 
+          success: false, 
+          error: 'خطا در پردازش پاسخ سرور',
+          data: null 
+        };
       }
 
       // Accept both 200 and 201 as successful responses
@@ -232,6 +282,9 @@ class ApiService {
         return { data: data || [], success: true };
       }
 
+      console.log('🔍 DEBUG - Returning API response:', { data, success: true });
+      console.log('🔍 DEBUG - Return data type:', typeof data);
+      console.log('🔍 DEBUG - Return data is object:', typeof data === 'object');
       return { data, success: true };
     } catch (error) {
       console.error('API Error:', error);
@@ -336,11 +389,36 @@ class ApiService {
   async createBooking(bookingData: any): Promise<ApiResponse<{
     booking: Booking;
   }>> {
+    console.log('🔍 DEBUG - createBooking called with:', bookingData);
+    console.log('🔍 DEBUG - bookingData type:', typeof bookingData);
+    console.log('🔍 DEBUG - bookingData is object:', typeof bookingData === 'object');
+    console.log('🔍 DEBUG - bookingData stringified:', JSON.stringify(bookingData));
+    
     return this.request<{
       booking: Booking;
     }>('/api/v1/bookings', {
       method: 'POST',
       body: JSON.stringify(bookingData),
+    });
+  }
+
+
+  async getSuspendedBookings(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/api/v1/bookings/suspended', {
+      method: 'GET',
+    });
+  }
+
+  async confirmSuspendedBooking(blockId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/api/v1/bookings/confirm-suspended/${blockId}`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectSuspendedBooking(blockId: string, reason?: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/api/v1/bookings/reject-suspended/${blockId}`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   }
 
@@ -477,6 +555,13 @@ class ApiService {
     };
   }
 
+  async deductFromWallet(amount: number, bookingId: string, description: string): Promise<ApiResponse<{ success: boolean; newBalance: number; amount: number }>> {
+    return this.request('/api/v1/bookings/deduct-wallet', {
+      method: 'POST',
+      body: JSON.stringify({ amount, bookingId, description }),
+    });
+  }
+
   async getUserBookings(): Promise<ApiResponse<any[]>> {
     return this.request('/api/v1/bookings', { method: 'GET' });
   }
@@ -486,23 +571,36 @@ class ApiService {
   }
 
   refreshTokens(): boolean {
+    console.log('🔍 DEBUG - refreshTokens called');
     const storedAccessToken = localStorage.getItem('accessToken');
     const storedRefreshToken = localStorage.getItem('refreshToken');
     
-    console.log('🔄 refreshTokens called');
-    console.log('🔄 Current tokens:', { access: this.accessToken, refresh: this.refreshToken });
-    console.log('🔄 Stored tokens:', { access: storedAccessToken, refresh: storedRefreshToken });
+    console.log('🔍 DEBUG - Current tokens:', { 
+      access: this.accessToken ? 'EXISTS' : 'MISSING', 
+      refresh: this.refreshToken ? 'EXISTS' : 'MISSING' 
+    });
+    console.log('🔍 DEBUG - Stored tokens:', { 
+      access: storedAccessToken ? 'EXISTS' : 'MISSING', 
+      refresh: storedRefreshToken ? 'EXISTS' : 'MISSING' 
+    });
+    console.log('🔍 DEBUG - Current accessToken preview:', this.accessToken ? this.accessToken.substring(0, 50) + '...' : 'NONE');
+    console.log('🔍 DEBUG - Stored accessToken preview:', storedAccessToken ? storedAccessToken.substring(0, 50) + '...' : 'NONE');
     
     if (storedAccessToken !== this.accessToken || storedRefreshToken !== this.refreshToken) {
-      console.log('🔄 Refreshing apiService tokens from localStorage');
+      console.log('🔍 DEBUG - Refreshing apiService tokens from localStorage');
       this.accessToken = storedAccessToken;
       this.refreshToken = storedRefreshToken;
-      console.log('🔄 New tokens:', { access: this.accessToken, refresh: this.refreshToken });
+      console.log('🔍 DEBUG - New tokens:', { 
+        access: this.accessToken ? 'EXISTS' : 'MISSING', 
+        refresh: this.refreshToken ? 'EXISTS' : 'MISSING' 
+      });
     } else {
-      console.log('🔄 Tokens already up to date');
+      console.log('🔍 DEBUG - Tokens already up to date');
     }
     
-    return !!(this.accessToken && this.refreshToken);
+    const hasValidTokens = !!(this.accessToken && this.refreshToken);
+    console.log('🔍 DEBUG - Has valid tokens:', hasValidTokens);
+    return hasValidTokens;
   }
 
   async deleteSavedPassenger(passengerId: string): Promise<ApiResponse<any>> {
@@ -547,12 +645,15 @@ class ApiService {
   async createUser(userData: Omit<User, 'id' | 'wallet' | 'createdAt' | 'canBypassRateLimit'>): Promise<ApiResponse<{
     user: User;
   }>> {
-    return this.request<{
+    console.log('🔍 DEBUG - apiService.createUser called with:', userData);
+    const result = await this.request<{
       user: User;
     }>('/api/v1/admin/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
+    console.log('🔍 DEBUG - apiService.createUser result:', result);
+    return result;
   }
 
   async chargeUserWallet(userId: string, data: ChargeWalletPayload): Promise<ApiResponse<any>> {

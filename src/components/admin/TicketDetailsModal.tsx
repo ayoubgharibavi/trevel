@@ -53,7 +53,9 @@ export const TicketDetailsModal: React.FC<TicketDetailsModalProps> = ({ ticket, 
                 timestamp: new Date().toISOString(),
             };
             
+            console.log('🔍 Sending admin reply:', newMessage);
             await onAddMessage(ticket.id, newMessage);
+            console.log('✅ Admin reply sent successfully');
             setReplyText('');
             
             // The parent component will update the ticket state

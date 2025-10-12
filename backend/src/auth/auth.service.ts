@@ -15,7 +15,7 @@ export class AuthService {
 
   async login(identifier: string, password: string) {
     try {
-      console.log('Login attempt:', { identifier, password });
+      console.log('🔍 Auth Service - Login attempt:', { identifier, passwordLength: password.length });
       const user = await this.prisma.user.findFirst({
         where: {
           OR: [
@@ -28,18 +28,21 @@ export class AuthService {
       console.log('Found user:', user ? { id: user.id, email: user.email, username: user.username, status: user.status } : 'null');
 
       if (!user) {
-        throw new UnauthorizedException('User not found');
+        console.log('❌ Auth Service - User not found');
+        throw new UnauthorizedException('Invalid credentials');
       }
 
       const passwordMatch = await bcrypt.compare(password, user.passwordHash);
       console.log('Password match:', passwordMatch);
 
       if (!passwordMatch) {
-        throw new UnauthorizedException('Invalid password');
+        console.log('❌ Auth Service - Invalid password');
+        throw new UnauthorizedException('Invalid credentials');
       }
 
       if (user.status !== 'ACTIVE') {
-        throw new UnauthorizedException('Your account is inactive');
+        console.log('❌ Auth Service - Account inactive:', user.status);
+        throw new UnauthorizedException('Your account is inactive. Please contact support.');
       }
 
       const payload = { sub: user.id, username: user.username, role: user.role };
@@ -189,10 +192,19 @@ export class AuthService {
       const newPayload = { sub: payload.sub, username: payload.username, role: payload.role };
       const newAccessToken = await this.jwtService.signAsync(newPayload, { expiresIn: '24h' });
 
-      return { accessToken: newAccessToken };
+      return {
+        success: true,
+        data: {
+          accessToken: newAccessToken,
+          refreshToken: refreshToken // Keep the same refresh token
+        }
+      };
     } catch (error) {
       console.error('Refresh token error:', error);
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      return {
+        success: false,
+        error: 'Invalid or expired refresh token'
+      };
     }
   }
 

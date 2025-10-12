@@ -67,7 +67,7 @@ const PassengerReviewCard: React.FC<{ title: string, details: PassengerDetails[]
 
 export const BookingReview: React.FC<BookingReviewProps> = ({ flight, query, passengers, user, onBack, onConfirmBooking, currencies }) => {
     const { t, formatNumber } = useLocalization();
-    const totalPassengers = passengers.adults.length + passengers.children.length + passengers.infants.length;
+    const totalPassengers = (passengers?.adults?.length || 1) + (passengers?.children?.length || 0) + (passengers?.infants?.length || 0);
     const finalPrice = (flight.price + flight.taxes) * totalPassengers;
     const hasSufficientFunds = (user.wallet?.IRR?.balance ?? 0) >= finalPrice;
 
@@ -102,15 +102,15 @@ export const BookingReview: React.FC<BookingReviewProps> = ({ flight, query, pas
                      <div>
                         <h2 className="text-3xl font-bold mb-4 text-slate-800">{t('bookingReview.passengerDetails')}</h2>
                         <div className="space-y-6">
-                            <PassengerReviewCard title={t('passengerDetails.adults')} details={passengers.adults} />
-                            <PassengerReviewCard title={t('passengerDetails.children')} details={passengers.children} />
-                            <PassengerReviewCard title={t('passengerDetails.infants')} details={passengers.infants} />
+                            <PassengerReviewCard title={t('passengerDetails.adults')} details={passengers?.adults || []} />
+                            <PassengerReviewCard title={t('passengerDetails.children')} details={passengers?.children || []} />
+                            <PassengerReviewCard title={t('passengerDetails.infants')} details={passengers?.infants || []} />
                         </div>
                     </div>
                 </div>
 
                 <aside className="lg:col-span-1 lg:sticky top-8 space-y-6">
-                     <PriceSummary flight={flight} passengers={query.passengers} user={user} currencies={currencies} />
+                     <PriceSummary flight={flight} passengers={query.passengers || { adults: 1, children: 0, infants: 0 }} user={user} currencies={currencies} />
                      <div className="bg-white rounded-lg shadow p-5 border">
                         <div className="flex items-center justify-between mb-4 text-sm">
                             <div className="flex items-center text-slate-600 font-medium">

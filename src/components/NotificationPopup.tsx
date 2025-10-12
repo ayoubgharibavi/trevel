@@ -43,7 +43,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
                     </div>
                     <div className="mr-3 flex-1">
                         <p className={`text-sm font-medium ${textColor}`}>
-                            {message}
+                            {typeof message === 'string' ? message : JSON.stringify(message)}
                         </p>
                     </div>
                     <div className="flex-shrink-0">

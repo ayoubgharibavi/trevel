@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { IsString, IsNumber, IsArray, IsOptional, ValidateNested, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PassengerDto {
@@ -65,6 +65,10 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   charter118ConfirmationCode?: string;
+
+  @IsObject()
+  @IsOptional()
+  flightData?: any; // Flight data from external APIs (Sepehr, Charter118)
 }
 
 

@@ -24,6 +24,7 @@ interface ProfilePageProps {
     onUpdateSavedPassenger: (passenger: SavedPassenger) => void;
     onDeleteSavedPassenger: (passengerId: string) => void;
     onRefreshBookings?: () => void;
+    onRefreshWallet?: () => void;
     onTestToken?: () => void;
     onForceLogout?: () => void;
 }
@@ -31,7 +32,7 @@ interface ProfilePageProps {
 export const ProfilePage: React.FC<ProfilePageProps> = ({ 
     user, bookings, tickets, currencies, refundPolicies, onLogout, onCancelBooking, 
     onUpdateProfile, onCreateTicket, onUserAddMessageToTicket,
-    onAddSavedPassenger, onUpdateSavedPassenger, onDeleteSavedPassenger, onRefreshBookings, onTestToken, onForceLogout
+    onAddSavedPassenger, onUpdateSavedPassenger, onDeleteSavedPassenger, onRefreshBookings, onRefreshWallet, onTestToken, onForceLogout
 }) => {
     const [activeSection, setActiveSection] = useState('profile');
 
@@ -40,7 +41,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             case 'profile':
                 return <MyProfileSection user={user} onUpdateProfile={onUpdateProfile} />;
             case 'wallet':
-                return <WalletSection wallet={user.wallet} currencies={currencies} />;
+                return (
+                    <div>
+                        {onRefreshWallet && (
+                            <div className="mb-4">
+                                <button
+                                    onClick={onRefreshWallet}
+                                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+                                >
+                                    🔄 بروزرسانی کیف پول
+                                </button>
+                            </div>
+                        )}
+                        <WalletSection wallet={user.wallet} currencies={currencies} />
+                    </div>
+                );
             case 'bookings':
                 return (
                     <div>

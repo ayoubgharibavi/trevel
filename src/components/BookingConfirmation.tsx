@@ -18,7 +18,7 @@ interface BookingConfirmationProps {
     onConfirm: () => void;
 }
 
-export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({ 
+export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     flight, 
     query, 
     passengerData, 
@@ -29,7 +29,49 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 }) => {
     const { t, formatNumber } = useLocalization();
 
-    const totalPassengers = query.passengers.adults + query.passengers.children + query.passengers.infants;
+    // Add validation and error handling
+    console.log('🔍 DEBUG - BookingConfirmation props:', {
+        flight: !!flight,
+        query: !!query,
+        passengerData: !!passengerData,
+        user: !!user,
+        currencies: !!currencies,
+        flightData: flight,
+        queryData: query,
+        passengerDataData: passengerData,
+        userData: user
+    });
+
+    // Validate required props
+    if (!flight || !query || !passengerData || !user) {
+        console.error('❌ BookingConfirmation missing required props:', {
+            flight: !!flight,
+            query: !!query,
+            passengerData: !!passengerData,
+            user: !!user,
+            flightData: flight,
+            queryData: query,
+            passengerDataData: passengerData,
+            userData: user
+        });
+        return (
+            <div className="min-h-screen bg-red-50 flex items-center justify-center">
+                <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
+                    <div className="text-red-500 text-6xl mb-4">❌</div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">خطا در نمایش صفحه</h2>
+                    <p className="text-gray-600">داده‌های مورد نیاز موجود نیست</p>
+                    <div className="mt-4 text-xs text-gray-500">
+                        <p>Flight: {flight ? '✓' : '✗'}</p>
+                        <p>Query: {query ? '✓' : '✗'}</p>
+                        <p>Passenger Data: {passengerData ? '✓' : '✗'}</p>
+                        <p>User: {user ? '✓' : '✗'}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const totalPassengers = (query.passengers?.adults || 0) + (query.passengers?.children || 0) + (query.passengers?.infants || 0);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
@@ -202,7 +244,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                     {/* Sidebar */}
                     <aside className="lg:col-span-1 lg:sticky top-8 space-y-6">
                         <FlightSummaryCard flight={flight} />
-                        <PriceSummary flight={flight} passengers={query.passengers} user={user} currencies={currencies} />
+                        <PriceSummary flight={flight} passengers={query.passengers || { adults: 1, children: 0, infants: 0 }} user={user} currencies={currencies} />
                         
                         {/* Action Buttons */}
                         <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 space-y-4">

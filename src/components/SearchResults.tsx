@@ -138,13 +138,14 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
               <div className="text-sm text-gray-600">
                 <span className="font-medium">{searchQuery.tripType === 'OneWay' ? 'یک طرفه' : 'رفت و برگشت'}</span>
                 <span className="mx-2">•</span>
-                <span className="font-medium">{searchQuery.passengers.adults + searchQuery.passengers.children + searchQuery.passengers.infants} مسافر</span>
-                <span className="mx-2">•</span>
+                <span className="font-medium">{(searchQuery.passengers?.adults || 1) + (searchQuery.passengers?.children || 0) + (searchQuery.passengers?.infants || 0)} مسافر</span>
+              </div>
+              <div className="text-sm text-gray-600">
                 <span className="font-medium">{searchQuery.departureDate instanceof Date ? searchQuery.departureDate.toLocaleDateString('fa-IR') : searchQuery.departureDate}</span>
                 {searchQuery.returnDate && (
                   <>
@@ -166,10 +167,10 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       </div>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar Filters */}
-          <div className="w-80 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+          <div className="w-full lg:w-80 flex-shrink-0">
+            <div className="bg-white rounded-lg shadow-sm p-4 lg:p-6 space-y-4 lg:space-y-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">فیلترها</h3>
               
               {/* Stops Filter */}
@@ -274,10 +275,10 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           </div>
 
           {/* Main Content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Special Offer Banner */}
             <div className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold">پیشنهاد ویژه</h3>
                   <p className="text-sm opacity-90">بهترین قیمت‌ها را برای شما پیدا کرده‌ایم</p>
@@ -290,17 +291,17 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             </div>
 
             {/* Results Header */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-lg shadow-sm p-4 lg:p-6 mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                  <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-2">
                     نتایج جستجو
                   </h2>
                   <p className="text-gray-600">
                     {filteredFlights.length} پرواز پیدا شد
                   </p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <span className="text-sm text-gray-600">مرتب‌سازی بر اساس:</span>
                   <SortDropdown 
                     value={sortOption} 

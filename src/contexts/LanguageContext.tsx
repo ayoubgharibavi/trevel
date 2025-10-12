@@ -1,6 +1,14 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { translations } from '@/locales';
-import type { Language } from '@/types';
+import { fa } from '../locales/fa';
+import { en } from '../locales/en';
+import { ar } from '../locales/ar';
+import type { Language } from '../types';
+
+const translations = {
+    fa: fa,
+    en: en,
+    ar: ar,
+};
 
 interface LanguageContextType {
     language: Language;
@@ -23,30 +31,53 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const t = useCallback((key: string, ...args: (string | number)[]): string => {
         const keys = key.split('.');
-        const languagesToTry: Language[] = [language, 'en', 'fa', 'ar']; // Define a fallback order
-        const uniqueLanguages = [...new Set(languagesToTry)];
-
-        for (const lang of uniqueLanguages) {
-            let result: any = translations[lang];
-            let found = true;
-            for (const k of keys) {
-                if (result && typeof result === 'object' && k in result) {
-                    result = result[k];
-                } else {
-                    found = false;
-                    break;
-                }
-            }
-            if (found && typeof result === 'string') {
-                if (args.length > 0) {
-                    return result.replace(/\{(\d+)\}/g, (match, number) => 
-                        typeof args[number] !== 'undefined' ? String(args[number]) : match
-                    );
-                }
-                return result;
+        
+        // Try current language first
+        let result: any = translations[language];
+        let found = true;
+        
+        for (const k of keys) {
+            if (result && typeof result === 'object' && k in result) {
+                result = result[k];
+            } else {
+                found = false;
+                break;
             }
         }
-        return key; // Return the key if not found in any language
+        
+        if (found && typeof result === 'string') {
+            if (args.length > 0) {
+                const finalResult = result.replace(/\{(\d+)\}/g, (match, number) => 
+                    typeof args[number] !== 'undefined' ? String(args[number]) : match
+                );
+                return finalResult;
+            }
+            return result;
+        }
+        
+        // Fallback to English if not found
+        result = translations.en;
+        found = true;
+        for (const k of keys) {
+            if (result && typeof result === 'object' && k in result) {
+                result = result[k];
+            } else {
+                found = false;
+                break;
+            }
+        }
+        
+        if (found && typeof result === 'string') {
+            if (args.length > 0) {
+                const finalResult = result.replace(/\{(\d+)\}/g, (match, number) => 
+                    typeof args[number] !== 'undefined' ? String(args[number]) : match
+                );
+                return finalResult;
+            }
+            return result;
+        }
+        
+        return key;
     }, [language]);
 
     const locale = useMemo(() => {
@@ -59,7 +90,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const defaultOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
         
         // Handle empty objects, null, undefined, or invalid inputs
-        if (!dateString || typeof dateString !== 'string' || dateString === '{}' || dateString === 'null' || dateString === 'undefined') {
+        if (!dateString || typeof dateString !== 'string' || dateString === '{}' || dateString === 'null' || dateString === 'undefined' || dateString === '[object Object]') {
             console.error("formatDate received invalid input:", dateString);
             return "نامشخص";
         }
@@ -92,7 +123,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const formatTime = useCallback((dateString: string, options?: Intl.DateTimeFormatOptions) => {
         const defaultOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
         
-        if (typeof dateString !== 'string' || !dateString) {
+        if (typeof dateString !== 'string' || !dateString || dateString === '{}' || dateString === 'null' || dateString === 'undefined' || dateString === '[object Object]') {
             console.error("formatTime received invalid input:", dateString);
             return 'Invalid Time';
         }
@@ -116,8 +147,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, [locale]);
     
     const formatNumber = useCallback((num: number) => {
-        return num.toLocaleString(locale);
-    }, [locale]);
+        if (language === 'en') {
+            return num.toLocaleString('en-US');
+        }
+        // For Persian, convert to Persian numbers
+        const persianNumbers = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        return num.toLocaleString('en-US').replace(/[0-9]/g, (digit) => persianNumbers[parseInt(digit)]);
+    }, [language]);
 
 
     const value = { language, setLanguage, t, formatDate, formatTime, formatNumber };
@@ -127,4 +163,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             {children}
         </LanguageContext.Provider>
     );
+};
+
+export const useLocalization = () => {
+    const context = React.useContext(LanguageContext);
+    if (context === undefined) {
+        throw new Error('useLocalization must be used within a LanguageProvider');
+    }
+    return context;
 };

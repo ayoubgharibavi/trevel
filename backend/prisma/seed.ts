@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, FlightStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -357,7 +357,7 @@ async function main() {
       availableSeats: 150,
       totalCapacity: 180,
       baggageAllowance: '20kg',
-      status: 'SCHEDULED',
+      status: FlightStatus.ON_TIME,
       bookingClosesBeforeDepartureHours: 3,
       sourcingType: 'Manual',
       commissionModelId: 'cm-1',
@@ -367,11 +367,11 @@ async function main() {
       departureAirportId: 'airport-1',
       departureTerminal: 'T1',
       departureGate: 'A1',
-      departureTime: new Date('2024-02-15T10:00:00Z'),
+      departureTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
       arrivalAirportId: 'airport-2',
       arrivalTerminal: 'T1',
       arrivalGate: 'B1',
-      arrivalTime: new Date('2024-02-15T12:00:00Z'),
+      arrivalTime: new Date(Date.now() + 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), // Tomorrow + 2 hours
       airlineId: 'airline-1',
       aircraftId: 'aircraft-1',
       flightClassId: 'class-1',
@@ -390,7 +390,7 @@ async function main() {
       availableSeats: 120,
       totalCapacity: 150,
       baggageAllowance: '25kg',
-      status: 'SCHEDULED',
+      status: FlightStatus.ON_TIME,
       bookingClosesBeforeDepartureHours: 3,
       sourcingType: 'Manual',
       commissionModelId: 'cm-2',
@@ -400,11 +400,11 @@ async function main() {
       departureAirportId: 'airport-1',
       departureTerminal: 'T2',
       departureGate: 'C1',
-      departureTime: new Date('2024-02-15T14:00:00Z'),
+      departureTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Day after tomorrow
       arrivalAirportId: 'airport-3',
       arrivalTerminal: 'T1',
       arrivalGate: 'D1',
-      arrivalTime: new Date('2024-02-15T17:00:00Z'),
+      arrivalTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000), // Day after tomorrow + 3 hours
       airlineId: 'airline-2',
       aircraftId: 'aircraft-2',
       flightClassId: 'class-1',

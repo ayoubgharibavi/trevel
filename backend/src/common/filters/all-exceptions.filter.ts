@@ -34,6 +34,9 @@ export class AllExceptionsFilter extends BaseExceptionFilter {
 
     // Log the full error internally, but send a sanitized version to the client
     this.logger.error(`HTTP Status: ${status} Error Message: ${errorMessage} Path: ${request.url}`, (exception as Error).stack);
+    
+    // Log the full exception for debugging
+    console.error('Full exception:', exception);
 
     response.status(status).json(errorResponse);
   }

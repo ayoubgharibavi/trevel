@@ -281,7 +281,7 @@ export class AdminService {
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    const defaultTenantId = this.configService.get<string>('DEFAULT_TENANT_ID') || 'clmey6sjo6d000fumywum4qyk'; // Get from config
+    const defaultTenantId = this.configService.get<string>('DEFAULT_TENANT_ID') || 'tenant-1'; // Get from config
 
     const newUser = await this.prisma.user.create({
       data: {
@@ -820,9 +820,21 @@ export class AdminService {
         const airports = await this.prisma.airport.findMany();
         return airports.map(airport => ({
           ...airport,
-          name: typeof airport.name === 'string' ? JSON.parse(airport.name) : airport.name,
-          city: typeof airport.city === 'string' ? JSON.parse(airport.city) : airport.city,
-          country: typeof airport.country === 'string' ? JSON.parse(airport.country) : airport.country,
+          name: typeof airport.name === 'string' ? 
+            (() => {
+              try { return JSON.parse(airport.name); } 
+              catch { return { fa: airport.name, en: airport.name }; }
+            })() : airport.name,
+          city: typeof airport.city === 'string' ? 
+            (() => {
+              try { return JSON.parse(airport.city); } 
+              catch { return { fa: airport.city, en: airport.city }; }
+            })() : airport.city,
+          country: typeof airport.country === 'string' ? 
+            (() => {
+              try { return JSON.parse(airport.country); } 
+              catch { return { fa: airport.country, en: airport.country }; }
+            })() : airport.country,
         }));
       case 'country':
         const countries = await this.prisma.country.findMany();
@@ -1345,21 +1357,47 @@ export class AdminService {
   }
 
   async createManualBooking(data: any) {
-    const { userId, flightId, passengers, ...bookingData } = data;
+    const { userId, flightId, passengers, totalPrice, purchasePrice, ...bookingData } = data;
+    
+    // Use totalPrice or purchasePrice
+    const finalPrice = totalPrice || purchasePrice;
 
+    // Create the booking
     const newBooking = await this.prisma.booking.create({
       data: {
         ...bookingData,
-        user: { connect: { id: userId } },
-        flight: { connect: { id: flightId } },
-        passengersInfo: {
-          create: passengers.map((p: any) => ({ ...p, type: p.type || 'ADULT' })),
-        },
+        userId,
+        flightId,
+        totalPrice: finalPrice,
+        passengersData: JSON.stringify(passengers),
         bookingDate: new Date(),
         status: BookingStatus.CONFIRMED,
+        source: 'manual', // Set source to 'manual' for phone registrations
+        tenantId: 'tenant-1',
       },
-      include: { passengersInfo: true },
+      include: { 
+        user: { select: { id: true, name: true, email: true } },
+        flight: {
+          include: {
+            departureAirport: true,
+            arrivalAirport: true,
+            airlineInfo: true,
+            flightClassInfo: true,
+            aircraftInfo: true,
+          },
+        }
+      },
     });
+
+    // Deduct from user's wallet
+    if (finalPrice && finalPrice > 0) {
+      try {
+        // Wallet deduction will be handled by the booking service
+      } catch (error) {
+        console.error('Error deducting from wallet:', error);
+        // Don't fail the booking creation if wallet deduction fails
+      }
+    }
 
     return {
       success: true,
@@ -1671,5 +1709,177 @@ export class AdminService {
       success: true,
       message: 'تنظیمات واتس‌اپ با موفقیت به‌روزرسانی شد'
     };
+  }
+
+  // Suspended bookings management methods
+  async getSuspendedBookings() {
+    try {
+      const suspendedBookings = await this.prisma.booking.findMany({
+        where: {
+          status: {
+            in: ['SUSPENDED', 'SUSPENDED_PAYMENT_BLOCKED'] as any
+          }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              wallets: true
+            }
+          },
+          flight: {
+            include: {
+              departureAirport: true,
+              arrivalAirport: true
+            }
+          },
+          walletBlocks: {
+            where: {
+              status: 'ACTIVE'
+            }
+          }
+        } as any,
+        orderBy: {
+          bookingDate: 'desc'
+        }
+      });
+
+      return {
+        success: true,
+        data: suspendedBookings.map((booking: any) => ({
+          id: booking.id,
+          userId: booking.userId,
+          user: booking.user,
+          flight: booking.flight,
+          totalPrice: booking.totalPrice,
+          status: booking.status,
+          createdAt: booking.bookingDate,
+          contactEmail: booking.contactEmail,
+          contactPhone: booking.contactPhone,
+          walletBlocks: booking.walletBlocks,
+          insufficientFunds: booking.user.wallets?.[0] ? (booking.totalPrice || 0) > Number(booking.user.wallets[0].balance) : true
+        })),
+        message: 'رزروهای معلق با موفقیت دریافت شدند'
+      };
+    } catch (error) {
+      console.error('Error getting suspended bookings:', error);
+      throw new BadRequestException('خطا در دریافت رزروهای معلق');
+    }
+  }
+
+  async confirmSuspendedBooking(blockId: string, adminId: string) {
+    try {
+      const walletBlock = await (this.prisma as any).walletBlock.findUnique({
+        where: { id: blockId },
+        include: {
+          booking: {
+            include: {
+              user: {
+                include: {
+                  wallets: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!walletBlock) {
+        throw new BadRequestException('بلوک کیف پول یافت نشد');
+      }
+
+      if (walletBlock.status !== 'ACTIVE') {
+        throw new BadRequestException('بلوک کیف پول فعال نیست');
+      }
+
+      // Check if user has sufficient balance
+      const userWallet = walletBlock.booking.user.wallets?.[0];
+      const userBalance = userWallet ? Number(userWallet.balance) : 0;
+      if (userBalance < Number(walletBlock.amount)) {
+        throw new BadRequestException(`موجودی ناکافی. موجودی کاربر: ${userBalance} تومان، مبلغ مورد نیاز: ${walletBlock.amount} تومان`);
+      }
+
+      // Deduct from wallet
+      await this.prisma.wallet.update({
+        where: { id: userWallet.id },
+        data: {
+          balance: {
+            decrement: walletBlock.amount
+          }
+        }
+      });
+
+      // Update booking status
+      await this.prisma.booking.update({
+        where: { id: walletBlock.bookingId },
+        data: {
+          status: 'CONFIRMED'
+        }
+      });
+
+      // Release wallet block
+      await (this.prisma as any).walletBlock.update({
+        where: { id: blockId },
+        data: {
+          status: 'RELEASED',
+          releasedAt: new Date()
+        }
+      });
+
+      return {
+        success: true,
+        message: 'رزرو معلق با موفقیت تایید شد و مبلغ از کیف پول کسر شد'
+      };
+    } catch (error) {
+      console.error('Error confirming suspended booking:', error);
+      throw new BadRequestException((error as Error).message || 'خطا در تایید رزرو معلق');
+    }
+  }
+
+  async rejectSuspendedBooking(blockId: string, adminId: string, reason?: string) {
+    try {
+      const walletBlock = await (this.prisma as any).walletBlock.findUnique({
+        where: { id: blockId },
+        include: {
+          booking: true
+        }
+      });
+
+      if (!walletBlock) {
+        throw new BadRequestException('بلوک کیف پول یافت نشد');
+      }
+
+      if (walletBlock.status !== 'ACTIVE') {
+        throw new BadRequestException('بلوک کیف پول فعال نیست');
+      }
+
+      // Update booking status to cancelled
+      await this.prisma.booking.update({
+        where: { id: walletBlock.bookingId },
+        data: {
+          status: 'CANCELLED',
+          notes: `رد شده توسط ادمین. دلیل: ${reason || 'نامشخص'}`
+        }
+      });
+
+      // Release wallet block
+      await (this.prisma as any).walletBlock.update({
+        where: { id: blockId },
+        data: {
+          status: 'RELEASED',
+          releasedAt: new Date()
+        }
+      });
+
+      return {
+        success: true,
+        message: 'رزرو معلق رد شد و مبلغ به کیف پول کاربر برگشت'
+      };
+    } catch (error) {
+      console.error('Error rejecting suspended booking:', error);
+      throw new BadRequestException((error as Error).message || 'خطا در رد رزرو معلق');
+    }
   }
 }

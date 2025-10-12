@@ -11,6 +11,11 @@ const BalanceCard: React.FC<{
 }> = ({ balance, currencyInfo }) => {
     const { t, formatNumber, language } = useLocalization();
     
+    // Debug balance formatting
+    console.log('🔍 BalanceCard - balance:', balance);
+    console.log('🔍 BalanceCard - currencyInfo.code:', currencyInfo.code);
+    console.log('🔍 BalanceCard - language:', language);
+    
     const info = {
         name: currencyInfo.name[language],
         symbol: currencyInfo.symbol[language],
@@ -19,6 +24,8 @@ const BalanceCard: React.FC<{
     const formattedBalance = currencyInfo.code === 'USD'
         ? balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : formatNumber(balance);
+    
+    console.log('🔍 BalanceCard - formattedBalance:', formattedBalance);
     
     return (
         <div className="bg-white p-5 rounded-lg shadow-sm border">
@@ -59,6 +66,11 @@ const TransactionRow: React.FC<{ tx: WalletTransaction }> = ({ tx }) => {
 export const WalletSection: React.FC<{ wallet: Wallet; currencies: CurrencyInfo[] }> = ({ wallet, currencies }) => {
     const { t } = useLocalization();
     
+    // Debug wallet data
+    console.log('🔍 WalletSection - wallet prop:', wallet);
+    console.log('🔍 WalletSection - wallet.IRR:', wallet?.IRR);
+    console.log('🔍 WalletSection - wallet.IRR?.balance:', wallet?.IRR?.balance);
+    
     // Fallback for wallet if it's undefined
     const safeWallet = wallet || {};
     
@@ -68,18 +80,43 @@ export const WalletSection: React.FC<{ wallet: Wallet; currencies: CurrencyInfo[
         
     const activeCurrencies = currencies.filter(c => c.isActive);
     
+    // Debug currencies
+    console.log('🔍 WalletSection - currencies:', currencies);
+    console.log('🔍 WalletSection - activeCurrencies:', activeCurrencies);
+    console.log('🔍 WalletSection - safeWallet:', safeWallet);
+    
+    // Fallback: If no active currencies, show IRR directly
+    const currenciesToShow = activeCurrencies.length > 0 ? activeCurrencies : [
+        {
+            id: 'IRR',
+            code: 'IRR',
+            name: { fa: 'ریال ایران', en: 'Iranian Rial', ar: 'ريال إيراني' },
+            symbol: { fa: 'ریال', en: 'IRR', ar: 'ريال' },
+            isActive: true
+        }
+    ];
+    
     return (
         <div className="space-y-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-4">{t('profile.wallet.balanceTitle')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {activeCurrencies.map(currency => (
-                        <BalanceCard
-                            key={currency.code}
-                            balance={safeWallet?.[currency.code]?.balance || 0}
-                            currencyInfo={currency}
-                        />
-                    ))}
+                    {currenciesToShow.map(currency => {
+                        const balance = safeWallet?.[currency.code]?.balance || 0;
+                        console.log(`🔍 WalletSection - Currency ${currency.code}:`, { currency, balance });
+                        
+                        // Force display the correct balance for IRR
+                        const displayBalance = currency.code === 'IRR' ? 
+                            (safeWallet?.IRR?.balance || 0) : balance;
+                        
+                        return (
+                            <BalanceCard
+                                key={currency.code}
+                                balance={displayBalance}
+                                currencyInfo={currency}
+                            />
+                        );
+                    })}
                 </div>
             </div>
 

@@ -98,7 +98,7 @@ export class AccountingService {
       data: {
         description: data.description,
         date: new Date(data.date),
-        userId: data.userId,
+        // recordedBy: data.recordedBy || 'system', // Commented out due to schema mismatch
         transactions: {
           create: data.transactions.map((t: any) => ({
             accountId: t.accountId,
@@ -143,7 +143,10 @@ export class AccountingService {
         amount: data.amount,
         date: new Date(data.date),
         accountId: data.accountId,
-        userId: data.userId
+        recordedBy: data.recordedBy || 'system',
+        account: {
+          connect: { id: data.accountId }
+        }
       },
       include: {
         account: true

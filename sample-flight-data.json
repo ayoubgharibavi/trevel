@@ -1,0 +1,200 @@
+{
+  "flights": [
+    {
+      "id": "flight_001",
+      "flightNumber": "IRU 7660",
+      "airline": {
+        "name": {
+          "fa": "ایران ایر",
+          "en": "Iran Air"
+        },
+        "code": "IR"
+      },
+      "airlineLogoUrl": "https://example.com/logos/iran-air.png",
+      "aircraft": {
+        "name": {
+          "fa": "بوئینگ 737",
+          "en": "Boeing 737"
+        },
+        "type": "B737"
+      },
+      "aircraftType": "M80",
+      "class": "economy",
+      "flightClass": {
+        "name": {
+          "fa": "اکونومی",
+          "en": "Economy"
+        }
+      },
+      "sourcingType": "System",
+      "departure": {
+        "airportCode": "IKA",
+        "airportName": "فرودگاه امام خمینی",
+        "city": "تهران",
+        "countryCode": "IR",
+        "dateTime": "2024-01-15T08:30:00Z"
+      },
+      "arrival": {
+        "airportCode": "DXB",
+        "airportName": "فرودگاه دبی",
+        "city": "دبی",
+        "countryCode": "AE",
+        "dateTime": "2024-01-15T11:45:00Z"
+      },
+      "duration": 195,
+      "stops": 0,
+      "price": 25000000,
+      "basePrice": 22000000,
+      "taxes": 2000000,
+      "fee": 1000000,
+      "baggageAllowance": "20 KG",
+      "totalCapacity": 150,
+      "availableSeats": 25,
+      "status": "SCHEDULED",
+      "bookingClosesBeforeDepartureHours": 2,
+      "allotments": [
+        {
+          "id": "allotment_001",
+          "seatCount": 10,
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "flight_002",
+      "flightNumber": "MAH 1234",
+      "airline": {
+        "name": {
+          "fa": "ماهان ایر",
+          "en": "Mahan Air"
+        },
+        "code": "W5"
+      },
+      "airlineLogoUrl": "https://example.com/logos/mahan-air.png",
+      "aircraft": {
+        "name": {
+          "fa": "ایرباس A320",
+          "en": "Airbus A320"
+        },
+        "type": "A320"
+      },
+      "aircraftType": "A320",
+      "class": "business",
+      "flightClass": {
+        "name": {
+          "fa": "بیزنس",
+          "en": "Business"
+        }
+      },
+      "sourcingType": "Charter",
+      "departure": {
+        "airportCode": "THR",
+        "airportName": "فرودگاه مهرآباد",
+        "city": "تهران",
+        "countryCode": "IR",
+        "dateTime": "2024-01-15T14:20:00Z"
+      },
+      "arrival": {
+        "airportCode": "IST",
+        "airportName": "فرودگاه آتاتورک",
+        "city": "استانبول",
+        "countryCode": "TR",
+        "dateTime": "2024-01-15T18:30:00Z"
+      },
+      "duration": 250,
+      "stops": 1,
+      "price": 35000000,
+      "basePrice": 30000000,
+      "taxes": 3000000,
+      "fee": 2000000,
+      "baggageAllowance": "30 KG",
+      "totalCapacity": 120,
+      "availableSeats": 8,
+      "status": "ON_TIME",
+      "bookingClosesBeforeDepartureHours": 4,
+      "allotments": [
+        {
+          "id": "allotment_002",
+          "seatCount": 5,
+          "status": "available"
+        }
+      ]
+    },
+    {
+      "id": "flight_003",
+      "flightNumber": "TK 123",
+      "airline": {
+        "name": {
+          "fa": "ترکیش ایرلاینز",
+          "en": "Turkish Airlines"
+        },
+        "code": "TK"
+      },
+      "airlineLogoUrl": "https://example.com/logos/turkish-airlines.png",
+      "aircraft": {
+        "name": {
+          "fa": "بوئینگ 777",
+          "en": "Boeing 777"
+        },
+        "type": "B777"
+      },
+      "aircraftType": "B777",
+      "class": "economy",
+      "flightClass": {
+        "name": {
+          "fa": "اکونومی",
+          "en": "Economy"
+        }
+      },
+      "sourcingType": "System",
+      "departure": {
+        "airportCode": "IKA",
+        "airportName": "فرودگاه امام خمینی",
+        "city": "تهران",
+        "countryCode": "IR",
+        "dateTime": "2024-01-15T22:15:00Z"
+      },
+      "arrival": {
+        "airportCode": "IST",
+        "airportName": "فرودگاه آتاتورک",
+        "city": "استانبول",
+        "countryCode": "TR",
+        "dateTime": "2024-01-16T02:30:00Z"
+      },
+      "duration": 255,
+      "stops": 0,
+      "price": 28000000,
+      "basePrice": 25000000,
+      "taxes": 2000000,
+      "fee": 1000000,
+      "baggageAllowance": "25 KG",
+      "totalCapacity": 300,
+      "availableSeats": 45,
+      "status": "SCHEDULED",
+      "bookingClosesBeforeDepartureHours": 6,
+      "allotments": [
+        {
+          "id": "allotment_003",
+          "seatCount": 20,
+          "status": "available"
+        }
+      ]
+    }
+  ],
+  "searchCriteria": {
+    "origin": "IKA",
+    "destination": "DXB",
+    "departureDate": "2024-01-15",
+    "returnDate": null,
+    "adults": 1,
+    "children": 0,
+    "infants": 0,
+    "class": "economy"
+  },
+  "metadata": {
+    "totalResults": 3,
+    "searchTime": "2024-01-10T10:30:00Z",
+    "currency": "IRR",
+    "language": "fa"
+  }
+}

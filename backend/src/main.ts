@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ValidationPipe, VersioningType, BadRequestException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
@@ -61,16 +61,28 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   
   // Enable comprehensive input validation
-  // app.useGlobalPipes(new ValidationPipe({ 
-  //   whitelist: false,
-  //   transform: true, 
-  //   forbidNonWhitelisted: false,
-  //   disableErrorMessages: false,
-  //   validateCustomDecorators: true,
-  //   transformOptions: {
-  //     enableImplicitConversion: false,
-  //   },
-  // }));
+  app.useGlobalPipes(new ValidationPipe({ 
+    whitelist: true,
+    transform: true, 
+    forbidNonWhitelisted: false,
+    disableErrorMessages: false,
+    validateCustomDecorators: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+    exceptionFactory: (errors) => {
+      const result = errors.map((error) => ({
+        property: error.property,
+        value: error.value,
+        constraints: error.constraints,
+      }));
+      console.log('🔍 Validation errors:', result);
+      return new BadRequestException({
+        message: 'Validation failed',
+        errors: result,
+      });
+    },
+  }));
 
   // Apply global JWT Auth Guard with proper public route handling
   const reflector = app.get(Reflector);

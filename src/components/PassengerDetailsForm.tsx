@@ -246,14 +246,14 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
             saveForLater: false,
         }));
 
-    const [adults, setAdults] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.adults));
-    const [children, setChildren] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.children));
-    const [infants, setInfants] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers.infants));
+    const [adults, setAdults] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers?.adults || 1));
+    const [children, setChildren] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers?.children || 0));
+    const [infants, setInfants] = useState<PassengerDetails[]>(createInitialPassengers(query.passengers?.infants || 0));
 
     console.log('🔍 DEBUG - Component initialized with:', {
-        adultsCount: query.passengers.adults,
-        childrenCount: query.passengers.children,
-        infantsCount: query.passengers.infants,
+        adultsCount: query.passengers?.adults || 1,
+        childrenCount: query.passengers?.children || 0,
+        infantsCount: query.passengers?.infants || 0,
         initialAdults: adults,
         initialChildren: children,
         initialInfants: infants
@@ -391,9 +391,9 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
 
                             {/* Passenger Forms */}
                             <div className="space-y-6">
-                                {renderPassengerForms('adults', query.passengers.adults, adults)}
-                                {renderPassengerForms('children', query.passengers.children, children)}
-                                {renderPassengerForms('infants', query.passengers.infants, infants)}
+                                {renderPassengerForms('adults', query.passengers?.adults || 1, adults)}
+                                {renderPassengerForms('children', query.passengers?.children || 0, children)}
+                                {renderPassengerForms('infants', query.passengers?.infants || 0, infants)}
                             </div>
 
                             {/* Contact Information */}
@@ -446,7 +446,7 @@ export const PassengerDetailsForm: React.FC<PassengerDetailsFormProps> = ({ flig
                         {/* Sidebar */}
                         <aside className="lg:col-span-1 lg:sticky top-8 space-y-6">
                             <FlightSummaryCard flight={flight} />
-                            <PriceSummary flight={flight} passengers={query.passengers} user={user} currencies={currencies} onBack={onBack} />
+                            <PriceSummary flight={flight} passengers={query.passengers || { adults: 1, children: 0, infants: 0 }} user={user} currencies={currencies} onBack={onBack} />
                         </aside>
                     </div>
                 </form>

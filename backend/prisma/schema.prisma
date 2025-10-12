@@ -123,7 +123,7 @@ model Flight {
   availableSeats                    Int
   totalCapacity                     Int
   baggageAllowance                  String?
-  status                            FlightStatus       @default(ON_TIME)
+  status                            FlightStatus     @default(ON_TIME)
   bookingClosesBeforeDepartureHours Int              @default(3)
   sourcingType                      String           @default("Manual")
   source                            String           @default("manual")
@@ -145,14 +145,14 @@ model Flight {
   aircraftId                        String?
   flightClassId                     String?
   bookings                          Booking[]
-  flightClassInfo                   FlightClass?     @relation(fields: [flightClassId], references: [id])
-  aircraftInfo                      Aircraft?        @relation(fields: [aircraftId], references: [id])
-  airlineInfo                       Airline?         @relation(fields: [airlineId], references: [id])
-  arrivalAirport                    Airport?         @relation("ArrivalFlight", fields: [arrivalAirportId], references: [id])
-  departureAirport                  Airport?         @relation("DepartureFlight", fields: [departureAirportId], references: [id])
-  creator                           User?            @relation("FlightCreator", fields: [creatorId], references: [id])
-  refundPolicy                      RefundPolicy?    @relation(fields: [refundPolicyId], references: [id])
   commissionModel                   CommissionModel? @relation(fields: [commissionModelId], references: [id])
+  refundPolicy                      RefundPolicy?    @relation(fields: [refundPolicyId], references: [id])
+  creator                           User?            @relation("FlightCreator", fields: [creatorId], references: [id])
+  departureAirport                  Airport?         @relation("DepartureFlight", fields: [departureAirportId], references: [id])
+  arrivalAirport                    Airport?         @relation("ArrivalFlight", fields: [arrivalAirportId], references: [id])
+  airlineInfo                       Airline?         @relation(fields: [airlineId], references: [id])
+  aircraftInfo                      Aircraft?        @relation(fields: [aircraftId], references: [id])
+  flightClassInfo                   FlightClass?     @relation(fields: [flightClassId], references: [id])
   allotments                        SeatAllotment[]
 
   @@map("flights")
@@ -382,8 +382,8 @@ model Airport {
   city             String
   country          String
   code             String?  @unique
-  arrivalFlights   Flight[] @relation("ArrivalFlight")
   departureFlights Flight[] @relation("DepartureFlight")
+  arrivalFlights   Flight[] @relation("ArrivalFlight")
 
   @@map("airports")
 }
@@ -533,6 +533,7 @@ model RolePermissions {
 
   @@map("role_permissions")
 }
+
 enum UserRole {
   USER
   ADMIN
@@ -561,6 +562,8 @@ enum BookingStatus {
   CANCELLED
   COMPLETED
   FAILED
+  SUSPENDED
+  SUSPENDED_PAYMENT_BLOCKED
 }
 
 enum TicketStatus {
@@ -577,10 +580,20 @@ enum TicketStatus {
 enum TransactionType {
   DEPOSIT
   WITHDRAWAL
+  BLOCK
+  UNBLOCK
+  PAYMENT
   BOOKING_PAYMENT
   REFUND
   COMMISSION_PAYOUT
   CREDIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  FAILED
 }
 
 enum AccountType {
@@ -591,3 +604,8 @@ enum AccountType {
   EXPENSE
 }
 
+enum BlockStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+}

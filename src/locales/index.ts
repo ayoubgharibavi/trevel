@@ -1,4 +1,3 @@
-
 import { ar } from './ar';
 import { fa } from './fa';
 import { en } from './en';

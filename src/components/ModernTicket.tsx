@@ -37,7 +37,7 @@ export const ModernTicket = forwardRef<HTMLDivElement, ModernTicketProps>(({
   formatNumber, 
   language 
 }, ref) => {
-  const allPassengers = [...booking.passengers.adults, ...booking.passengers.children, ...booking.passengers.infants];
+  const allPassengers = [...(booking.passengers?.adults || []), ...(booking.passengers?.children || []), ...(booking.passengers?.infants || [])];
   const totalPassengers = allPassengers.length;
   const finalPrice = (booking.flight.price + booking.flight.taxes) * totalPassengers;
   const direction = language === 'en' ? 'ltr' : 'rtl';
@@ -72,7 +72,7 @@ export const ModernTicket = forwardRef<HTMLDivElement, ModernTicketProps>(({
           </div>
           <div className="text-right">
             <p className="font-semibold text-slate-600">{t('flightSearch.date')}</p>
-            <p className="text-slate-800">{formatDate(booking.flight.departureTime || booking.flight.departureDate)}</p>
+            <p className="text-slate-800">{formatDate(String(booking.flight.departureTime || booking.flight.departureDate))}</p>
             <p className="text-slate-500">{booking.flight.departureTime || booking.flight.departureDate}</p>
           </div>
         </div>
@@ -92,8 +92,8 @@ export const ModernTicket = forwardRef<HTMLDivElement, ModernTicketProps>(({
                 <div>
                   <p className="font-semibold text-slate-600">{t('bookingReview.passengerType')}</p>
                   <p className="text-slate-800">
-                    {index < booking.passengers.adults.length ? t('bookingReview.adult') :
-                     index < booking.passengers.adults.length + booking.passengers.children.length ? t('bookingReview.child') :
+                    {index < (booking.passengers?.adults?.length || 0) ? t('bookingReview.adult') :
+                     index < (booking.passengers?.adults?.length || 0) + (booking.passengers?.children?.length || 0) ? t('bookingReview.child') :
                      t('bookingReview.infant')}
                   </p>
                 </div>

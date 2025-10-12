@@ -42,13 +42,28 @@ export const MyBookingsSection: React.FC<MyBookingsSectionProps> = ({ bookings, 
         const upcoming = bookings.filter(b => {
             console.log('🔍 Processing booking:', b.id, 'flight:', !!b.flight, 'departure:', !!b.flight?.departure, 'dateTime:', b.flight?.departure?.dateTime);
             
-            // Null safety checks
-            if (!b || !b.flight || !b.flight.departure || !b.flight.departure.dateTime) {
-                console.warn('⚠️ Invalid booking structure:', b);
+            // Enhanced null safety checks with fallback
+            if (!b || !b.flight) {
+                console.warn('⚠️ Invalid booking structure - no flight:', b);
                 return false;
             }
             
-            const departureTime = new Date(b.flight.departure.dateTime);
+            // Check multiple possible dateTime locations
+            let departureTime: Date | null = null;
+            
+            if (b.flight.departure?.dateTime) {
+                departureTime = new Date(b.flight.departure.dateTime);
+            } else if (b.flight.departureTime) {
+                departureTime = new Date(b.flight.departureTime);
+            } else if (b.flight.departure?.time) {
+                departureTime = new Date(b.flight.departure.time);
+            }
+            
+            if (!departureTime || isNaN(departureTime.getTime())) {
+                console.warn('⚠️ Invalid booking structure - no valid departure time:', b);
+                return false;
+            }
+            
             const isUpcoming = departureTime >= now;
             console.log('🔍 Booking', b.id, 'departure:', departureTime.toISOString(), 'isUpcoming:', isUpcoming);
             return isUpcoming;
@@ -57,13 +72,28 @@ export const MyBookingsSection: React.FC<MyBookingsSectionProps> = ({ bookings, 
         const past = bookings.filter(b => {
             console.log('🔍 Processing booking:', b.id, 'flight:', !!b.flight, 'departure:', !!b.flight?.departure, 'dateTime:', b.flight?.departure?.dateTime);
             
-            // Null safety checks
-            if (!b || !b.flight || !b.flight.departure || !b.flight.departure.dateTime) {
-                console.warn('⚠️ Invalid booking structure:', b);
+            // Enhanced null safety checks with fallback
+            if (!b || !b.flight) {
+                console.warn('⚠️ Invalid booking structure - no flight:', b);
                 return false;
             }
             
-            const departureTime = new Date(b.flight.departure.dateTime);
+            // Check multiple possible dateTime locations
+            let departureTime: Date | null = null;
+            
+            if (b.flight.departure?.dateTime) {
+                departureTime = new Date(b.flight.departure.dateTime);
+            } else if (b.flight.departureTime) {
+                departureTime = new Date(b.flight.departureTime);
+            } else if (b.flight.departure?.time) {
+                departureTime = new Date(b.flight.departure.time);
+            }
+            
+            if (!departureTime || isNaN(departureTime.getTime())) {
+                console.warn('⚠️ Invalid booking structure - no valid departure time:', b);
+                return false;
+            }
+            
             const isPast = departureTime < now;
             console.log('🔍 Booking', b.id, 'departure:', departureTime.toISOString(), 'isPast:', isPast);
             return isPast;
@@ -74,14 +104,22 @@ export const MyBookingsSection: React.FC<MyBookingsSectionProps> = ({ bookings, 
         
         return {
             upcomingBookings: upcoming.sort((a, b) => {
-                const aTime = a.flight?.departure?.dateTime ? new Date(a.flight.departure.dateTime).getTime() : 0;
-                const bTime = b.flight?.departure?.dateTime ? new Date(b.flight.departure.dateTime).getTime() : 0;
-                return aTime - bTime;
+                const getTime = (booking: any) => {
+                    if (booking.flight?.departure?.dateTime) return new Date(booking.flight.departure.dateTime).getTime();
+                    if (booking.flight?.departureTime) return new Date(booking.flight.departureTime).getTime();
+                    if (booking.flight?.departure?.time) return new Date(booking.flight.departure.time).getTime();
+                    return 0;
+                };
+                return getTime(a) - getTime(b);
             }),
             pastBookings: past.sort((a, b) => {
-                const aTime = a.flight?.departure?.dateTime ? new Date(a.flight.departure.dateTime).getTime() : 0;
-                const bTime = b.flight?.departure?.dateTime ? new Date(b.flight.departure.dateTime).getTime() : 0;
-                return bTime - aTime;
+                const getTime = (booking: any) => {
+                    if (booking.flight?.departure?.dateTime) return new Date(booking.flight.departure.dateTime).getTime();
+                    if (booking.flight?.departureTime) return new Date(booking.flight.departureTime).getTime();
+                    if (booking.flight?.departure?.time) return new Date(booking.flight.departure.time).getTime();
+                    return 0;
+                };
+                return getTime(b) - getTime(a);
             }),
         };
     }, [bookings]);

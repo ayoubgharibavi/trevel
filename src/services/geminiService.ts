@@ -61,7 +61,7 @@ const generatePrompt = (query: SearchQuery, lang: Language): string => {
       const tripDetails = tripType === 'ROUND_TRIP' 
         ? `رحلة ذهاب وعودة من ${from} إلى ${to}، المغادرة في ${departureDate} والعودة في ${returnDate}`
         : `رحلة باتجاه واحد من ${from} إلى ${to} في ${departureDate}`;
-      const passengerDetails = `لـ ${passengers.adults} بالغ، و ${passengers.children} طفل، و ${passengers.infants} رضيع`;
+      const passengerDetails = `لـ ${passengers?.adults || 1} بالغ، و ${passengers?.children || 0} طفل، و ${passengers?.infants || 0} رضيع`;
       return `
         قم بإنشاء قائمة واقعية من 5 إلى 8 خيارات طيران لـ ${tripDetails}.
         الرحلة مخصصة لـ ${passengerDetails}.
@@ -75,7 +75,7 @@ const generatePrompt = (query: SearchQuery, lang: Language): string => {
       const tripDetails = tripType === 'ROUND_TRIP' 
         ? `پرواز رفت و برگشت از ${from} به ${to}، حرکت در ${departureDate} و بازگشت در ${returnDate}`
         : `پرواز یک طرفه از ${from} به ${to} در ${departureDate}`;
-      const passengerDetails = `برای ${passengers.adults} بزرگسال، ${passengers.children} کودک و ${passengers.infants} نوزاد`;
+      const passengerDetails = `برای ${passengers?.adults || 1} بزرگسال، ${passengers?.children || 0} کودک و ${passengers?.infants || 0} نوزاد`;
       return `
         یک لیست واقعی شامل 5 تا 8 گزینه پرواز برای ${tripDetails} ایجاد کن.
         این پرواز برای ${passengerDetails} است.
@@ -89,7 +89,7 @@ const generatePrompt = (query: SearchQuery, lang: Language): string => {
       const tripDetails = tripType === 'ROUND_TRIP' 
         ? `a round-trip flight from ${from} to ${to}, departing on ${departureDate} and returning on ${returnDate}`
         : `a one-way flight from ${from} to ${to} on ${departureDate}`;
-      const passengerDetails = `for ${passengers.adults} adult(s), ${passengers.children} child(ren), and ${passengers.infants} infant(s)`;
+      const passengerDetails = `for ${passengers?.adults || 1} adult(s), ${passengers?.children || 0} child(ren), and ${passengers?.infants || 0} infant(s)`;
       return `
         Create a realistic list of 5 to 8 flight options for ${tripDetails}.
         The flight is for ${passengerDetails}.
@@ -105,7 +105,7 @@ const generatePrompt = (query: SearchQuery, lang: Language): string => {
 export const generateFlights = async (query: SearchQuery, lang: Language): Promise<Flight[]> => {
   try {
     // Use backend AI search endpoint instead of direct Gemini API call
-    const response = await fetch('http://localhost:3000/api/v1/flights/ai-search', {
+    const response = await fetch('http://89.42.199.60/api/v1/flights/ai-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,9 +114,9 @@ export const generateFlights = async (query: SearchQuery, lang: Language): Promi
         from: query.from,
         to: query.to,
         departureDate: query.departureDate,
-        adults: query.passengers.adults.toString(),
-        children: query.passengers.children.toString(),
-        infants: query.passengers.infants.toString(),
+        adults: (query.passengers?.adults || 1).toString(),
+        children: (query.passengers?.children || 0).toString(),
+        infants: (query.passengers?.infants || 0).toString(),
       }),
     });
 

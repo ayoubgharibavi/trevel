@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import FlightSearchForm from '@/components/FlightSearchForm';
-import { SearchResults } from '@/components/SearchResults';
+import { PersianFlightResults } from '@/components/PersianFlightResults';
 import SimpleFlightTest from '@/components/SimpleFlightTest';
+import SepehrLiveTest from '@/components/SepehrLiveTest';
+import CRSBookingTest from '@/components/CRSBookingTest';
 import { Header } from '@/components/Header';
 import LoadingPopup from '@/components/LoadingPopup';
 import { PassengerDetailsForm } from '@/components/PassengerDetailsForm';
@@ -16,6 +18,7 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { Footer } from '@/components/Footer';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
+import AdminBookingManagement from '@/components/admin/AdminBookingManagement';
 import { useLocalization } from '@/hooks/useLocalization';
 import { generateFlights } from '@/services/geminiService';
 import { sendTelegramMessage } from '@/services/telegramService';
@@ -46,6 +49,19 @@ const App: React.FC = () => {
     const { t, language, formatNumber, formatDate, formatTime } = useLocalization();
     const { showSuccess, showError, showWarning, showInfo } = useNotifications();
     const [view, setView] = useState<View>('SEARCH');
+    
+    // Check URL parameters for test views
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const testView = urlParams.get('test');
+        if (testView === 'sepehr') {
+            setView('SEPEHR_TEST' as View);
+        } else if (testView === 'crs') {
+            setView('CRS_BOOKING_TEST' as View);
+        } else if (testView === 'admin-bookings') {
+            setView('ADMIN_BOOKING_MANAGEMENT' as View);
+        }
+    }, []);
     const [isLoading, setIsLoading] = useState(false);
     
     // Loading Settings
@@ -255,7 +271,7 @@ const App: React.FC = () => {
                     console.log('🔍 Validating stored tokens...');
                     
                     // First, test token with a simple API call (content endpoints don't need auth)
-                            const testResponse = await fetch(`${(import.meta as any).env.VITE_API_URL || 'http://localhost:3000'}/api/v1/content/home?lang=fa`, {
+                            const testResponse = await fetch(`${(import.meta as any).env.VITE_API_URL || 'http://89.42.199.60'}/api/v1/content/home?lang=fa`, {
                         headers: {
                             'Content-Type': 'application/json'
                         }
@@ -310,6 +326,29 @@ const App: React.FC = () => {
             localStorage.removeItem('currentUser');
         }
     }, [currentUser]);
+
+    // Auto-refresh wallet data when user navigates to profile
+    useEffect(() => {
+        const refreshWalletIfNeeded = async () => {
+            if (currentUser && currentUser.role === UserRole.USER && view === 'PROFILE') {
+                try {
+                    console.log('🔄 Auto-refreshing wallet data for profile view...');
+                    const walletResponse = await apiService.getUserWallet();
+                    if (walletResponse.success && walletResponse.data) {
+                        setCurrentUser(prev => ({
+                            ...prev,
+                            wallet: walletResponse.data
+                        }));
+                        console.log('✅ Wallet data auto-refreshed for profile view');
+                    }
+                } catch (error) {
+                    console.error('❌ Error auto-refreshing wallet data:', error);
+                }
+            }
+        };
+
+        refreshWalletIfNeeded();
+    }, [view, currentUser]);
 
     // Consolidated data loading
     useEffect(() => {
@@ -747,7 +786,7 @@ const App: React.FC = () => {
 
     const createBookingJournalEntry = useCallback((booking: Booking, type: 'create' | 'cancel') => {
         const { flight, user } = booking;
-        const totalPassengers = booking.passengers.adults.length + booking.passengers.children.length + booking.passengers.infants.length;
+        const totalPassengers = (booking.passengers?.adults?.length || 0) + (booking.passengers?.children?.length || 0) + (booking.passengers?.infants?.length || 0);
         const basePriceTotal = flight.price * totalPassengers;
         const taxesTotal = flight.taxes * totalPassengers;
         const totalPrice = basePriceTotal + taxesTotal;
@@ -933,7 +972,7 @@ const App: React.FC = () => {
         try {
             // Convert city names to airport codes for API calls
             const cityToAirportMap: { [key: string]: string } = {
-                'تهران': 'IKA',
+                'تهران': 'THR',
                 'مشهد': 'MHD', 
                 'دبی': 'DXB',
                 'استانبول': 'IST',
@@ -1075,22 +1114,21 @@ const App: React.FC = () => {
                 arrival: f.arrival
             })));
             
-            // Add Charter118 results to allResults FIRST
-            console.log('🔍 Adding Charter118 flights to allResults:', charter118Flights.length, 'flights');
-            charter118Flights.forEach((charter118Flight, index) => {
-                console.log(`🔍 Charter118 flight ${index + 1}:`, charter118Flight.id, charter118Flight.flightNumber);
-                const exists = allResults.some(existingFlight => existingFlight.id === charter118Flight.id);
-                if (!exists) {
-                    allResults.push(charter118Flight);
-                    console.log('🔍 Added Charter118 flight to allResults:', charter118Flight.id);
-                } else {
-                    console.log('🔍 Charter118 flight already exists in allResults:', charter118Flight.id);
-                }
-            });
+            // Skip Charter118 results - only show Sepehr data
+            console.log('🔍 Skipping Charter118 results - only showing Sepehr data');
             
             // Add Sepehr results directly from API response
             let sepehrFlights: Flight[] = [];
             try {
+                console.log('🔍 FRONTEND DEBUG - Calling Sepehr API with params:', {
+                    departureCity: fromAirportCode,
+                    arrivalCity: toAirportCode,
+                    departureDate: query.departureDate,
+                    adults: query.passengers?.adults || 1,
+                    children: query.passengers?.children || 0,
+                    infants: query.passengers?.infants || 0
+                });
+                
                 const sepehrResponse = await apiService.post('/api/v1/sepehr/search', {
                     departureCity: fromAirportCode,
                     arrivalCity: toAirportCode,
@@ -1100,35 +1138,43 @@ const App: React.FC = () => {
                     infants: query.passengers?.infants || 0
                 });
                 
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response:', sepehrResponse);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response success:', sepehrResponse.success);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response data:', sepehrResponse.data);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response data type:', typeof sepehrResponse.data);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response data.flights:', (sepehrResponse.data as any)?.data?.flights);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API response data.flights length:', (sepehrResponse.data as any)?.data?.flights?.length);
+                console.log('🔍 FRONTEND DEBUG - Condition check:', sepehrResponse.success && (sepehrResponse.data as any)?.data?.flights);
+                
                 if (sepehrResponse.success && (sepehrResponse.data as any)?.data?.flights) {
                     sepehrFlights = (sepehrResponse.data as any).data.flights.map((flight: any) => ({
                         id: flight.id,
-                        airline: flight.airline?.name?.fa || flight.airline?.name || 'سپهر',
+                        airline: flight.airline?.name?.fa || flight.airline?.name?.en || flight.airline?.name || 'سپهر',
                         flightNumber: flight.flightNumber,
                         departure: {
                             airportCode: flight.departure?.airport?.code || 'IKA',
-                            airportName: flight.departure?.airport?.name?.fa || 'فرودگاه امام خمینی',
-                            city: flight.departure?.airport?.city?.fa || query.from,
+                            airportName: flight.departure?.airport?.name?.fa || flight.departure?.airport?.name?.en || flight.departure?.airport?.name || 'فرودگاه امام خمینی',
+                            city: flight.departure?.airport?.city?.fa || flight.departure?.airport?.city?.en || flight.departure?.airport?.city || query.from,
                             dateTime: flight.departure?.dateTime
                         },
                         arrival: {
                             airportCode: flight.arrival?.airport?.code || 'DXB',
-                            airportName: flight.arrival?.airport?.name?.fa || 'فرودگاه دبی',
-                            city: flight.arrival?.airport?.city?.fa || query.to,
+                            airportName: flight.arrival?.airport?.name?.fa || flight.arrival?.airport?.name?.en || flight.arrival?.airport?.name || 'فرودگاه دبی',
+                            city: flight.arrival?.airport?.city?.fa || flight.arrival?.airport?.city?.en || flight.arrival?.airport?.city || query.to,
                             dateTime: flight.arrival?.dateTime
                         },
-                        aircraft: flight.aircraft?.name?.fa || flight.aircraft?.code || 'Boeing 737',
-                        flightClass: flight.flightClass?.name?.fa || 'اقتصادی',
+                        aircraft: flight.aircraft?.name?.fa || flight.aircraft?.name?.en || flight.aircraft?.name || flight.aircraft?.code || 'Boeing 737',
+                        flightClass: flight.flightClass?.name?.fa || flight.flightClass?.name?.en || flight.flightClass?.name || 'اقتصادی',
                         duration: flight.duration || '2h 30m',
                         stops: flight.stops || 0,
-                        price: flight.price?.adult || 1500000,
+                        price: flight.price?.adult || flight.price || 1500000,
                         taxes: 0,
                         availableSeats: flight.availableSeats || 120,
                         totalCapacity: 150,
-                        baggageAllowance: flight.baggage?.weight ? `${flight.baggage.weight} ${flight.baggage.unit}` : '20 KG',
+                        baggageAllowance: flight.baggage?.weight ? `${flight.baggage.weight} ${flight.baggage.unit?.toUpperCase()}` : '20 KG',
                         status: 'SCHEDULED' as FlightStatus,
                         source: 'sepehr',
-                        airlineLogoUrl: flight.airline?.logo || '',
+                        airlineLogoUrl: '',
                         bookingClosesBeforeDepartureHours: 24,
                         sourcingType: 'sepehr' as any,
                         allotments: [],
@@ -1137,7 +1183,8 @@ const App: React.FC = () => {
                     console.log('🔍 Sepehr API direct results:', sepehrFlights.length, 'flights found');
                 }
             } catch (sepehrError) {
-                console.log('🔍 Sepehr API direct call failed:', sepehrError);
+                console.log('🔍 FRONTEND DEBUG - Sepehr API direct call failed:', sepehrError);
+                console.log('🔍 FRONTEND DEBUG - Sepehr error details:', sepehrError);
             }
             
             // Add Sepehr results to allResults
@@ -1148,35 +1195,16 @@ const App: React.FC = () => {
                 }
             });
             
-            // Also search local flights using airport codes directly
-            let localApiResults: Flight[] = [];
-            try {
-                console.log('🔍 Searching local flights via API with airport codes:', { fromAirportCode, toAirportCode });
-                const localApiResponse = await apiService.get(`/api/v1/flights/search?from=${fromAirportCode}&to=${toAirportCode}&departureDate=${query.departureDate}&adults=${query.passengers?.adults || 1}&children=${query.passengers?.children || 0}&infants=${query.passengers?.infants || 0}`);
-                
-                if (localApiResponse.success && Array.isArray(localApiResponse.data)) {
-                    localApiResults = localApiResponse.data;
-                    console.log('🔍 Local API results:', localApiResults.length, 'flights found');
-                }
-            } catch (localApiError) {
-                console.log('🔍 Local API call failed:', localApiError);
-            }
+            // Also set sepehrResults for SEPEHR_SEARCH_RESULTS view
+            setSepehrResults(sepehrFlights);
             
-            // Add local API results to allResults
-            localApiResults.forEach(localApiFlight => {
-                const exists = allResults.some(existingFlight => existingFlight.id === localApiFlight.id);
-                if (!exists) {
-                    allResults.push(localApiFlight);
-                }
-            });
+            // Skip local API search - only show Sepehr data
+            console.log('🔍 Skipping local API search - only showing Sepehr data');
             
             console.log('🔍 ===== FINAL RESULTS SUMMARY =====');
-            console.log('🔍 Local API results:', localApiResults.length, 'flights');
             console.log('🔍 Sepehr results:', sepehrFlights.length, 'flights');
-            console.log('🔍 Charter118 results:', charter118Flights.length, 'flights');
             console.log('🔍 Total combined results:', allResults.length, 'flights');
             console.log('🔍 All results IDs:', allResults.map(f => f.id));
-            console.log('🔍 Charter118 flight IDs:', charter118Flights.map(f => f.id));
             
             // If no results found from any source, try AI search as fallback
             if (allResults.length === 0) {
@@ -1232,10 +1260,11 @@ const App: React.FC = () => {
             }
             
             // Set final results after all API calls are complete
-            console.log('🚀 SENIOR FIX - Final search results:', allResults.length, 'flights');
-            console.log('🚀 SENIOR FIX - Final search results data:', allResults);
+            console.log('🚀 FRONTEND DEBUG - Final search results:', allResults.length, 'flights');
+            console.log('🚀 FRONTEND DEBUG - Final search results data:', allResults);
+            console.log('🚀 FRONTEND DEBUG - All results IDs:', allResults.map(f => f.id));
             setFlights(allResults as any);
-            console.log('🚀 SENIOR FIX - setFlights called with:', allResults.length, 'flights');
+            console.log('🚀 FRONTEND DEBUG - setFlights called with:', allResults.length, 'flights');
             
         } catch (error) {
             console.error('🚀 SENIOR FIX - Search error:', error);
@@ -1409,157 +1438,96 @@ const App: React.FC = () => {
             // Check flight source type and route to appropriate booking API
             const flightSource = selectedFlight.source || selectedFlight.sourcingType;
             
-            if (flightSource === 'sepehr' || flightSource === 'SEPEHR_API') {
-                console.log('🔍 DEBUG - This is a Sepehr flight, using Sepehr booking API');
+            // For Sepehr flights, use direct booking flow (not suspended)
+            if (flightSource === 'sepehr' || selectedFlight.id?.startsWith('sepehr-')) {
+                console.log('🔍 DEBUG - Using direct Sepehr booking flow (not suspended)');
+                console.log('🔍 DEBUG - flightSource:', flightSource);
+                console.log('🔍 DEBUG - selectedFlight.id:', selectedFlight.id);
                 
-                // Convert passengers to Sepehr format
-                const sepehrPassengers = [
-                    ...passengersData.adults.map(p => ({
-                        firstName: p.firstName,
-                        lastName: p.lastName,
-                        gender: p.gender === 'MALE' ? 'male' : 'female',
-                        birthDate: p.dateOfBirth,
-                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
-                    })),
-                    ...passengersData.children.map(p => ({
-                        firstName: p.firstName,
-                        lastName: p.lastName,
-                        gender: p.gender === 'MALE' ? 'male' : 'female',
-                        birthDate: p.dateOfBirth,
-                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
-                    })),
-                    ...passengersData.infants.map(p => ({
-                        firstName: p.firstName,
-                        lastName: p.lastName,
-                        gender: p.gender === 'MALE' ? 'male' : 'female',
-                        birthDate: p.dateOfBirth,
-                        nationality: p.nationality === 'Iranian' ? 'IR' : 'US'
-                    }))
-                ];
-
-                const sepehrBookingData = {
-                flightId: selectedFlight.id,
-                    passengers: sepehrPassengers,
+                // Use REAL Sepehr booking with complete passenger data
+                const directBookingData = {
+                    flightId: selectedFlight.id,
+                    passengers: [
+                        ...passengersData.adults.map(p => ({
+                            firstName: p.firstName,
+                            lastName: p.lastName,
+                            gender: p.gender === 'MALE' ? 'male' : 'female',
+                            nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                            birthDate: p.dateOfBirth || '1990-01-01',
+                            passportNumber: p.passportNumber || 'A1234567',
+                            passportExpiryDate: p.passportExpiryDate || '2030-01-01'
+                        })),
+                        ...passengersData.children.map(p => ({
+                            firstName: p.firstName,
+                            lastName: p.lastName,
+                            gender: p.gender === 'MALE' ? 'male' : 'female',
+                            nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                            birthDate: p.dateOfBirth || '2010-01-01',
+                            passportNumber: p.passportNumber || 'C1234567',
+                            passportExpiryDate: p.passportExpiryDate || '2030-01-01'
+                        })),
+                        ...passengersData.infants.map(p => ({
+                            firstName: p.firstName,
+                            lastName: p.lastName,
+                            gender: p.gender === 'MALE' ? 'male' : 'female',
+                            nationality: p.nationality === 'Iranian' ? 'IR' : 'US',
+                            birthDate: p.dateOfBirth || '2020-01-01',
+                            passportNumber: p.passportNumber || 'I1234567',
+                            passportExpiryDate: p.passportExpiryDate || '2030-01-01'
+                        }))
+                    ],
+                    totalPrice: totalPrice,
                     contactInfo: {
                         email: passengersData.contactEmail,
-                        phone: passengersData.contactPhone
+                        phone: passengersData.contactPhone,
+                        address: 'تهران، ایران' // Default address for Sepehr
                     },
-                    paymentInfo: {
-                        method: 'wallet',
-                        cardNumber: '',
-                        expiryDate: '',
-                        cvv: ''
-                    }
+                    userId: currentUser.id
                 };
 
-                console.log('🔍 DEBUG - sepehrBookingData:', sepehrBookingData);
-                const response = await apiService.post('/api/v1/sepehr/booking', sepehrBookingData);
+                const directResponse = await fetch('/api/v1/bookings/direct-sepehr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    },
+                    body: JSON.stringify(directBookingData)
+                });
+
+                if (!directResponse.ok) {
+                    throw new Error(`HTTP error! status: ${directResponse.status}`);
+                }
+
+                const responseText = await directResponse.text();
+                console.log('🔍 DEBUG - Raw response:', responseText);
+
+                if (!responseText) {
+                    throw new Error('Empty response from server');
+                }
+
+                let directResponseData;
+                try {
+                    directResponseData = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('❌ JSON parse error:', parseError);
+                    console.error('❌ Response text:', responseText);
+                    throw new Error('Invalid JSON response from server');
+                }
                 
-                if (response.success && response.data) {
-                    const sepehrBooking = response.data as any;
-                    console.log('🔍 DEBUG - Sepehr booking successful:', sepehrBooking);
+                if (directResponseData.success && directResponseData.data) {
+                    const newBooking = directResponseData.data;
+                    setBookings(prev => [newBooking, ...prev]);
+
+                    // Show success message with confirmed status
+                    alert(`رزرو تایید شد!\n\nشماره رزرو: ${newBooking.bookingId || newBooking.id}\nمبلغ: ${formatNumber(totalPrice)} تومان\n\nرزرو شما با موفقیت تایید شد و بلیط صادر شده است.`);
+
+                    logActivity(currentUser, `رزرو سپهر تایید شد - ${newBooking.bookingId || newBooking.id}`);
                     
-                    // Create local booking record for tracking
-                    const localBookingData = {
-                        flightId: selectedFlight.id,
-                        passengers: sepehrPassengers.map(p => ({ name: `${p.firstName} ${p.lastName}` })),
-                        totalPrice: totalPrice,
-                contactEmail: passengersData.contactEmail,
-                contactPhone: passengersData.contactPhone,
-                        sepehrBookingId: sepehrBooking.data.bookingId,
-                        sepehrPnr: sepehrBooking.data.pnr
-                    };
-                    
-                    const localResponse = await apiService.createBooking(localBookingData);
-                    if (localResponse.success && localResponse.data) {
-                        const newBooking = localResponse.data.booking;
-                        setBookings(prev => [newBooking, ...prev]);
-                        
-                        // Save passengers to saved passengers list if requested
-                        const allNewPassengers = [...passengersData.adults, ...passengersData.children, ...passengersData.infants];
-                        const passengersToSave = allNewPassengers.filter(p => p.saveForLater && p.firstName && p.lastName && p.gender);
-                        console.log('🔍 All passengers:', allNewPassengers);
-                        console.log('🔍 Passengers to save:', passengersToSave);
-                        
-                        if (passengersToSave.length > 0) {
-                            console.log('🔍 Saving passengers to saved passengers list via API:', passengersToSave.length);
-                            
-                            // Save each passenger via API
-                            for (const passenger of passengersToSave) {
-                                try {
-                                    const passengerData = {
-                                        firstName: passenger.firstName,
-                                        lastName: passenger.lastName,
-                                        gender: passenger.gender,
-                                        nationality: passenger.nationality,
-                                        nationalId: passenger.nationalId,
-                                        passportNumber: passenger.passportNumber,
-                                        passportIssuingCountry: passenger.passportIssuingCountry,
-                                        dateOfBirth: passenger.dateOfBirth,
-                                        passportExpiryDate: passenger.passportExpiryDate,
-                                    };
-                                    
-                                    console.log('🔍 Sending passenger data to API:', passengerData);
-                                    const response = await apiService.addSavedPassenger(passengerData);
-                                    console.log('🔍 API response:', response);
-                                    if (response.success && response.data) {
-                                        console.log('✅ Passenger saved to database:', response.data.passenger.id);
-                                        // Update currentUser with the new passenger
-                                        setCurrentUser(prevUser => {
-                                            if (!prevUser) return null;
-                                            return {
-                                                ...prevUser,
-                                                savedPassengers: [...(prevUser.savedPassengers || []), response.data.passenger]
-                                            };
-                                        });
-                                    } else {
-                                        console.error('❌ Failed to save passenger:', response.error);
-                                    }
-                                } catch (error) {
-                                    console.error('❌ Error saving passenger:', error);
-                                }
-                            }
-                            
-                            logActivity(currentUser, t('activityLog.savedPassengersAdded', passengersToSave.length));
-                        }
-                        
-                        // Generate PDF ticket
-                        try {
-                            console.log('🔍 Generating PDF ticket for Sepehr booking:', newBooking.id);
-                            const pdfResponse = await apiService.generateTicketPDF(newBooking.id);
-                            if (pdfResponse.success && pdfResponse.data) {
-                                // Create download link for HTML content
-                                const blob = new Blob([pdfResponse.data as unknown as string], { type: 'text/html' });
-                                const url = window.URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `ticket-${newBooking.id}.html`;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                window.URL.revokeObjectURL(url);
-                                console.log('✅ Ticket HTML generated and downloaded');
-                                
-                                // Also open in new tab for viewing
-                                const newWindow = window.open();
-                                if (newWindow) {
-                                    newWindow.document.write(pdfResponse.data as unknown as string);
-                                    newWindow.document.close();
-                                }
-                            }
-                        } catch (pdfError) {
-                            console.log('⚠️ Could not generate PDF ticket:', pdfError);
-                        }
-                        
-                        showSuccess('رزرو موفق', `رزرو سپهر با موفقیت انجام شد! PNR: ${sepehrBooking.data.pnr}`);
-                        
-                        setSelectedFlight(null);
-                        setPassengersData(null);
-                        setView('SEARCH');
-                        return;
-                    }
+                    // Go to confirmation view
+                    setView('CONFIRMATION');
+                    return;
                 } else {
-                    showError('خطا در رزرو', response.error || 'خطا در رزرو پرواز');
+                    alert(`خطا در ایجاد رزرو: ${directResponseData.message || 'خطای نامشخص'}`);
                     return;
                 }
             } else if (flightSource === 'charter118' || flightSource === 'Charter') {
@@ -1732,19 +1700,107 @@ const App: React.FC = () => {
             
             if (response.success && response.data) {
                 const newBooking = response.data.booking;
-                    console.log('🔍 DEBUG - New booking created:', newBooking);
-                    console.log('🔍 DEBUG - New booking user:', newBooking.user);
-                    console.log('🔍 DEBUG - Current user:', currentUser);
+                console.log('🔍 DEBUG - New booking created:', newBooking);
+                console.log('🔍 DEBUG - New booking user:', newBooking.user);
+                console.log('🔍 DEBUG - Current user:', currentUser);
                 setBookings(prev => [newBooking, ...prev]);
                 
-                // Update user wallet balance
-                if (currentUser.walletBalance !== undefined) {
+                // Refresh bookings data from backend to get latest bookings
+                try {
+                    const bookingsResponse = await apiService.getUserBookings();
+                    if (bookingsResponse.success && bookingsResponse.data) {
+                        setBookings(bookingsResponse.data);
+                        console.log('✅ DEBUG - Bookings data refreshed from backend');
+                    }
+                } catch (bookingsError) {
+                    console.error('Failed to refresh bookings data:', bookingsError);
+                    // Keep the local update as fallback
+                }
+                
+                // Update user wallet balance from backend response
+                if (response.data && (response.data as any).walletUpdate) {
+                    // Refresh wallet data from backend to get latest transactions
+                    try {
+                        const walletResponse = await apiService.getUserWallet();
+                        if (walletResponse.success && walletResponse.data) {
+                            setCurrentUser(prev => ({
+                                ...prev,
+                                walletBalance: (response.data as any).walletUpdate.newBalance,
+                                wallet: walletResponse.data
+                            }));
+                            console.log('✅ DEBUG - Wallet data refreshed from backend');
+                        } else {
+                            // Fallback to local update if wallet refresh fails
+                            setCurrentUser(prev => ({
+                                ...prev,
+                                walletBalance: (response.data as any).walletUpdate.newBalance,
+                                wallet: {
+                                    ...prev.wallet,
+                                    IRR: {
+                                        ...prev.wallet?.IRR,
+                                        balance: (response.data as any).walletUpdate.newBalance,
+                                        currency: 'IRR',
+                                        transactions: prev.wallet?.IRR?.transactions || []
+                                    }
+                                }
+                            }));
+                            console.log('✅ DEBUG - Wallet balance updated locally (fallback)');
+                        }
+                    } catch (walletError) {
+                        console.error('Failed to refresh wallet data:', walletError);
+                        // Fallback to local update
+                        setCurrentUser(prev => ({
+                            ...prev,
+                            walletBalance: (response.data as any).walletUpdate.newBalance,
+                            wallet: {
+                                ...prev.wallet,
+                                IRR: {
+                                    ...prev.wallet?.IRR,
+                                    balance: (response.data as any).walletUpdate.newBalance,
+                                    currency: 'IRR',
+                                    transactions: prev.wallet?.IRR?.transactions || []
+                                }
+                            }
+                        }));
+                        console.log('✅ DEBUG - Wallet balance updated locally (error fallback)');
+                    }
+                    console.log('✅ DEBUG - Wallet balance updated from backend:', (response.data as any).walletUpdate.newBalance);
+                } else if (response.data && response.data.booking) {
+                    // If walletUpdate is not in response, try to get it from booking data
+                    const newBooking = response.data.booking;
+                    if (currentUser.walletBalance !== undefined) {
+                        const newBalance = currentUser.walletBalance - totalPrice;
+                        setCurrentUser(prev => ({
+                            ...prev,
+                            walletBalance: newBalance,
+                            wallet: {
+                                ...prev.wallet,
+                                IRR: {
+                                    ...prev.wallet?.IRR,
+                                    balance: newBalance,
+                                    currency: 'IRR',
+                                    transactions: prev.wallet?.IRR?.transactions || []
+                                }
+                            }
+                        }));
+                        console.log('✅ DEBUG - Wallet balance updated locally:', newBalance);
+                    }
+                } else if (currentUser.walletBalance !== undefined) {
                     const newBalance = currentUser.walletBalance - totalPrice;
                     setCurrentUser(prev => ({
                         ...prev,
-                        walletBalance: newBalance
+                        walletBalance: newBalance,
+                        wallet: {
+                            ...prev.wallet,
+                            IRR: {
+                                ...prev.wallet?.IRR,
+                                balance: newBalance,
+                                currency: 'IRR',
+                                transactions: prev.wallet?.IRR?.transactions || []
+                            }
+                        }
                     }));
-                    console.log('✅ DEBUG - Wallet balance updated:', newBalance);
+                    console.log('✅ DEBUG - Wallet balance updated locally:', newBalance);
                 }
 
                 if (telegramConfig.isEnabled && telegramConfig.notifyOn.newBooking) {
@@ -2255,6 +2311,8 @@ const App: React.FC = () => {
             
             const response = await apiService.createUser(newUser);
             console.log('🔍 DEBUG - Create user response:', response);
+            console.log('🔍 DEBUG - Response success:', response.success);
+            console.log('🔍 DEBUG - Response data:', response.data);
             
             if (response.success && response.data?.user) {
                 const createdUser = response.data.user;
@@ -2279,13 +2337,15 @@ const App: React.FC = () => {
             else {
                 console.error('🔍 DEBUG - Create user failed:', response.error);
                 showError('خطا در ایجاد کاربر', response.error || 'خطا در ایجاد کاربر');
-                throw new Error(response.error || 'خطا در ایجاد کاربر');
+                // Don't throw error to prevent logout - just return
+                return;
             }
         }
         catch (error) {
             console.error('🔍 DEBUG - Create user error:', error);
             showError('خطا در ایجاد کاربر', 'خطا در ایجاد کاربر');
-            throw error; // Re-throw to prevent modal from closing
+            // Don't re-throw to prevent logout - just return
+            return;
         }
     }, [currentUser, setUsers, logActivity, showSuccess, showError]);
     const handleUpdateTicket = useCallback(async (ticket: Ticket) => {
@@ -2306,7 +2366,9 @@ const App: React.FC = () => {
     }, [currentUser, setTickets, logActivity]);
     const handleAddMessageToTicket = useCallback(async (ticketId: string, message: TicketMessage): Promise<void> => {
         try {
+            console.log('🔍 handleAddMessageToTicket called with:', { ticketId, message });
             const response = await apiService.adminReplyToTicket(ticketId, message.text, {});
+            console.log('🔍 adminReplyToTicket response:', response);
             
             if (response.success && response.data) {
                 // Use the complete ticket returned from the API
@@ -2386,6 +2448,37 @@ const App: React.FC = () => {
         } catch (error) {
             console.error('❌ Error refreshing user bookings:', error);
             showError('خطا در بروزرسانی رزروها', 'خطا در بروزرسانی رزروها');
+        }
+    }, [currentUser, showSuccess, showError]);
+
+    const handleRefreshWallet = useCallback(async () => {
+        if (!currentUser || currentUser.role !== UserRole.USER) return;
+        
+        try {
+            console.log('🔄 Manual refresh of user wallet...');
+            console.log('🔄 currentUser.id:', currentUser.id);
+            
+            // Refresh apiService tokens
+            apiService.refreshTokens();
+            console.log('🔄 apiService token:', apiService.getAccessToken() ? 'exists' : 'missing');
+            
+            const walletResponse = await apiService.getUserWallet();
+            console.log('🔄 walletResponse:', walletResponse);
+            
+            if (walletResponse.success && walletResponse.data) {
+                setCurrentUser(prev => ({
+                    ...prev,
+                    wallet: walletResponse.data
+                }));
+                console.log('✅ User wallet refreshed successfully');
+                showSuccess('بروزرسانی کیف پول', 'کیف پول با موفقیت بروزرسانی شد');
+            } else {
+                console.warn('⚠️ Failed to refresh user wallet:', walletResponse.error);
+                showError('خطا در بروزرسانی کیف پول', 'خطا در بروزرسانی کیف پول');
+            }
+        } catch (error) {
+            console.error('❌ Error refreshing user wallet:', error);
+            showError('خطا در بروزرسانی کیف پول', 'خطا در بروزرسانی کیف پول');
         }
     }, [currentUser, showSuccess, showError]);
 
@@ -2732,27 +2825,25 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
 
             const createdFlight = flightResponse.data;
 
-            // Then create the booking
-            const bookingResponse = await apiService.createBooking({
-                flightId: createdFlight.id,
-                passengers: {
-                    adults: data.passengers.adults,
-                    children: data.passengers.children,
-                    infants: data.passengers.infants
-                },
-                contactEmail: data.contactEmail,
-                contactPhone: data.contactPhone,
-                buyerReference: data.buyerReference,
-                notes: data.notes,
-                purchasePrice: data.purchasePrice,
-                customerId: data.customerId,
-                searchQuery: JSON.stringify({
-                    type: 'manual_booking',
+            // Then create the manual booking using admin endpoint
+            const bookingResponse = await apiService.post('/api/v1/admin/manual-booking', {
+                method: 'POST',
+                body: JSON.stringify({
+                    userId: data.customerId,
                     flightId: createdFlight.id,
-                    airline: data.flightData.airline,
-                    departure: data.flightData.departure,
-                    arrival: data.flightData.arrival,
-                    date: data.flightData.departure.dateTime
+                    passengers: {
+                        adults: data.passengers.adults,
+                        children: data.passengers.children,
+                        infants: data.passengers.infants
+                    },
+                    contactEmail: data.contactEmail,
+                    contactPhone: data.contactPhone,
+                    buyerReference: data.buyerReference,
+                    notes: data.notes,
+                    purchasePrice: data.purchasePrice,
+                    totalPrice: data.purchasePrice,
+                    source: 'manual',
+                    status: 'CONFIRMED'
                 })
             });
 
@@ -2761,7 +2852,7 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                 return null;
             }
 
-            const createdBooking = bookingResponse.data.booking;
+            const createdBooking = (bookingResponse.data as any).booking;
 
             // Transform the booking data to match the expected structure
             const transformedBooking: Booking = {
@@ -3041,7 +3132,7 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                     <div className="mb-8">
                         <BookingStepper steps={[t('stepper.selectFlight'), t('stepper.passengerDetails'), t('stepper.review'), t('stepper.confirmAndPay')]} activeStep={step} />
                     </div>
-                    {view === 'SEARCH_RESULTS' && searchQuery && <SearchResults flights={flights} searchQuery={searchQuery} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} />}
+                    {view === 'SEARCH_RESULTS' && searchQuery && <PersianFlightResults flights={flights} onSelectFlight={handleSelectFlight} refundPolicies={refundPolicies} advertisements={advertisements} currentUser={currentUser} currencies={currencies} popularRoutes={popularRoutes} onSearch={handleSearch} searchQuery={searchQuery} />}
                     {view === 'PASSENGER_DETAILS' && selectedFlight && searchQuery && currentUser && <PassengerDetailsForm flight={selectedFlight} query={searchQuery} user={currentUser} currencies={currencies} savedPassengers={savedPassengers} onBack={handleBackToSearch} onSubmit={handlePassengerDetailsSubmit} />}
                     {view === 'REVIEW' && selectedFlight && searchQuery && passengersData && currentUser && <BookingReview flight={selectedFlight} query={searchQuery} passengers={passengersData} user={currentUser} onBack={handleBackToPassengerDetails} onConfirmBooking={handleConfirmBooking} currencies={currencies} />}
                     {view === 'CONFIRMATION' && (() => {
@@ -3089,27 +3180,28 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                 console.log('🚀 PROFESSIONAL - searchQuery in SEARCH_RESULTS case:', searchQuery);
                 console.log('🚀 PROFESSIONAL - flights in SEARCH_RESULTS case:', flights);
                 console.log('🚀 PROFESSIONAL - flights.length in SEARCH_RESULTS case:', flights.length);
+                console.log('🔍 DEBUG - About to render PersianFlightResults with flights:', flights.length);
+                console.log('🔍 DEBUG - flights data sample:', flights.slice(0, 2));
                 
                 // PROFESSIONAL APPROACH: Show SearchResults for search results
                 return (
-                    <SearchResults 
+                    <PersianFlightResults 
                         key={`search-results-${searchQuery?.from || 'unknown'}-${searchQuery?.to || 'unknown'}-${searchQuery?.departureDate || 'unknown'}`}
                         flights={flights} 
-                        searchQuery={searchQuery}
                         onSelectFlight={handleSelectFlight} 
                         refundPolicies={refundPolicies} 
-                        advertisements={advertisements} 
-                        currentUser={currentUser} 
-                        currencies={currencies} 
-                        popularRoutes={popularRoutes} 
-                        onSearch={handleSearch} 
+                        advertisements={advertisements}
+                        currentUser={currentUser}
+                        currencies={currencies}
+                        popularRoutes={popularRoutes}
+                        onSearch={handleSearch}
+                        searchQuery={searchQuery}
                     />
                 );
             case 'SEPEHR_SEARCH_RESULTS':
                 return (
-                    <SearchResults
+                    <PersianFlightResults
                         flights={sepehrResults}
-                        searchQuery={searchQuery}
                         onSelectFlight={handleSepehrFlightSelect}
                         refundPolicies={refundPolicies}
                         advertisements={advertisements}
@@ -3117,6 +3209,7 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                         currencies={currencies}
                         popularRoutes={[]}
                         onSearch={handleSearch}
+                        searchQuery={searchQuery}
                     />
                 );
             case 'SEPEHR_BOOKING':
@@ -3163,6 +3256,49 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                         </div>
                     </div>
                 );
+            case 'SUSPENDED_BOOKING_CONFIRMATION':
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="bg-white rounded-xl shadow-lg p-8 max-w-2xl w-full mx-4">
+                            <div className="text-center">
+                                <div className="text-yellow-500 text-6xl mb-4">⏳</div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                                    رزرو معلق ایجاد شد!
+                                </h2>
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold mb-2 text-yellow-800">وضعیت رزرو:</h3>
+                                    <p className="text-yellow-700"><strong>شماره رزرو:</strong> {bookings[0]?.id}</p>
+                                    <p className="text-yellow-700"><strong>وضعیت:</strong> معلق - منتظر تایید ادمین</p>
+                                    <p className="text-yellow-700"><strong>قیمت کل:</strong> {formatNumber(bookings[0]?.totalPrice || 0)} تومان</p>
+                                    <p className="text-yellow-700"><strong>مبلغ بلوکه شده:</strong> {formatNumber(bookings[0]?.totalPrice || 0)} تومان</p>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold mb-2 text-blue-800">مراحل بعدی:</h3>
+                                    <ul className="text-blue-700 text-right">
+                                        <li>• مبلغ از کیف پول شما بلوکه شده است</li>
+                                        <li>• ادمین رزرو را بررسی خواهد کرد</li>
+                                        <li>• پس از تایید، بلیط برای شما صادر می‌شود</li>
+                                        <li>• در صورت رد، مبلغ به کیف پول شما برمی‌گردد</li>
+                                    </ul>
+                                </div>
+                                <div className="flex gap-4 justify-center">
+                                    <button
+                                        onClick={() => setView('SEARCH')}
+                                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        جستجوی جدید
+                                    </button>
+                                    <button
+                                        onClick={() => setView('BOOKINGS')}
+                                        className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                    >
+                                        مشاهده رزروها
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
             case 'LOGIN':
                 return <LoginPage onLogin={handleLogin} onGoToSignup={() => setView('SIGNUP')} error={loginError} />;
             case 'SIGNUP':
@@ -3184,7 +3320,7 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                     console.log('🔍 - Current user savedPassengers:', currentUser.savedPassengers?.length || 0);
                     console.log('🔍 - Current user savedPassengers details:', currentUser.savedPassengers);
                     
-                    return <ProfilePage user={currentUser} bookings={userBookings} tickets={userTickets} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} onRefreshBookings={handleRefreshBookings} onTestToken={handleTestToken} />;
+                    return <ProfilePage user={currentUser} bookings={userBookings} tickets={userTickets} currencies={currencies} refundPolicies={refundPolicies} onLogout={handleLogout} onCancelBooking={onCancelBooking} onUpdateProfile={onUpdateProfile} onCreateTicket={onCreateTicket} onUserAddMessageToTicket={handleUserAddMessageToTicket} onAddSavedPassenger={onAddSavedPassenger} onUpdateSavedPassenger={onUpdateSavedPassenger} onDeleteSavedPassenger={onDeleteSavedPassenger} onRefreshBookings={handleRefreshBookings} onRefreshWallet={handleRefreshWallet} onTestToken={handleTestToken} />;
                 }
                 return <DashboardPage 
                     user={currentUser}
@@ -3253,6 +3389,12 @@ Test Token: ${localStorage.getItem('testToken') ? '✅' : '❌'}`);
                 return <CurrencyConverter currencies={currencies} />;
             case 'SIMPLE_TEST':
                 return <SimpleFlightTest />;
+            case 'SEPEHR_TEST':
+                return <SepehrLiveTest />;
+            case 'CRS_BOOKING_TEST':
+                return <CRSBookingTest onClose={() => setView('SEARCH')} />;
+            case 'ADMIN_BOOKING_MANAGEMENT':
+                return <AdminBookingManagement />;
             default:
                 return null;
         }

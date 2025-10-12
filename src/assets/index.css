@@ -27,11 +27,50 @@
   display: none;
 }
 
+/* Additional scrollbar hiding utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 body {
   position: relative;
   min-height: 100vh;
   margin: 0;
   -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
+}
+
+/* Mobile touch optimizations */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 768px) {
+  /* Improve touch targets */
+  button, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  /* Better spacing for mobile */
+  .mobile-spacing {
+    padding: 1rem;
+  }
+  
+  /* Improved mobile scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  /* Better mobile typography */
+  .mobile-text {
+    font-size: 16px; /* Prevent zoom on iOS */
+    line-height: 1.5;
+  }
 }
 
 @media screen and (max-width: 1600px) {

@@ -137,7 +137,7 @@ export const AdvertisementsDashboard: React.FC<AdvertisementsDashboardProps> = (
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {advertisements.map(ad => (
+                        {advertisements && Array.isArray(advertisements) && advertisements.length > 0 ? advertisements.map(ad => (
                             <tr key={ad.id}>
                                 <td className="px-6 py-4"><img src={ad.imageUrl} alt={ad.title} className="w-24 h-12 object-contain rounded"/></td>
                                 <td className="px-6 py-4 font-medium">{ad.title}</td>
@@ -155,7 +155,11 @@ export const AdvertisementsDashboard: React.FC<AdvertisementsDashboardProps> = (
                                     <button onClick={() => onDelete(ad.id)} className="p-2 text-slate-500 hover:text-red-600 rounded-full hover:bg-slate-100"><TrashIcon className="w-5 h-5" /></button>
                                 </td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr>
+                                <td colSpan={5} className="text-center py-10 text-slate-500">{t('dashboard.ads.noAds')}</td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
